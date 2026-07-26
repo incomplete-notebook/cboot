@@ -1,0 +1,126 @@
+cboot项目:实现一个交互式代码自动化(自动生成代码框架)命令行工具
+域:
+	mod	模块
+	void	函数
+	mem	成员或者参数
+	type	类型
+	struct	结构体
+	def	宏
+	var	变量
+mod的字段:
+	name	名称	字符串
+	mode	模式	取值:external,internal
+	注:external表示这是一个外部库,这里只声明API,且此mod下的一切子域必须是api模式
+	external模式:
+		value	库文件地址	字符串
+	comment	注释	字符串
+	subdomain	子域	任何域
+	value	生成文件名	字符串
+void的字段:
+	name	名称	字符串
+	comment	注释	字符串
+	code	代码	字符串(这里一般是空的,毕竟代码自动化工具只生成代码框架,因此默认值为"//请在这里输入代码")
+	mode	模式	取值:api,normal
+	注:api表示对上一级模块可用的
+	subdomain	子域	var,mem
+	type	返回类型	通过类型检查器
+	value	业务逻辑描述	字符串
+def的字段:
+	mode	模式	取值:api,normal
+	注:api表示对上一级模块可用的
+	name	名称	字符串
+	comment	注释	字符串
+	value	值	C语言合法值
+struct的字段:
+	subdomain	子域	mem
+	mode	模式	取值:api,normal
+	注:api表示对上一级模块可用的
+	name	名称	字符串
+	comment	注释	字符串
+type的字段:
+	mode	模式	api rename,api struct,rename,struct
+	注:rename就是typedef unsigned char bool这样的,struct就是typedef struct{} name这样的
+	struct模式:
+		subdomain	子域	mem
+	rename模式:
+		value	类型	类型检查器
+	name	名称	字符串
+	comment	注释	字符串
+var的字段:
+	type	类型	通过类型检查器
+	value	值	对应类型的合法值
+	mode	模式	取值:static,normal
+	注:static模式就是static type name;这样的,表示静态变量
+	name	名称	字符串
+	comment	注释	字符串
+mem的字段:
+	type	类型	通过类型检查器
+	name	名称	字符串
+	comment	注释	字符串
+指令系统:
+	建立域:<op> <name>
+		def
+		type
+		mod
+	带有type的建立域:<op> <name> <type>
+		var
+		void
+		mem
+	枚举式建立def域:
+		enum <def1>,<def2>,... <start_num>
+	修改字段:<op> <value>
+		cmt
+		value
+		mode
+	控制:<op> <域>
+		cd
+		rm
+	查找:<op> <类型:mod,def,...,all> <字符>或者<op> <类型:mod,def,...,all> <字符> <域>.带有-a表示子域也循环搜索,-an表示只深入n层子域搜索.
+		find
+	查看:<op>或<op> <域>
+		ls
+	移动:<op> <src> <target>
+		mv
+	退出:<op>
+		exit
+	生成:<op>
+		gen
+	导入:<op> <.cboot file>
+		im
+命令行启动:
+	cboot	自动执行.cboot文件
+	cboot <project>	交互式创建project
+文件创建:
+	一个mod一个目录,mod目录下放置子域
+	mod下的所有非mod子域放置在<mod name>.c和<mod name>.h中,其中<mod name>.h只放置被标记为api的def,type以及函数接口定义,其他只存在于<mod name>.c,本模块<mod name>.h还要include到上一级模块的<mod name>.c中
+	目录下还有四个.md文件:README.md(模块的注释,DOC.md和API.md和DEV.md链接,目录结构),API.md(API函数的接口,API函数的注释以及参数的注释,API宏/结构体/类型以及注释),DEV.md(函数的业务逻辑描述,所有子域的注释,非mod子域的子域的注释,mod的API.md),DOC.md(包含所有的注释,每个函数的业务逻辑描述和调用栈,所有的定义,开头放一个可跳转目录)
+	自动给每个模块生成一个cmake文件放在模块的目录里面
+	自动在各个模块的目录下放一个生成本模块的最小.cboot
+模拟命令行:
+	支持标准的命令行行为包括:
+		按下向上的剪头即可自动切回上一条命令
+		复制粘贴
+	支持警告和报错:
+		类型检查器不通过直接报错
+		名称冲突报错
+		字段非法报错
+		C语言值不合法报错
+		外部模块文件不存在警告
+		无注释警告
+		命令报错
+		等等,具体看
+cboot微调:
+	针对由cboot生成的项目,用户输入cboot时检测到.cboot并且检测到已经完整的生成的时候进入微调模式
+	微调模式先完整的更新cboot,包括更新void的code字段
+	然后用户在交互式中修改
+	之后执行gen
+cboot -to_cboot:
+	cboot -to_cboot <目录>
+	通过Makefile和cmake的指引,扫描整个目录,尝试把非cboot项目的主要源代码转换成cboot项目
+	先尝试生成.cboot文件(包括void的code字段),此时可以自动调整一些名称和一些属性但是保证依赖关系
+	发生名称修改则弹出名称修改警告
+	如果过于复杂,不能转化成cboot项目则弹出报错并且指出具体报错的位置(什么东西导致to-cboot不能处理)
+每次大改后要自举cboot以示工程可用,并在自举过程中发现和修正潜在问题
+为了简化开发难度,要从github上拉取tinycc mob的代码仓,这里面有一些极小的完整的C语法解析代码和Makefile解析代码以供参考
+同时-to_cboot完成后进行测试时,要求至少可以完成对tinycc mob的转化(转化后得到的项目可以直接编译无问题),以证明-to_cboot工具是工程可用的
+对于cboot微调的测试要求编写一个矩阵乘法项目来测试微调能力,初始使用double矩阵乘法,然后写入代码,然后通过cboot微调改为float,然后检查微调后的代码有没有问题
