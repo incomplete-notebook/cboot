@@ -6,14 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Forward declarations for struct types used in API signatures */
-typedef struct Project Project;
-typedef struct Domain Domain;
+// 生成文档
+int generate_docs(Project* proj, char* output_dir);
 
-// 生成项目级文档
-int generate_docs(struct Project* proj, char* output_dir);
-
-// 为单个模块生成文档
-void generate_module_docs(struct Domain* mod, char* dir);
+// 生成模块文档
+void generate_module_docs(Domain* mod, char* dir);
 
 #endif /* DOCGEN_H */

@@ -6,16 +6,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-// 确保目录存在，不存在则创建
-int ensure_dir(char* path);
+// 分词
+char** tokenize(char* line, int* count);
 
-// 字符串相等比较
-int str_eq(char* a, char* b);
+// 释放token
+void free_tokens(char** tokens, int count);
 
-// 字符串复制
-char* str_dup(char* src);
+// 去空白
+char* trim(char* str);
 
-// 去除字符串首尾的引号
+// 创建目录
+void ensure_dir(char* path);
+
+// 文件是否存在
+int file_exists(char* path);
+
+// 有效标识符
+int is_valid_identifier(char* name);
+
+// 去引号
 void strip_quotes(char* str);
 
 #endif /* UTILS_H */

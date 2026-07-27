@@ -1,19 +1,34 @@
-/* typecheck.h - CBoot generated (API declarations only) */
+/*
+ * CBoot - Type Checker v2.0
+ *
+ * Validates C types against built-in types and user-defined types
+ * in the domain tree. Supports typedef resolution and value validation
+ * for built-in types.
+ */
+
 #ifndef TYPECHECK_H
 #define TYPECHECK_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "domain/domain.h"
 
-/* Forward declarations for struct types used in API signatures */
-typedef struct Domain Domain;
-typedef struct Project Project;
+/* ------------------------------------------------------------------ */
+/* TypeChecker                                                         */
+/* ------------------------------------------------------------------ */
 
-// 检查单个域的类型一致性
-int typecheck_domain(struct Domain* domain);
+typedef struct TypeChecker {
+    Domain *scope;
+    char   *error_buf;
+    int     error_len;
+} TypeChecker;
 
-// 检查整个项目的类型一致性
-int typecheck_project(struct Project* proj);
+/* ------------------------------------------------------------------ */
+/* Public API                                                          */
+/* ------------------------------------------------------------------ */
+
+void        type_checker_init(TypeChecker *tc, Domain *scope);
+int         type_checker_validate(TypeChecker *tc, const char *type_name);
+int         type_checker_is_builtin(const char *type_name);
+const char *type_checker_resolve_typedef(TypeChecker *tc, const char *type_name);
+int         type_checker_validate_value(const char *type_name, const char *value);
 
 #endif /* TYPECHECK_H */

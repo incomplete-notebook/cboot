@@ -1,111 +1,293 @@
-/* domain.h - CBoot generated (API declarations only) */
+/*
+ * CBoot - C Project Bootstrapping Tool v2.0
+ * Domain data model
+ */
+
 #ifndef DOMAIN_H
 #define DOMAIN_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
-// 域类型枚举: module/function/struct/type/macro/variable/member
-typedef int DomainType;
+/* ------------------------------------------------------------------ */
+/* Domain type enumeration                                             */
+/* ------------------------------------------------------------------ */
 
-// 模块模式: internal(正常编译)/external(外部API引用)
-typedef int ModMode;
+typedef enum {
+	DOMAIN_MODULE,
+	DOMAIN_FUNCTION,
+	DOMAIN_STRUCT,
+	DOMAIN_TYPE,
+	DOMAIN_MACRO,
+	DOMAIN_VARIABLE,
+	DOMAIN_MEMBER
+} DomainType;
 
-// 编译模式: normal(普通.o)/exe(可执行)/sl(静态库)/dl(动态库)
-typedef int CompilerMode;
+/* ------------------------------------------------------------------ */
+/* Mode enumerations                                                   */
+/* ------------------------------------------------------------------ */
 
-// API模式: api(公开接口)/normal(私有实现)
-typedef int ApiMode;
+typedef enum {
+	MOD_MODE_INTERNAL,
+	MOD_MODE_EXTERNAL
+} ModMode;
 
-// 类型模式: rename(别名)/struct(结构体)/api rename/api struct
-typedef int TypeMode;
+typedef enum {
+	COMPILER_NORMAL,
+	COMPILER_EXE,
+	COMPILER_SL,
+	COMPILER_DL
+} CompilerMode;
 
-// 变量模式: static/normal
-typedef int VarMode;
+typedef enum {
+	API_MODE_API,
+	API_MODE_NORMAL
+} ApiMode;
 
-// 域树基础节点，所有域类型的基类
-typedef struct Domain Domain;
+typedef enum {
+	TYPE_MODE_RENAME,
+	TYPE_MODE_STRUCT,
+	TYPE_MODE_API_RENAME,
+	TYPE_MODE_API_STRUCT
+} TypeMode;
 
-// 模块域 - 项目中的一个模块节点，含编译模式和依赖管理
-typedef struct ModuleDomain ModuleDomain;
+typedef enum {
+	VAR_MODE_STATIC,
+	VAR_MODE_NORMAL
+} VarMode;
 
-// 函数域 - 项目中的函数定义
-typedef struct FunctionDomain FunctionDomain;
+/* ------------------------------------------------------------------ */
+/* Run mode                                                            */
+/* ------------------------------------------------------------------ */
 
-// 结构体域 - 项目中的结构体类型定义
-typedef struct StructDomain StructDomain;
+typedef enum {
+	MODE_INTERACTIVE,
+	MODE_BATCH,
+	MODE_FINE_TUNE,
+	MODE_TO_CBOOT,
+	MODE_HELP
+} RunMode;
 
-// 类型域 - typedef定义
-typedef struct TypeDomain TypeDomain;
+/* ------------------------------------------------------------------ */
+/* Comment                                                             */
+/* ------------------------------------------------------------------ */
 
-// 宏域 - #define定义
-typedef struct MacroDomain MacroDomain;
+typedef struct Comment {
+	char *target;       /* parameter or member name */
+	char *text;         /* comment text */
+} Comment;
 
-// 变量域 - 变量定义
-typedef struct VariableDomain VariableDomain;
+/* ------------------------------------------------------------------ */
+/* Domain (base of all domain types)                                    */
+/* ------------------------------------------------------------------ */
 
-// 成员域 - 结构体成员或函数参数
-typedef struct MemberDomain MemberDomain;
+typedef struct Domain {
+	DomainType   type;
+	char        *name;
+	char        *comment;
+	struct Domain *parent;
+	struct Domain **children;
+	int           child_count;
+	int           child_capacity;
+	Comment      *comments;
+	int           comment_count;
+	int           comment_capacity;
+} Domain;
 
-// 依赖记录 - im命令建立的API依赖关系
-typedef struct Dependency Dependency;
+/* ------------------------------------------------------------------ */
+/* ModuleDomain (domain with module-specific data)                      */
+/* ------------------------------------------------------------------ */
 
-// 项目容器 - 整个项目的根节点和全局状态
-typedef struct Project Project;
+typedef struct ModuleDomain {
+	Domain      base;
+	ModMode     mode;
+	CompilerMode compiler;
+	char       *value;
+	char       **includes;
+	int         include_count;
+	int         include_capacity;
+	char       **dependencies;
+	int         dep_count;
+	int         dep_capacity;
+} ModuleDomain;
 
-// 创建新域节点，分配内存并初始化所有字段
-struct Domain* domain_new(int type, char* name, size_t size);
+/* ------------------------------------------------------------------ */
+/* FunctionDomain (domain with function-specific data)                  */
+/* ------------------------------------------------------------------ */
 
-// 创建新模块域
-struct ModuleDomain* module_domain_new(char* name);
+typedef struct FunctionDomain {
+	Domain  base;
+	ApiMode mode;
+	char   *return_type;
+	char   *code;
+	char   *value;
+} FunctionDomain;
 
-// 创建新函数域
-struct FunctionDomain* function_domain_new(char* name, char* return_type);
+/* ------------------------------------------------------------------ */
+/* StructDomain (domain with struct-specific data)                      */
+/* ------------------------------------------------------------------ */
 
-// 创建新结构体域
-struct StructDomain* struct_domain_new(char* name);
+typedef struct StructDomain {
+	Domain  base;
+	ApiMode mode;
+} StructDomain;
 
-// 创建新类型域
-struct TypeDomain* type_domain_new(char* name);
+/* ------------------------------------------------------------------ */
+/* TypeDomain (domain with typedef-specific data)                       */
+/* ------------------------------------------------------------------ */
 
-// 创建新宏域
-struct MacroDomain* macro_domain_new(char* name);
+typedef struct TypeDomain {
+	Domain   base;
+	TypeMode mode;
+	char    *value;
+} TypeDomain;
 
-// 创建新变量域
-struct VariableDomain* variable_domain_new(char* name, char* type);
+/* ------------------------------------------------------------------ */
+/* MacroDomain (domain with macro-specific data)                        */
+/* ------------------------------------------------------------------ */
 
-// 创建新成员域(结构体成员或函数参数)
-struct MemberDomain* member_domain_new(char* name, char* type);
+typedef struct MacroDomain {
+	Domain  base;
+	ApiMode mode;
+	char   *value;
+} MacroDomain;
 
-// 添加子域到父域，自动设置parent指针
-void domain_add_child(struct Domain* parent, struct Domain* child);
+/* ------------------------------------------------------------------ */
+/* VariableDomain (domain with variable-specific data)                  */
+/* ------------------------------------------------------------------ */
 
-// 按名称查找直接子域
-struct Domain* domain_find_child(struct Domain* parent, char* name);
+typedef struct VariableDomain {
+	Domain  base;
+	VarMode mode;
+	char   *type;
+	char   *value;
+} VariableDomain;
 
-// 在子模块中递归查找API项，用于名称冲突检测和类型解析
-struct Domain* domain_find_api_in_submodules(struct Domain* scope, char* name);
+/* ------------------------------------------------------------------ */
+/* MemberDomain (domain with struct-member-specific data)               */
+/* ------------------------------------------------------------------ */
 
-// 检查名称是否与子模块API项冲突
-struct Domain* domain_check_api_name_conflict(struct Domain* scope, char* name);
+typedef struct MemberDomain {
+	Domain  base;
+	char   *type;
+} MemberDomain;
 
-// 获取域的完整路径字符串(如 /module/submodule)
-char* domain_get_path(struct Domain* domain);
+/* ------------------------------------------------------------------ */
+/* Dependency record (for im command - API-only import)                */
+/* ------------------------------------------------------------------ */
 
-// 设置域的注释文本
-void domain_set_comment(struct Domain* domain, char* text);
+typedef struct Dependency {
+	char *importer;   /* module path that uses the API (e.g. "/a/b") */
+	char *source;     /* source module path providing the API (e.g. "/a/c") */
+	char *cboot_file; /* .cboot file the API was imported from */
+} Dependency;
 
-// 设置域的模式字段
-void domain_set_mode(struct Domain* domain, int mode);
+/* ------------------------------------------------------------------ */
+/* Project (top-level state)                                            */
+/* ------------------------------------------------------------------ */
 
-// 创建新项目
-struct Project* project_new(char* name);
+typedef struct Project {
+	char    *name;
+	Domain  *root;
+	Domain  *current;
+	int      has_generated;
+	char    *cboot_file;
+	int      fine_tune_mode;
+	char   **imported_projects;   /* for `in` command: copied subprojects */
+	int      import_count;
+	int      import_capacity;
+	char   **imported_libs;
+	int      lib_count;
+	int      lib_capacity;
+	Dependency *dependencies;    /* for `im` command: API-only deps */
+	int      dep_count;
+	int      dep_capacity;
+} Project;
 
-// 添加依赖记录(im命令使用)
-void project_add_dependency(struct Project* proj, char* importer_path, char* source_path, char* cboot_file);
+/* ------------------------------------------------------------------ */
+/* Global state                                                        */
+/* ------------------------------------------------------------------ */
 
-// 检查依赖是否已存在
-int project_has_dependency(struct Project* proj, char* importer_path, char* source_path);
+extern Project *g_proj;
+extern RunMode  g_mode;
+extern int      g_force;
+extern int      g_running;
+
+/* ------------------------------------------------------------------ */
+/* Domain creation functions                                            */
+/* ------------------------------------------------------------------ */
+
+Domain        *domain_new(DomainType type, const char *name, size_t struct_size);
+ModuleDomain  *module_domain_new(const char *name);
+FunctionDomain *function_domain_new(const char *name, const char *return_type);
+StructDomain  *struct_domain_new(const char *name);
+TypeDomain    *type_domain_new(const char *name);
+MacroDomain   *macro_domain_new(const char *name);
+VariableDomain *variable_domain_new(const char *name, const char *type);
+MemberDomain  *member_domain_new(const char *name, const char *type);
+
+/* ------------------------------------------------------------------ */
+/* Domain tree operations                                               */
+/* ------------------------------------------------------------------ */
+
+void    domain_add_child(Domain *parent, Domain *child);
+Domain *domain_find_child(Domain *parent, const char *name);
+Domain *domain_find_child_by_type(Domain *parent, const char *name, DomainType type);
+void    domain_delete(Domain *domain);
+void    domain_remove_child(Domain *parent, Domain *child);
+
+/* ------------------------------------------------------------------ */
+/* Domain search utilities                                              */
+/* ------------------------------------------------------------------ */
+
+Domain *domain_find_nearest_of_type(Domain *from, DomainType type);
+Domain *domain_find_in_tree(Domain *root, DomainType type, const char *name);
+char   *domain_get_path(Domain *domain);
+int     domain_is_api(Domain *domain);
+
+/* Find an API-visible item in submodules (recursive).
+ * Searches direct children first, then recurses into module children
+ * looking for API-mode items of the given name.
+ * Used for name conflict detection and type resolution. */
+Domain *domain_find_api_in_submodules(Domain *scope, const char *name);
+
+/* Check if a name would conflict with any API item from submodules.
+ * Returns the conflicting domain if found, NULL otherwise. */
+Domain *domain_check_api_name_conflict(Domain *scope, const char *name);
+
+/* ------------------------------------------------------------------ */
+/* Comment operations                                                   */
+/* ------------------------------------------------------------------ */
+
+void     domain_set_comment(Domain *domain, const char *text);
+void     domain_set_child_comment(Domain *domain, const char *target, const char *text);
+Comment *domain_find_child_comment(Domain *domain, const char *target);
+
+/* ------------------------------------------------------------------ */
+/* Value and mode operations                                            */
+/* ------------------------------------------------------------------ */
+
+void domain_set_value(Domain *domain, const char *value);
+void domain_set_mode(Domain *domain, int mode);
+
+/* ------------------------------------------------------------------ */
+/* Project operations                                                   */
+/* ------------------------------------------------------------------ */
+
+Project *project_new(const char *name);
+void     project_free(Project *proj);
+
+/* Add a dependency record (for im command) */
+void     project_add_dependency(Project *proj, const char *importer_path,
+                                const char *source_path, const char *cboot_file);
+
+/* Check if a dependency already exists (importer->source) */
+int      project_has_dependency(Project *proj, const char *importer_path,
+                                const char *source_path);
+
+/* ------------------------------------------------------------------ */
+/* Type detection                                                       */
+/* ------------------------------------------------------------------ */
+
+int is_builtin_type(const char *type_name);
 
 #endif /* DOMAIN_H */
