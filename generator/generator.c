@@ -1023,7 +1023,7 @@ static void generate_top_main(Project *proj) {
 
 static void generate_project_cboot(Project *proj) {
     char path[MAX_PATH_LEN];
-    snprintf(path, sizeof(path), "%s.cboot", proj->name);
+    snprintf(path, sizeof(path), ".cboot");
 
     FILE *f = fopen(path, "w");
     if (!f) {

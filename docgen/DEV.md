@@ -28,12 +28,6 @@ int generate_docs(struct Project* proj, char* output_dir)
 | `proj` | `struct Project*` | 项目定义 |
 | `output_dir` | `char*` | 输出目录 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### void generate_module_docs()
@@ -54,12 +48,6 @@ void generate_module_docs(struct Domain* mod, char* dir)
 |------|------|------|
 | `mod` | `struct Domain*` | 模块域 |
 | `dir` | `char*` | 模块目录路径 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 

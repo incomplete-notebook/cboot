@@ -27,12 +27,6 @@ int typecheck_domain(struct Domain* domain)
 |------|------|------|
 | `domain` | `struct Domain*` | 待检查域 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int typecheck_project()
@@ -52,12 +46,6 @@ int typecheck_project(struct Project* proj)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `proj` | `struct Project*` | 项目定义 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 

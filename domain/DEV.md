@@ -29,12 +29,6 @@ struct Domain* domain_new(int type, char* name, size_t size)
 | `name` | `char*` | 域名称 |
 | `size` | `size_t` | 结构体大小 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct ModuleDomain* module_domain_new()
@@ -54,12 +48,6 @@ struct ModuleDomain* module_domain_new(char* name)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `name` | `char*` | 模块名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -82,12 +70,6 @@ struct FunctionDomain* function_domain_new(char* name, char* return_type)
 | `name` | `char*` | 函数名称 |
 | `return_type` | `char*` | 返回类型 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct StructDomain* struct_domain_new()
@@ -107,12 +89,6 @@ struct StructDomain* struct_domain_new(char* name)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `name` | `char*` | 结构体名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -134,12 +110,6 @@ struct TypeDomain* type_domain_new(char* name)
 |------|------|------|
 | `name` | `char*` | 类型名称 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct MacroDomain* macro_domain_new()
@@ -159,12 +129,6 @@ struct MacroDomain* macro_domain_new(char* name)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `name` | `char*` | 宏名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -187,12 +151,6 @@ struct VariableDomain* variable_domain_new(char* name, char* type)
 | `name` | `char*` | 变量名称 |
 | `type` | `char*` | 变量类型 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct MemberDomain* member_domain_new()
@@ -213,12 +171,6 @@ struct MemberDomain* member_domain_new(char* name, char* type)
 |------|------|------|
 | `name` | `char*` | 成员名称 |
 | `type` | `char*` | 成员类型 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -241,12 +193,6 @@ void domain_add_child(struct Domain* parent, struct Domain* child)
 | `parent` | `struct Domain*` | 父域指针 |
 | `child` | `struct Domain*` | 子域指针 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct Domain* domain_find_child()
@@ -267,12 +213,6 @@ struct Domain* domain_find_child(struct Domain* parent, char* name)
 |------|------|------|
 | `parent` | `struct Domain*` | 父域指针 |
 | `name` | `char*` | 目标名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -295,12 +235,6 @@ struct Domain* domain_find_api_in_submodules(struct Domain* scope, char* name)
 | `scope` | `struct Domain*` | 搜索起始域 |
 | `name` | `char*` | 目标名称 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct Domain* domain_check_api_name_conflict()
@@ -322,12 +256,6 @@ struct Domain* domain_check_api_name_conflict(struct Domain* scope, char* name)
 | `scope` | `struct Domain*` | 检查起始域 |
 | `name` | `char*` | 目标名称 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### char* domain_get_path()
@@ -347,12 +275,6 @@ char* domain_get_path(struct Domain* domain)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `domain` | `struct Domain*` | 目标域 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -375,12 +297,6 @@ void domain_set_comment(struct Domain* domain, char* text)
 | `domain` | `struct Domain*` | 目标域 |
 | `text` | `char*` | 注释文本 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### void domain_set_mode()
@@ -402,12 +318,6 @@ void domain_set_mode(struct Domain* domain, int mode)
 | `domain` | `struct Domain*` | 目标域 |
 | `mode` | `int` | 模式值 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### struct Project* project_new()
@@ -427,12 +337,6 @@ struct Project* project_new(char* name)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `name` | `char*` | 项目名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -457,12 +361,6 @@ void project_add_dependency(struct Project* proj, char* importer_path, char* sou
 | `source_path` | `char*` | 源模块路径 |
 | `cboot_file` | `char*` | 源.cboot文件路径 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int project_has_dependency()
@@ -484,12 +382,6 @@ int project_has_dependency(struct Project* proj, char* importer_path, char* sour
 | `proj` | `struct Project*` | 项目指针 |
 | `importer_path` | `char*` | 导入方路径 |
 | `source_path` | `char*` | 源模块路径 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 

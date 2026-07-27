@@ -28,12 +28,6 @@ int parse_cboot(char* filepath, struct Project* proj)
 | `filepath` | `char*` | 文件路径 |
 | `proj` | `struct Project*` | 输出项目 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int dispatch_script_line()
@@ -54,12 +48,6 @@ int dispatch_script_line(char** tokens, int count)
 |------|------|------|
 | `tokens` | `char**` | 分词数组 |
 | `count` | `int` | 分词数量 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 

@@ -27,12 +27,6 @@ int cmd_mod(char* name)
 |------|------|------|
 | `name` | `char*` | 模块名称 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_struct()
@@ -52,12 +46,6 @@ int cmd_struct(char* name)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `name` | `char*` | 结构体名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -79,12 +67,6 @@ int cmd_type(char* name)
 |------|------|------|
 | `name` | `char*` | 类型名称 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_def()
@@ -104,12 +86,6 @@ int cmd_def(char* name)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `name` | `char*` | 宏名称 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -132,12 +108,6 @@ int cmd_void(char* name, char* return_type)
 | `name` | `char*` | 函数名称 |
 | `return_type` | `char*` | 返回类型 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_var()
@@ -158,12 +128,6 @@ int cmd_var(char* name, char* type)
 |------|------|------|
 | `name` | `char*` | 变量名称 |
 | `type` | `char*` | 变量类型 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -186,12 +150,6 @@ int cmd_mem(char* name, char* type)
 | `name` | `char*` | 成员/参数名称 |
 | `type` | `char*` | 类型 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_cmt()
@@ -211,12 +169,6 @@ int cmd_cmt(char* text)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `text` | `char*` | 注释文本 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -238,12 +190,6 @@ int cmd_mode(char* text)
 |------|------|------|
 | `text` | `char*` | 模式值(api/normal/internal/external/static/rename/struct等) |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_cmode()
@@ -263,12 +209,6 @@ int cmd_cmode(char* text)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `text` | `char*` | 编译器模式值(exe/sl/dl/normal) |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -290,12 +230,6 @@ int cmd_cd(char* path)
 |------|------|------|
 | `path` | `char*` | 目标路径(支持..和/前缀) |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_gen()
@@ -308,12 +242,6 @@ int cmd_cd(char* path)
 
 ```c
 int cmd_gen()
-```
-
-**实现**:
-
-```c
-//请在这里输入代码
 ```
 
 ---
@@ -336,12 +264,6 @@ int cmd_im(char* filename)
 |------|------|------|
 | `filename` | `char*` | 源.cboot文件路径 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_in()
@@ -362,12 +284,6 @@ int cmd_in(char* filename)
 |------|------|------|
 | `filename` | `char*` | 源.cboot文件路径 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_help()
@@ -382,12 +298,6 @@ int cmd_in(char* filename)
 int cmd_help()
 ```
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### int cmd_quit()
@@ -400,12 +310,6 @@ int cmd_help()
 
 ```c
 int cmd_quit()
-```
-
-**实现**:
-
-```c
-//请在这里输入代码
 ```
 
 ---

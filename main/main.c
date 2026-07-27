@@ -35,6 +35,7 @@ static int  detect_fine_tune_mode(void);
 int main(int argc, char **argv) {
     const char *proj_name = NULL;
     const char *to_cboot_dir = NULL;
+    const char *script_file = NULL;
 
     /* 解析命令行参数 */
     for (int i = 1; i < argc; i++) {
@@ -53,7 +54,13 @@ int main(int argc, char **argv) {
             print_usage(argv[0]);
             return 1;
         } else {
-            proj_name = argv[i];
+            /* 判断是 .cboot 脚本文件还是项目名 */
+            int len = (int)strlen(argv[i]);
+            if (len > 6 && strcmp(argv[i] + len - 6, ".cboot") == 0) {
+                script_file = argv[i];
+            } else {
+                proj_name = argv[i];
+            }
         }
     }
 
@@ -70,39 +77,39 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    /* 批处理模式: 无项目名，读取 .cboot */
-    if (!proj_name) {
+    /* 指定了 .cboot 脚本文件：批处理执行 */
+    if (script_file) {
         g_mode = MODE_BATCH;
-
-        /* 检测微调模式 */
-        if (file_exists(".cboot") && detect_fine_tune_mode()) {
-            g_mode = MODE_FINE_TUNE;
-            printf("CBoot v%s - 微调模式\n", CBOOT_VERSION);
-            printf("检测到已生成的项目，进入微调模式。\n");
-            g_proj = project_new("cboot_project");
-            if (parse_cboot_script(".cboot") != 0) {
-                fprintf(stderr, "cboot: 脚本执行失败\n");
-                return 1;
-            }
-            /* 进入 REPL 进行微调 */
-            repl_loop();
-            project_free(g_proj);
-            return 0;
-        }
-
-        if (!file_exists(".cboot")) {
-            fprintf(stderr, "cboot: 未找到 .cboot 脚本，且未指定项目名\n");
-            print_usage(argv[0]);
+        if (!file_exists(script_file)) {
+            fprintf(stderr, "cboot: 未找到脚本文件 '%s'\n", script_file);
             return 1;
         }
         g_proj = project_new("cboot_project");
-        printf("CBoot v%s - 批处理模式\n", CBOOT_VERSION);
-        if (parse_cboot_script(".cboot") != 0) {
+        printf("CBoot v%s - 批处理模式 (%s)\n", CBOOT_VERSION, script_file);
+        if (parse_cboot_script(script_file) != 0) {
             fprintf(stderr, "cboot: 脚本执行失败\n");
             return 1;
         }
         project_free(g_proj);
         return 0;
+    }
+
+    /* 无参数：有 .cboot 则执行，无则显示帮助 */
+    if (!proj_name) {
+        if (file_exists(".cboot")) {
+            g_mode = MODE_BATCH;
+            g_proj = project_new("cboot_project");
+            printf("CBoot v%s - 批处理模式 (.cboot)\n", CBOOT_VERSION);
+            if (parse_cboot_script(".cboot") != 0) {
+                fprintf(stderr, "cboot: 脚本执行失败\n");
+                return 1;
+            }
+            project_free(g_proj);
+            return 0;
+        }
+        fprintf(stderr, "cboot: 未指定项目名或 .cboot 脚本\n");
+        print_usage(argv[0]);
+        return 1;
     }
 
     /* 交互模式 */
@@ -168,11 +175,12 @@ static int detect_fine_tune_mode(void) {
 static void print_usage(const char *prog) {
     printf("CBoot v%s - C 项目引导工具\n\n", CBOOT_VERSION);
     printf("用法:\n");
-    printf("  %s <项目名>          交互模式，创建项目并进入 REPL\n", prog);
-    printf("  %s <项目名> -f       交互模式，强制重建项目\n", prog);
-    printf("  %s                   批处理模式，读取 .cboot 脚本\n", prog);
-    printf("  %s -to_cboot <目录>  反向工程：将 C 项目转为 .cboot\n", prog);
-    printf("  %s -h                显示帮助\n", prog);
+    printf("  %s <项目名>            交互模式，创建项目并进入 REPL\n", prog);
+    printf("  %s <项目名> -f         交互模式，强制重建项目\n", prog);
+    printf("  %s <file.cboot>        执行指定的 .cboot 脚本文件\n", prog);
+    printf("  %s                     批处理模式，读取当前目录 .cboot\n", prog);
+    printf("  %s -to_cboot <目录>    反向工程：将 C 项目转为 .cboot\n", prog);
+    printf("  %s -h                  显示帮助\n", prog);
     printf("\n交互模式命令:\n");
     printf("  建立域:\n");
     printf("    mod <名称>             创建模块\n");

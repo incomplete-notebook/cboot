@@ -28,12 +28,6 @@ int generate_project(struct Project* proj, char* output_dir)
 | `proj` | `struct Project*` | 项目定义 |
 | `output_dir` | `char*` | 输出目录(项目根即为源码根) |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### void generate_module()
@@ -54,12 +48,6 @@ void generate_module(struct Domain* mod, char* parent_dir)
 |------|------|------|
 | `mod` | `struct Domain*` | 模块域 |
 | `parent_dir` | `char*` | 父目录 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -82,12 +70,6 @@ void generate_mod_c(struct Domain* mod, char* dir)
 | `mod` | `struct Domain*` | 模块域 |
 | `dir` | `char*` | 模块目录路径 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### void generate_mod_h()
@@ -108,12 +90,6 @@ void generate_mod_h(struct Domain* mod, char* dir)
 |------|------|------|
 | `mod` | `struct Domain*` | 模块域 |
 | `dir` | `char*` | 模块目录路径 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
@@ -136,12 +112,6 @@ void generate_mod_cmake(struct Domain* mod, char* dir)
 | `mod` | `struct Domain*` | 模块域 |
 | `dir` | `char*` | 模块目录路径 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### void generate_top_cmake()
@@ -162,12 +132,6 @@ void generate_top_cmake(struct Project* proj)
 |------|------|------|
 | `proj` | `struct Project*` | 项目定义 |
 
-**实现**:
-
-```c
-//请在这里输入代码
-```
-
 ---
 
 ### void generate_top_main()
@@ -187,12 +151,6 @@ void generate_top_main(struct Project* proj)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `proj` | `struct Project*` | 项目定义 |
-
-**实现**:
-
-```c
-//请在这里输入代码
-```
 
 ---
 
