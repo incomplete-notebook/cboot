@@ -51,14 +51,15 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-# CBoot build artifacts
+# Build artifacts
 build/
-cboot
-bootstrap_test2/
-bootstrap_test/build/
 
-# CMake build directories
-bootstrap_test/build/
+# CMake user presets
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
 
 # Trae internal files
 .trae/
