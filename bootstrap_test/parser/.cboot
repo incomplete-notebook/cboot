@@ -1,0 +1,17 @@
+# CBoot minimal file for module parser
+# 此文件在模块 parser 作用域下执行，不需要 mod parser
+
+cmt "脚本解析器 - 解析.cboot脚本文件为项目定义"
+cmode normal
+void parse_cboot int
+cd parse_cboot
+mode api
+cmt "解析.cboot脚本文件"
+value "逐行读取脚本，分派命令到对应处理函数，支持#注释"
+mem filepath char*
+cmt "文件路径"
+mem proj struct Project*
+cmt "输出项目"
+cd ..
+
+# End of .cboot for parser

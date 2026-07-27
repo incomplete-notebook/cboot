@@ -1,0 +1,62 @@
+# CBoot minimal file for module domain
+# 此文件在模块 domain 作用域下执行，不需要 mod domain
+
+cmt "域数据模型 - 定义所有域类型、域树结构和项目容器"
+cmode normal
+type DomainType
+cd DomainType
+mode api rename
+cmt "域类型枚举: module/function/struct/type/macro/variable/member"
+value "int"
+cd ..
+type ModMode
+cd ModMode
+mode api rename
+cmt "模块模式: internal(正常编译)/external(外部API引用)"
+value "int"
+cd ..
+type CompilerMode
+cd CompilerMode
+mode api rename
+cmt "编译模式: normal(普通.o)/exe(可执行)/sl(静态库)/dl(动态库)"
+value "int"
+cd ..
+type ApiMode
+cd ApiMode
+mode api rename
+cmt "API模式: api(公开接口)/normal(私有实现)"
+value "int"
+cd ..
+type TypeMode
+cd TypeMode
+mode api rename
+cmt "类型模式: rename(别名)/struct(结构体)/api rename/api struct"
+value "int"
+cd ..
+type VarMode
+cd VarMode
+mode api rename
+cmt "变量模式: static/normal"
+value "int"
+cd ..
+struct Domain
+cd Domain
+mode api
+cmt "域树基础节点，所有域类型的基类"
+mem name char*
+cmt "域名称"
+mem type int
+cmt "域类型(DomainType枚举)"
+mem comment char*
+cmt "域注释文本"
+mem parent struct Domain*
+cmt "父域指针"
+mem children struct Domain**
+cmt "子域数组"
+mem child_count int
+cmt "子域数量"
+mem child_capacity int
+cmt "子域数组容量"
+cd ..
+
+# End of .cboot for domain

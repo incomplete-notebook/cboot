@@ -1,0 +1,765 @@
+# CBoot project file for cboot
+project cboot
+
+cmt "CBoot - C 项目引导工具。通过自举方式构建，支持模块化代码生成、API 可见性区分、依赖链管理、多种编译模式（exe/sl/dl/normal）等功能。"
+
+mod domain
+cd domain
+cmode normal
+cmt "域数据模型 - 定义所有域类型、域树结构和项目容器"
+  type DomainType
+  cd DomainType
+  mode api rename
+  cmt "域类型枚举: module/function/struct/type/macro/variable/member"
+  value "int"
+  cd ..
+
+  type ModMode
+  cd ModMode
+  mode api rename
+  cmt "模块模式: internal(正常编译)/external(外部API引用)"
+  value "int"
+  cd ..
+
+  type CompilerMode
+  cd CompilerMode
+  mode api rename
+  cmt "编译模式: normal(普通.o)/exe(可执行)/sl(静态库)/dl(动态库)"
+  value "int"
+  cd ..
+
+  type ApiMode
+  cd ApiMode
+  mode api rename
+  cmt "API模式: api(公开接口)/normal(私有实现)"
+  value "int"
+  cd ..
+
+  type TypeMode
+  cd TypeMode
+  mode api rename
+  cmt "类型模式: rename(别名)/struct(结构体)/api rename/api struct"
+  value "int"
+  cd ..
+
+  type VarMode
+  cd VarMode
+  mode api rename
+  cmt "变量模式: static/normal"
+  value "int"
+  cd ..
+
+  struct Domain
+  cd Domain
+  mode api
+  cmt "域树基础节点，所有域类型的基类"
+    mem name char*
+    cmt "域名称"
+    mem type int
+    cmt "域类型(DomainType枚举)"
+    mem comment char*
+    cmt "域注释文本"
+    mem parent struct Domain*
+    cmt "父域指针"
+    mem children struct Domain**
+    cmt "子域数组"
+    mem child_count int
+    cmt "子域数量"
+    mem child_capacity int
+    cmt "子域数组容量"
+  cd ..
+
+  struct ModuleDomain
+  cd ModuleDomain
+  mode api
+  cmt "模块域 - 项目中的一个模块节点，含编译模式和依赖管理"
+    mem base struct Domain
+    cmt "基础域"
+    mem mode int
+    cmt "模块模式(ModMode枚举)"
+    mem compiler int
+    cmt "编译模式(CompilerMode枚举): exe/sl/dl/normal"
+    mem value char*
+    cmt "模块值"
+    mem includes char**
+    cmt "头文件包含列表"
+    mem include_count int
+    cmt "包含数量"
+    mem dependencies char**
+    cmt "依赖模块名称列表"
+    mem dep_count int
+    cmt "依赖数量"
+  cd ..
+
+  struct FunctionDomain
+  cd FunctionDomain
+  mode api
+  cmt "函数域 - 项目中的函数定义"
+    mem base struct Domain
+    cmt "基础域"
+    mem mode int
+    cmt "API模式(ApiMode枚举)"
+    mem return_type char*
+    cmt "返回类型"
+    mem code char*
+    cmt "函数实现代码"
+    mem value char*
+    cmt "业务逻辑描述"
+  cd ..
+
+  struct StructDomain
+  cd StructDomain
+  mode api
+  cmt "结构体域 - 项目中的结构体类型定义"
+    mem base struct Domain
+    cmt "基础域"
+    mem mode int
+    cmt "API模式(ApiMode枚举)"
+  cd ..
+
+  struct TypeDomain
+  cd TypeDomain
+  mode api
+  cmt "类型域 - typedef定义"
+    mem base struct Domain
+    cmt "基础域"
+    mem mode int
+    cmt "类型模式(TypeMode枚举)"
+    mem value char*
+    cmt "底层类型(rename模式)或值"
+  cd ..
+
+  struct MacroDomain
+  cd MacroDomain
+  mode api
+  cmt "宏域 - #define定义"
+    mem base struct Domain
+    cmt "基础域"
+    mem mode int
+    cmt "API模式(ApiMode枚举)"
+    mem value char*
+    cmt "宏值"
+  cd ..
+
+  struct VariableDomain
+  cd VariableDomain
+  mode api
+  cmt "变量域 - 变量定义"
+    mem base struct Domain
+    cmt "基础域"
+    mem mode int
+    cmt "变量模式(VarMode枚举)"
+    mem type char*
+    cmt "变量类型"
+    mem value char*
+    cmt "变量初始值"
+  cd ..
+
+  struct MemberDomain
+  cd MemberDomain
+  mode api
+  cmt "成员域 - 结构体成员或函数参数"
+    mem base struct Domain
+    cmt "基础域"
+    mem type char*
+    cmt "成员类型"
+  cd ..
+
+  struct Dependency
+  cd Dependency
+  mode api
+  cmt "依赖记录 - im命令建立的API依赖关系"
+    mem importer char*
+    cmt "导入方模块路径"
+    mem source char*
+    cmt "源模块路径"
+    mem cboot_file char*
+    cmt "源.cboot文件路径"
+  cd ..
+
+  struct Project
+  cd Project
+  mode api
+  cmt "项目容器 - 整个项目的根节点和全局状态"
+    mem name char*
+    cmt "项目名称"
+    mem root struct Domain*
+    cmt "根域(包含所有模块)"
+    mem current struct Domain*
+    cmt "当前作用域指针"
+    mem has_generated int
+    cmt "是否已生成代码"
+    mem cboot_file char*
+    cmt ".cboot文件路径"
+    mem dependencies struct Dependency*
+    cmt "API依赖数组"
+    mem dep_count int
+    cmt "依赖数量"
+  cd ..
+
+  void domain_new struct Domain*
+  cd domain_new
+  mode api
+  cmt "创建新域节点，分配内存并初始化所有字段"
+    mem type int
+    cmt "域类型(DomainType枚举)"
+    mem name char*
+    cmt "域名称"
+    mem size size_t
+    cmt "结构体大小"
+    value "分配内存，设置类型和名称，初始化子域数组，返回新指针"
+  cd ..
+
+  void module_domain_new struct ModuleDomain*
+  cd module_domain_new
+  mode api
+  cmt "创建新模块域"
+    mem name char*
+    cmt "模块名称"
+    value "调用domain_new，设置默认模式为INTERNAL，默认编译模式为NORMAL"
+  cd ..
+
+  void function_domain_new struct FunctionDomain*
+  cd function_domain_new
+  mode api
+  cmt "创建新函数域"
+    mem name char*
+    cmt "函数名称"
+    mem return_type char*
+    cmt "返回类型"
+    value "调用domain_new，设置返回类型，默认API模式为NORMAL"
+  cd ..
+
+  void struct_domain_new struct StructDomain*
+  cd struct_domain_new
+  mode api
+  cmt "创建新结构体域"
+    mem name char*
+    cmt "结构体名称"
+    value "调用domain_new，默认API模式为NORMAL"
+  cd ..
+
+  void type_domain_new struct TypeDomain*
+  cd type_domain_new
+  mode api
+  cmt "创建新类型域"
+    mem name char*
+    cmt "类型名称"
+    value "调用domain_new，默认类型模式为RENAME"
+  cd ..
+
+  void macro_domain_new struct MacroDomain*
+  cd macro_domain_new
+  mode api
+  cmt "创建新宏域"
+    mem name char*
+    cmt "宏名称"
+    value "调用domain_new，默认API模式为NORMAL"
+  cd ..
+
+  void variable_domain_new struct VariableDomain*
+  cd variable_domain_new
+  mode api
+  cmt "创建新变量域"
+    mem name char*
+    cmt "变量名称"
+    mem type char*
+    cmt "变量类型"
+    value "调用domain_new，设置类型，默认变量模式为NORMAL"
+  cd ..
+
+  void member_domain_new struct MemberDomain*
+  cd member_domain_new
+  mode api
+  cmt "创建新成员域(结构体成员或函数参数)"
+    mem name char*
+    cmt "成员名称"
+    mem type char*
+    cmt "成员类型"
+    value "调用domain_new，设置类型"
+  cd ..
+
+  void domain_add_child void
+  cd domain_add_child
+  mode api
+  cmt "添加子域到父域，自动设置parent指针"
+    mem parent struct Domain*
+    cmt "父域指针"
+    mem child struct Domain*
+    cmt "子域指针"
+    value "检查容量，扩容数组，添加子域，设置parent"
+  cd ..
+
+  void domain_find_child struct Domain*
+  cd domain_find_child
+  mode api
+  cmt "按名称查找直接子域"
+    mem parent struct Domain*
+    cmt "父域指针"
+    mem name char*
+    cmt "目标名称"
+    value "遍历子域数组，返回匹配名称的子域指针，未找到返回NULL"
+  cd ..
+
+  void domain_find_api_in_submodules struct Domain*
+  cd domain_find_api_in_submodules
+  mode api
+  cmt "在子模块中递归查找API项，用于名称冲突检测和类型解析"
+    mem scope struct Domain*
+    cmt "搜索起始域"
+    mem name char*
+    cmt "目标名称"
+    value "先在直接子域中查找，再递归进入子模块查找API模式项"
+  cd ..
+
+  void domain_check_api_name_conflict struct Domain*
+  cd domain_check_api_name_conflict
+  mode api
+  cmt "检查名称是否与子模块API项冲突"
+    mem scope struct Domain*
+    cmt "检查起始域"
+    mem name char*
+    cmt "目标名称"
+    value "调用domain_find_api_in_submodules，返回冲突域或NULL"
+  cd ..
+
+  void domain_get_path char*
+  cd domain_get_path
+  mode api
+  cmt "获取域的完整路径字符串(如 /module/submodule)"
+    mem domain struct Domain*
+    cmt "目标域"
+    value "从当前域向上遍历到根，拼接路径字符串"
+  cd ..
+
+  void domain_set_comment void
+  cd domain_set_comment
+  mode api
+  cmt "设置域的注释文本"
+    mem domain struct Domain*
+    cmt "目标域"
+    mem text char*
+    cmt "注释文本"
+    value "复制文本并设置到域的comment字段"
+  cd ..
+
+  void domain_set_mode void
+  cd domain_set_mode
+  mode api
+  cmt "设置域的模式字段"
+    mem domain struct Domain*
+    cmt "目标域"
+    mem mode int
+    cmt "模式值"
+    value "根据域类型设置对应的模式字段"
+  cd ..
+
+  void project_new struct Project*
+  cd project_new
+  mode api
+  cmt "创建新项目"
+    mem name char*
+    cmt "项目名称"
+    value "创建根模块域，初始化项目状态和依赖数组"
+  cd ..
+
+  void project_add_dependency void
+  cd project_add_dependency
+  mode api
+  cmt "添加依赖记录(im命令使用)"
+    mem proj struct Project*
+    cmt "项目指针"
+    mem importer_path char*
+    cmt "导入方路径"
+    mem source_path char*
+    cmt "源模块路径"
+    mem cboot_file char*
+    cmt "源.cboot文件路径"
+    value "检查容量，扩容数组，添加新依赖记录"
+  cd ..
+
+  void project_has_dependency int
+  cd project_has_dependency
+  mode api
+  cmt "检查依赖是否已存在"
+    mem proj struct Project*
+    cmt "项目指针"
+    mem importer_path char*
+    cmt "导入方路径"
+    mem source_path char*
+    cmt "源模块路径"
+    value "遍历依赖数组，返回1(存在)或0(不存在)"
+  cd ..
+cd ..
+
+mod commands
+cd commands
+cmode normal
+cmt "命令处理器 - 实现交互式和批处理模式的所有命令"
+
+  void cmd_mod int
+  cd cmd_mod
+  mode api
+  cmt "创建新模块命令"
+    mem name char*
+    cmt "模块名称"
+    value "验证名称唯一性，创建ModuleDomain并添加到当前作用域"
+  cd ..
+
+  void cmd_struct int
+  cd cmd_struct
+  mode api
+  cmt "创建新结构体命令"
+    mem name char*
+    cmt "结构体名称"
+    value "在当前模块作用域中创建StructDomain"
+  cd ..
+
+  void cmd_type int
+  cd cmd_type
+  mode api
+  cmt "创建新类型(typedef)命令"
+    mem name char*
+    cmt "类型名称"
+    value "在当前模块作用域中创建TypeDomain"
+  cd ..
+
+  void cmd_def int
+  cd cmd_def
+  mode api
+  cmt "创建新宏(#define)命令"
+    mem name char*
+    cmt "宏名称"
+    value "在当前模块作用域中创建MacroDomain"
+  cd ..
+
+  void cmd_void int
+  cd cmd_void
+  mode api
+  cmt "创建新函数命令"
+    mem name char*
+    cmt "函数名称"
+    mem return_type char*
+    cmt "返回类型"
+    value "验证名称唯一性，创建FunctionDomain并设为当前"
+  cd ..
+
+  void cmd_var int
+  cd cmd_var
+  mode api
+  cmt "创建新变量命令"
+    mem name char*
+    cmt "变量名称"
+    mem type char*
+    cmt "变量类型"
+    value "在当前作用域创建VariableDomain"
+  cd ..
+
+  void cmd_mem int
+  cd cmd_mem
+  mode api
+  cmt "添加成员/参数命令"
+    mem name char*
+    cmt "成员/参数名称"
+    mem type char*
+    cmt "类型"
+    value "根据当前作用域(函数/结构体/类型)创建MemberDomain，设为当前"
+  cd ..
+
+  void cmd_cmt int
+  cd cmd_cmt
+  mode api
+  cmt "设置注释命令"
+    mem text char*
+    cmt "注释文本"
+    value "设置当前域的注释；若当前是成员/参数，设置后恢复到父作用域"
+  cd ..
+
+  void cmd_mode int
+  cd cmd_mode
+  mode api
+  cmt "设置模式命令"
+    mem text char*
+    cmt "模式值(api/normal/internal/external/static/rename/struct等)"
+    value "根据当前域类型设置对应模式；模块支持internal/external，函数/结构体/宏支持api/normal"
+  cd ..
+
+  void cmd_cmode int
+  cd cmd_cmode
+  mode api
+  cmt "设置编译器模式命令"
+    mem text char*
+    cmt "编译器模式值(exe/sl/dl/normal)"
+    value "仅对模块有效：exe生成可执行文件(代码放main.c)，sl静态库，dl动态库，normal普通.o"
+  cd ..
+
+  void cmd_cd int
+  cd cmd_cd
+  mode api
+  cmt "导航命令 - 进入子域或返回父域"
+    mem path char*
+    cmt "目标路径(支持..和/前缀)"
+    value "解析路径段，逐级在域树中导航"
+  cd ..
+
+  void cmd_gen int
+  cd cmd_gen
+  mode api
+  cmt "生成项目代码命令"
+    value "遍历域树，生成.c/.h/CMakeLists.txt/文档，项目根为源码根"
+  cd ..
+
+  void cmd_im int
+  cd cmd_im
+  mode api
+  cmt "API导入命令 - 从.cboot文件仅导入API项"
+    mem filename char*
+    cmt "源.cboot文件路径"
+    value "解析源文件，提取API模式项，创建external模块，记录依赖链"
+  cd ..
+
+  void cmd_in int
+  cd cmd_in
+  mode api
+  cmt "完整项目导入命令"
+    mem filename char*
+    cmt "源.cboot文件路径"
+    value "完整导入源项目作为子模块，包括所有非API项"
+  cd ..
+
+  void cmd_help int
+  cd cmd_help
+  mode api
+  cmt "帮助命令"
+    value "打印所有可用命令的帮助信息"
+  cd ..
+
+  void cmd_quit int
+  cd cmd_quit
+  mode api
+  cmt "退出命令"
+    value "设置运行标志为0，退出交互/批处理模式"
+  cd ..
+cd ..
+
+mod parser
+cd parser
+cmode normal
+cmt "脚本解析器 - 解析.cboot脚本文件为项目定义"
+
+  void parse_cboot int
+  cd parse_cboot
+  mode api
+  cmt "解析.cboot脚本文件"
+    mem filepath char*
+    cmt "文件路径"
+    mem proj struct Project*
+    cmt "输出项目"
+    value "逐行读取脚本，分派命令到对应处理函数，支持#注释"
+  cd ..
+
+  void dispatch_script_line int
+  cd dispatch_script_line
+  mode api
+  cmt "分派单行脚本命令"
+    mem tokens char**
+    cmt "分词数组"
+    mem count int
+    cmt "分词数量"
+    value "根据首个分词(命令名)调用对应cmd_函数"
+  cd ..
+cd ..
+
+mod generator
+cd generator
+cmode normal
+cmt "代码生成器 - 将域树转换为C源代码、CMake构建系统和文档"
+
+  void generate_project int
+  cd generate_project
+  mode api
+  cmt "生成完整项目代码"
+    mem proj struct Project*
+    cmt "项目定义"
+    mem output_dir char*
+    cmt "输出目录(项目根即为源码根)"
+    value "递归处理所有模块，生成.c/.h/层级化CMake/文档/DEPENDENCIES.md"
+  cd ..
+
+  void generate_module void
+  cd generate_module
+  mode api
+  cmt "为单个模块生成代码"
+    mem mod struct Domain*
+    cmt "模块域"
+    mem parent_dir char*
+    cmt "父目录"
+    value "创建模块目录，生成.c/.h/CMakeLists.txt/.cboot/文档，递归处理子模块"
+  cd ..
+
+  void generate_mod_c void
+  cd generate_mod_c
+  mode api
+  cmt "生成模块的.c源文件"
+    mem mod struct Domain*
+    cmt "模块域"
+    mem dir char*
+    cmt "模块目录路径"
+    value "包含头文件、宏、类型、变量、函数实现；非API函数自动static化避免符号冲突"
+  cd ..
+
+  void generate_mod_h void
+  cd generate_mod_h
+  mode api
+  cmt "生成模块的.h头文件(仅API声明)"
+    mem mod struct Domain*
+    cmt "模块域"
+    mem dir char*
+    cmt "模块目录路径"
+    value "生成include guard、API宏/类型/函数声明；dl模式添加dll导出宏"
+  cd ..
+
+  void generate_mod_cmake void
+  cd generate_mod_cmake
+  mode api
+  cmt "生成模块的CMakeLists.txt"
+    mem mod struct Domain*
+    cmt "模块域"
+    mem dir char*
+    cmt "模块目录路径"
+    value "根据compiler模式生成: normal(收集.o)/exe(可执行)/sl(静态库)/dl(动态库)，含子模块add_subdirectory"
+  cd ..
+
+  void generate_top_cmake void
+  cd generate_top_cmake
+  mode api
+  cmt "生成顶层CMakeLists.txt"
+    mem proj struct Project*
+    cmt "项目定义"
+    value "无exe模块时收集所有normal模块源文件+main.c生成默认可执行；有exe模块时链接库模块"
+  cd ..
+
+  void generate_top_main void
+  cd generate_top_main
+  mode api
+  cmt "生成顶层main.c入口"
+    mem proj struct Project*
+    cmt "项目定义"
+    value "仅在无exe模块时生成默认main.c，包含所有顶层模块头文件"
+  cd ..
+cd ..
+
+mod docgen
+cd docgen
+cmode normal
+cmt "文档生成器 - 生成README.md/API.md/DEV.md三种文档"
+
+  void generate_docs int
+  cd generate_docs
+  mode api
+  cmt "生成项目级文档"
+    mem proj struct Project*
+    cmt "项目定义"
+    mem output_dir char*
+    cmt "输出目录"
+    value "生成README.md、DEV.md和DEPENDENCIES.md"
+  cd ..
+
+  void generate_module_docs void
+  cd generate_module_docs
+  mode api
+  cmt "为单个模块生成文档"
+    mem mod struct Domain*
+    cmt "模块域"
+    mem dir char*
+    cmt "模块目录路径"
+    value "生成README.md(模块说明+子模块链接)、API.md(仅API项)、DEV.md(所有项+业务逻辑)"
+  cd ..
+cd ..
+
+mod typecheck
+cd typecheck
+cmode normal
+cmt "类型检查器 - 检查域类型一致性和符号冲突"
+
+  void typecheck_domain int
+  cd typecheck_domain
+  mode api
+  cmt "检查单个域的类型一致性"
+    mem domain struct Domain*
+    cmt "待检查域"
+    value "检查类型引用是否有效、API名称是否与子模块冲突"
+  cd ..
+
+  void typecheck_project int
+  cd typecheck_project
+  mode api
+  cmt "检查整个项目的类型一致性"
+    mem proj struct Project*
+    cmt "项目定义"
+    value "递归遍历所有域，调用typecheck_domain，输出错误列表"
+  cd ..
+cd ..
+
+mod utils
+cd utils
+cmode normal
+cmt "工具函数 - 通用辅助功能"
+
+  void ensure_dir int
+  cd ensure_dir
+  mode api
+  cmt "确保目录存在，不存在则创建"
+    mem path char*
+    cmt "目录路径"
+    value "递归创建目录结构，使用mkdir系统调用"
+  cd ..
+
+  void str_eq int
+  cd str_eq
+  mode api
+  cmt "字符串相等比较"
+    mem a char*
+    cmt "字符串A"
+    mem b char*
+    cmt "字符串B"
+    value "使用strcmp比较，返回1(相等)或0(不等)"
+  cd ..
+
+  void str_dup char*
+  cd str_dup
+  mode api
+  cmt "字符串复制"
+    mem src char*
+    cmt "源字符串"
+    value "分配新内存并复制字符串，返回新指针"
+  cd ..
+
+  void strip_quotes void
+  cd strip_quotes
+  mode api
+  cmt "去除字符串首尾的引号"
+    mem str char*
+    cmt "待处理字符串"
+    value "原地修改，去除首尾的单引号或双引号"
+  cd ..
+cd ..
+
+mod main
+cd main
+cmt "可执行入口模块 - CBoot的主程序入口"
+cmode exe
+
+  void main int
+  cd main
+  mode api
+  cmt "程序入口函数 - 解析命令行参数，进入交互或批处理模式"
+    mem argc int
+    cmt "命令行参数数量"
+    mem argv char**
+    cmt "命令行参数数组"
+    value "初始化项目结构，处理-f强制标志，进入交互循环或批处理执行"
+  cd ..
+cd ..
+
+gen

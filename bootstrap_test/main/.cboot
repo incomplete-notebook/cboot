@@ -1,0 +1,17 @@
+# CBoot minimal file for module main
+# 此文件在模块 main 作用域下执行，不需要 mod main
+
+cmt "可执行入口模块 - CBoot的主程序入口"
+cmode exe
+void main int
+cd main
+mode api
+cmt "程序入口函数 - 解析命令行参数，进入交互或批处理模式"
+value "初始化项目结构，处理-f强制标志，进入交互循环或批处理执行"
+mem argc int
+cmt "命令行参数数量"
+mem argv char**
+cmt "命令行参数数组"
+cd ..
+
+# End of .cboot for main

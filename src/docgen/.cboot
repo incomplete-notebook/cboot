@@ -1,0 +1,19 @@
+# CBoot minimal file for module docgen
+mod docgen
+cmt "文档生成器"
+void generate_docs int
+mode api
+cmt "生成文档"
+mem proj Project*
+cmt "项目"
+mem output_dir char*
+cmt "输出目录"
+void generate_module_docs void
+mode api
+cmt "生成模块文档"
+mem mod Domain*
+cmt "模块"
+mem dir char*
+cmt "目录"
+
+# End of .cboot for docgen

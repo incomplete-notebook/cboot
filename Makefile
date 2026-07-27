@@ -1,33 +1,39 @@
 # CBoot - C Project Bootstrapping Tool
 # Makefile
 
-CC       = clang-22
-CFLAGS   = -Wall -Wextra -g -O0 -Iinclude
+CC       = gcc
+CFLAGS   = -Wall -Wextra -g -O0 -Isrc
 LDFLAGS  =
 TARGET   = cboot
 
 SRCDIR   = src
 OBJDIR   = build
-INCDIR   = include
 
-SRCS     = $(SRCDIR)/commands.c \
-           $(SRCDIR)/docgen.c \
-           $(SRCDIR)/domain.c \
-           $(SRCDIR)/generator.c \
-           $(SRCDIR)/main.c \
-           $(SRCDIR)/parser.c \
-           $(SRCDIR)/typecheck.c \
-           $(SRCDIR)/utils.c
-OBJS     = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
+SRCS     = $(SRCDIR)/main.c \
+           $(SRCDIR)/domain/domain.c \
+           $(SRCDIR)/commands/commands.c \
+           $(SRCDIR)/parser/parser.c \
+           $(SRCDIR)/generator/generator.c \
+           $(SRCDIR)/docgen/docgen.c \
+           $(SRCDIR)/typecheck/typecheck.c \
+           $(SRCDIR)/utils/utils.c
+
+OBJS     = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))
 
 .PHONY: all clean run test
 
 all: $(TARGET)
 
 $(OBJDIR):
-	mkdir -p $(OBJDIR)
+	mkdir -p $(OBJDIR)/domain
+	mkdir -p $(OBJDIR)/commands
+	mkdir -p $(OBJDIR)/parser
+	mkdir -p $(OBJDIR)/generator
+	mkdir -p $(OBJDIR)/docgen
+	mkdir -p $(OBJDIR)/typecheck
+	mkdir -p $(OBJDIR)/utils
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c $(INCDIR)/cboot.h $(INCDIR)/domain.h $(INCDIR)/typecheck.h | $(OBJDIR)
+$(OBJDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/cboot.h | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET): $(OBJS)
@@ -41,4 +47,3 @@ run: $(TARGET)
 
 test: $(TARGET)
 	@echo "Running tests..."
-	@cd tests && bash run_tests.sh

@@ -1,0 +1,10 @@
+# CBoot minimal file for module parser
+mod parser
+cmt "脚本解析器"
+void parse_cboot_script int
+mode api
+cmt "解析.cboot脚本"
+mem filename char*
+cmt "文件名"
+
+# End of .cboot for parser

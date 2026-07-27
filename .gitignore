@@ -50,3 +50,15 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# CBoot build artifacts
+build/
+cboot
+bootstrap_test2/
+bootstrap_test/build/
+
+# CMake build directories
+bootstrap_test/build/
+
+# Trae internal files
+.trae/

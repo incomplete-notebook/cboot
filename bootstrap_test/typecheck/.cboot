@@ -1,0 +1,15 @@
+# CBoot minimal file for module typecheck
+# 此文件在模块 typecheck 作用域下执行，不需要 mod typecheck
+
+cmt "类型检查器 - 检查域类型一致性和符号冲突"
+cmode normal
+void typecheck_domain int
+cd typecheck_domain
+mode api
+cmt "检查单个域的类型一致性"
+value "检查类型引用是否有效、API名称是否与子模块冲突"
+mem domain struct Domain*
+cmt "待检查域"
+cd ..
+
+# End of .cboot for typecheck

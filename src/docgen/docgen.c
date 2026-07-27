@@ -1,0 +1,843 @@
+/*
+ * CBoot - C Project Bootstrapping Tool v2.0
+ * Documentation generator (新规范 v2.0)
+ *
+ * 生成三种文档:
+ *  - README.md: 模块说明 + 子模块链接 (面向用户)
+ *  - API.md:    API 模式项的定义和注释 (面向 API 消费者)
+ *  - DEV.md:    所有注释 + 业务逻辑 + 依赖链 (面向开发者)
+ *
+ * 每个模块只管自己的文档，子模块通过链接引用。
+ * 内容有重复是可接受的 — 不同文档给不同的人看。
+ */
+
+#include "cboot.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* ------------------------------------------------------------------ */
+/* Forward declarations                                               */
+/* ------------------------------------------------------------------ */
+
+static void generate_mod_readme(Domain *mod, const char *dir);
+static void generate_mod_api(Domain *mod, const char *dir);
+static void generate_mod_dev(Domain *mod, const char *dir);
+static void generate_project_readme(Project *proj, const char *output_dir);
+static void generate_project_dev(Project *proj, const char *output_dir);
+static void generate_dependencies_doc(Project *proj, const char *output_dir);
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+static int is_api(Domain *d) {
+    if (!d) return 0;
+    switch (d->type) {
+        case DOMAIN_FUNCTION:
+            return ((FunctionDomain *)d)->mode == API_MODE_API;
+        case DOMAIN_STRUCT:
+            return ((StructDomain *)d)->mode == API_MODE_API;
+        case DOMAIN_TYPE:
+            return ((TypeDomain *)d)->mode == TYPE_MODE_API_RENAME ||
+                   ((TypeDomain *)d)->mode == TYPE_MODE_API_STRUCT;
+        case DOMAIN_MACRO:
+            return ((MacroDomain *)d)->mode == API_MODE_API;
+        default:
+            return 0;
+    }
+}
+
+static const char *domain_type_str(int type) {
+    switch (type) {
+        case DOMAIN_FUNCTION: return "函数";
+        case DOMAIN_STRUCT:   return "结构体";
+        case DOMAIN_TYPE:     return "类型";
+        case DOMAIN_MACRO:    return "宏";
+        case DOMAIN_MEMBER:   return "成员";
+        case DOMAIN_VARIABLE: return "变量";
+        default:              return "未知";
+    }
+}
+
+/* ================================================================== */
+/* generate_docs - top-level documentation generator                  */
+/* ================================================================== */
+
+int generate_docs(Project *proj, const char *output_dir) {
+    if (!proj) return -1;
+
+    ensure_dir(output_dir);
+
+    generate_project_readme(proj, output_dir);
+    generate_project_dev(proj, output_dir);
+    generate_dependencies_doc(proj, output_dir);
+
+    return 0;
+}
+
+/* Called from generator after module dir is created */
+void generate_module_docs(Domain *mod, const char *dir) {
+    if (!mod || mod->type != DOMAIN_MODULE) return;
+
+    generate_mod_readme(mod, dir);
+    generate_mod_api(mod, dir);
+    generate_mod_dev(mod, dir);
+
+    for (int i = 0; i < mod->child_count; i++) {
+        if (mod->children[i]->type == DOMAIN_MODULE) {
+            char sub_dir[MAX_PATH_LEN];
+            snprintf(sub_dir, sizeof(sub_dir), "%s/%s", dir, mod->children[i]->name);
+            generate_module_docs(mod->children[i], sub_dir);
+        }
+    }
+}
+
+/* ================================================================== */
+/* generate_dependencies_doc - DEPENDENCIES.md                        */
+/* ================================================================== */
+
+static void generate_dependencies_doc(Project *proj, const char *output_dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/DEPENDENCIES.md", output_dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) return;
+
+    fprintf(f, "# %s 依赖关系\n\n", proj->name);
+    fprintf(f, "本文档由 CBoot 自动生成，记录项目内模块间的依赖关系。\n\n");
+
+    if (proj->dep_count > 0) {
+        fprintf(f, "## API 依赖 (im 导入)\n\n");
+        fprintf(f, "以下依赖通过 `im` 命令建立，仅导入 API 定义，不复制实现。\n\n");
+
+        fprintf(f, "### 依赖视图\n\n");
+        fprintf(f, "| 依赖方 | 被依赖方 | 来源文件 |\n");
+        fprintf(f, "|--------|----------|----------|\n");
+        for (int i = 0; i < proj->dep_count; i++) {
+            fprintf(f, "| `%s` | `%s` | %s |\n",
+                    proj->dependencies[i].importer,
+                    proj->dependencies[i].source,
+                    proj->dependencies[i].cboot_file ? proj->dependencies[i].cboot_file : "-");
+        }
+        fprintf(f, "\n");
+
+        fprintf(f, "### 被依赖视图\n\n");
+        fprintf(f, "| 被依赖方 | 依赖方 | 来源文件 |\n");
+        fprintf(f, "|----------|--------|----------|\n");
+        for (int i = 0; i < proj->dep_count; i++) {
+            fprintf(f, "| `%s` | `%s` | %s |\n",
+                    proj->dependencies[i].source,
+                    proj->dependencies[i].importer,
+                    proj->dependencies[i].cboot_file ? proj->dependencies[i].cboot_file : "-");
+        }
+        fprintf(f, "\n");
+
+        fprintf(f, "### 依赖链\n\n");
+        fprintf(f, "```\n");
+        for (int i = 0; i < proj->dep_count; i++) {
+            fprintf(f, "%s --> %s",
+                    proj->dependencies[i].importer,
+                    proj->dependencies[i].source);
+            if (proj->dependencies[i].cboot_file) {
+                fprintf(f, "  (%s)", proj->dependencies[i].cboot_file);
+            }
+            fprintf(f, "\n");
+        }
+        fprintf(f, "```\n\n");
+    } else {
+        fprintf(f, "## API 依赖 (im 导入)\n\n");
+        fprintf(f, "无 API 依赖。\n\n");
+    }
+
+    if (proj->import_count > 0) {
+        fprintf(f, "## 完整项目导入 (in 导入)\n\n");
+        fprintf(f, "以下项目通过 `in` 命令完整复制为子模块。\n\n");
+        fprintf(f, "| 序号 | 来源文件 |\n");
+        fprintf(f, "|------|----------|\n");
+        for (int i = 0; i < proj->import_count; i++) {
+            fprintf(f, "| %d | %s |\n", i + 1, proj->imported_projects[i]);
+        }
+        fprintf(f, "\n");
+    } else {
+        fprintf(f, "## 完整项目导入 (in 导入)\n\n");
+        fprintf(f, "无完整项目导入。\n\n");
+    }
+
+    fprintf(f, "*Generated by CBoot v%s*\n", CBOOT_VERSION);
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generate_project_readme - project-level README.md                  */
+/* ================================================================== */
+
+static void generate_project_readme(Project *proj, const char *output_dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/README.md", output_dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) return;
+
+    fprintf(f, "# %s\n\n", proj->name);
+    if (proj->root->comment) {
+        fprintf(f, "%s\n\n", proj->root->comment);
+    }
+
+    fprintf(f, "## 文档\n\n");
+    fprintf(f, "- [开发文档](DEV.md)\n");
+    fprintf(f, "- [依赖关系](DEPENDENCIES.md)\n\n");
+
+    fprintf(f, "## 模块\n\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            fprintf(f, "- [%s](%s/README.md)", child->name, child->name);
+            if (child->comment) fprintf(f, ": %s", child->comment);
+            fprintf(f, "\n");
+        }
+    }
+    fprintf(f, "\n");
+
+    fprintf(f, "## 目录结构\n\n");
+    fprintf(f, "```\n");
+    fprintf(f, "%s/\n", proj->name);
+    fprintf(f, "├── CMakeLists.txt\n");
+    fprintf(f, "├── README.md\n");
+    fprintf(f, "├── DEV.md\n");
+    fprintf(f, "├── DEPENDENCIES.md\n");
+
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            ModuleDomain *md = (ModuleDomain *)child;
+            int is_external = (md->mode == MOD_MODE_EXTERNAL);
+            fprintf(f, "├── %s/\n", child->name);
+            if (is_external) {
+                /* External modules only have .h and .cboot */
+                fprintf(f, "│   ├── %s.h\n", child->name);
+            } else if (md->compiler == COMPILER_EXE) {
+                fprintf(f, "│   ├── main.c\n");
+                fprintf(f, "│   ├── %s.h\n", child->name);
+            } else {
+                fprintf(f, "│   ├── %s.c\n", child->name);
+                fprintf(f, "│   ├── %s.h\n", child->name);
+            }
+            fprintf(f, "│   ├── .cboot\n");
+            fprintf(f, "│   ├── README.md\n");
+            if (!is_external) {
+                fprintf(f, "│   ├── API.md\n");
+                fprintf(f, "│   ├── DEV.md\n");
+                fprintf(f, "│   └── CMakeLists.txt\n");
+            }
+        }
+    }
+    fprintf(f, "└── cboot.cboot\n");
+    fprintf(f, "```\n\n");
+
+    fprintf(f, "*Generated by CBoot v%s*\n", CBOOT_VERSION);
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generate_project_dev - project-level DEV.md                        */
+/* ================================================================== */
+
+static void generate_project_dev(Project *proj, const char *output_dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/DEV.md", output_dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) return;
+
+    fprintf(f, "# %s 开发文档\n\n", proj->name);
+    if (proj->root->comment) {
+        fprintf(f, "%s\n\n", proj->root->comment);
+    }
+
+    fprintf(f, "## 模块概览\n\n");
+    fprintf(f, "| 模块 | 说明 | 路径 |\n");
+    fprintf(f, "|------|------|------|\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            fprintf(f, "| `%s` | %s | %s/ |\n",
+                    child->name,
+                    child->comment ? child->comment : "-",
+                    child->name);
+        }
+    }
+    fprintf(f, "\n");
+
+    /* Module details: list all items in each module */
+    fprintf(f, "## 模块详细内容\n\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+
+        fprintf(f, "### %s\n\n", child->name);
+        if (child->comment) fprintf(f, "%s\n\n", child->comment);
+
+        /* Functions */
+        int has_funcs = 0;
+        for (int j = 0; j < child->child_count; j++) {
+            Domain *item = child->children[j];
+            if (item->type == DOMAIN_FUNCTION) {
+                FunctionDomain *func = (FunctionDomain *)item;
+                if (!has_funcs) {
+                    fprintf(f, "**函数:**\n\n");
+                    has_funcs = 1;
+                }
+                fprintf(f, "- `%s %s()`", func->return_type, item->name);
+                if (item->comment) fprintf(f, " — %s", item->comment);
+                if (func->value) fprintf(f, "  \n  逻辑: %s", func->value);
+                fprintf(f, "\n");
+            }
+        }
+        if (has_funcs) fprintf(f, "\n");
+
+        /* Types/Structs */
+        int has_types = 0;
+        for (int j = 0; j < child->child_count; j++) {
+            Domain *item = child->children[j];
+            if (item->type == DOMAIN_STRUCT || item->type == DOMAIN_TYPE) {
+                if (!has_types) {
+                    fprintf(f, "**类型:**\n\n");
+                    has_types = 1;
+                }
+                fprintf(f, "- `%s`", item->name);
+                if (item->comment) fprintf(f, " — %s", item->comment);
+                fprintf(f, "\n");
+            }
+        }
+        if (has_types) fprintf(f, "\n");
+
+        /* Macros */
+        int has_macros = 0;
+        for (int j = 0; j < child->child_count; j++) {
+            Domain *item = child->children[j];
+            if (item->type == DOMAIN_MACRO) {
+                if (!has_macros) {
+                    fprintf(f, "**宏:**\n\n");
+                    has_macros = 1;
+                }
+                MacroDomain *md = (MacroDomain *)item;
+                fprintf(f, "- `%s`", item->name);
+                if (md->value) fprintf(f, " = `%s`", md->value);
+                if (item->comment) fprintf(f, " — %s", item->comment);
+                fprintf(f, "\n");
+            }
+        }
+        if (has_macros) fprintf(f, "\n");
+
+        fprintf(f, "详细文档见 [%s](%s/DEV.md)。\n\n", child->name, child->name);
+    }
+
+    /* Dependency chain reference */
+    if (proj->dep_count > 0 || proj->import_count > 0) {
+        fprintf(f, "## 依赖链\n\n");
+        fprintf(f, "详见 [DEPENDENCIES.md](DEPENDENCIES.md)。\n\n");
+
+        if (proj->dep_count > 0) {
+            fprintf(f, "### API 依赖摘要\n\n");
+            fprintf(f, "```\n");
+            for (int i = 0; i < proj->dep_count; i++) {
+                fprintf(f, "%s --> %s\n",
+                        proj->dependencies[i].importer,
+                        proj->dependencies[i].source);
+            }
+            fprintf(f, "```\n\n");
+        }
+    }
+
+    fprintf(f, "*Generated by CBoot v%s*\n", CBOOT_VERSION);
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generate_mod_readme - module README.md                              */
+/* ================================================================== */
+
+static void generate_mod_readme(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/README.md", dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) return;
+
+    fprintf(f, "# %s\n\n", mod->name);
+    if (mod->comment) {
+        fprintf(f, "%s\n\n", mod->comment);
+    }
+
+    /* Doc links */
+    fprintf(f, "## 文档\n\n");
+    fprintf(f, "- [API 文档](API.md) — 公开接口定义\n");
+    fprintf(f, "- [开发文档](DEV.md) — 内部设计与实现\n\n");
+
+    /* Sub-module links */
+    int has_children = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        if (mod->children[i]->type == DOMAIN_MODULE) {
+            if (!has_children) {
+                fprintf(f, "## 子模块\n\n");
+                has_children = 1;
+            }
+            Domain *sub = mod->children[i];
+            fprintf(f, "- [%s](%s/README.md)", sub->name, sub->name);
+            if (sub->comment) fprintf(f, ": %s", sub->comment);
+            fprintf(f, "\n");
+        }
+    }
+    if (has_children) fprintf(f, "\n");
+
+    /* Item summary */
+    int total_items = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *c = mod->children[i];
+        if (c->type == DOMAIN_FUNCTION || c->type == DOMAIN_STRUCT ||
+            c->type == DOMAIN_TYPE || c->type == DOMAIN_MACRO) {
+            total_items++;
+        }
+    }
+    if (total_items > 0) {
+        fprintf(f, "## 内容概览\n\n");
+
+        int first = 1;
+        for (int i = 0; i < mod->child_count; i++) {
+            Domain *c = mod->children[i];
+            if (c->type == DOMAIN_FUNCTION || c->type == DOMAIN_STRUCT ||
+                c->type == DOMAIN_TYPE || c->type == DOMAIN_MACRO) {
+                if (first) {
+                    fprintf(f, "| 名称 | 类型 | API | 说明 |\n");
+                    fprintf(f, "|------|------|-----|------|\n");
+                    first = 0;
+                }
+                fprintf(f, "| `%s` | %s | %s | %s |\n",
+                        c->name,
+                        domain_type_str(c->type),
+                        is_api(c) ? "✓" : "—",
+                        c->comment ? c->comment : "-");
+            }
+        }
+        fprintf(f, "\n");
+    }
+
+    fprintf(f, "*Generated by CBoot v%s*\n", CBOOT_VERSION);
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generate_mod_api - module API.md                                    */
+/* ================================================================== */
+
+static void generate_mod_api(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/API.md", dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) return;
+
+    fprintf(f, "# %s API 文档\n\n", mod->name);
+    fprintf(f, "本文档列出 `%s` 模块的所有公开 API。\n\n", mod->name);
+
+    /* Table of contents */
+    int has_any = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (is_api(child)) {
+            if (!has_any) {
+                fprintf(f, "## 目录\n\n");
+                has_any = 1;
+            }
+            fprintf(f, "- [%s](#%s)\n", child->name, child->name);
+        }
+    }
+    if (has_any) fprintf(f, "\n---\n\n");
+
+    /* API Functions */
+    int has_funcs = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_FUNCTION && is_api(child)) {
+            if (!has_funcs) {
+                fprintf(f, "## 函数\n\n");
+                has_funcs = 1;
+            }
+
+            FunctionDomain *func = (FunctionDomain *)child;
+            fprintf(f, "### %s %s()\n\n", func->return_type, child->name);
+
+            if (child->comment) {
+                fprintf(f, "%s\n\n", child->comment);
+            }
+
+            /* Signature */
+            fprintf(f, "```c\n%s %s(", func->return_type, child->name);
+            int first = 1;
+            for (int j = 0; j < child->child_count; j++) {
+                Domain *param = child->children[j];
+                if (param->type == DOMAIN_MEMBER) {
+                    MemberDomain *mb = (MemberDomain *)param;
+                    if (!first) fprintf(f, ", ");
+                    fprintf(f, "%s %s", mb->type, param->name);
+                    first = 0;
+                }
+            }
+            fprintf(f, ")\n```\n\n");
+
+            /* Parameters */
+            int has_params = 0;
+            for (int j = 0; j < child->child_count; j++) {
+                Domain *param = child->children[j];
+                if (param->type == DOMAIN_MEMBER) {
+                    MemberDomain *mb = (MemberDomain *)param;
+                    if (!has_params) {
+                        fprintf(f, "**参数**:\n\n");
+                        fprintf(f, "| 名称 | 类型 | 说明 |\n");
+                        fprintf(f, "|------|------|------|\n");
+                        has_params = 1;
+                    }
+                    fprintf(f, "| `%s` | `%s` | %s |\n",
+                            param->name, mb->type,
+                            param->comment ? param->comment : "-");
+                }
+            }
+            if (has_params) fprintf(f, "\n");
+        }
+    }
+
+    /* API Types and Structs */
+    int has_types = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if ((child->type == DOMAIN_STRUCT || child->type == DOMAIN_TYPE) && is_api(child)) {
+            if (!has_types) {
+                fprintf(f, "## 类型\n\n");
+                has_types = 1;
+            }
+
+            fprintf(f, "### %s\n\n", child->name);
+            if (child->comment) {
+                fprintf(f, "%s\n\n", child->comment);
+            }
+
+            if (child->type == DOMAIN_TYPE) {
+                TypeDomain *td = (TypeDomain *)child;
+                if ((td->mode == TYPE_MODE_API_RENAME) && td->value) {
+                    fprintf(f, "```c\ntypedef %s %s;\n```\n\n", td->value, child->name);
+                } else {
+                    fprintf(f, "```c\ntypedef struct %s { ... } %s;\n```\n\n",
+                            child->name, child->name);
+                }
+            } else {
+                /* struct */
+                fprintf(f, "```c\ntypedef struct %s {\n", child->name);
+                for (int j = 0; j < child->child_count; j++) {
+                    Domain *mem = child->children[j];
+                    if (mem->type == DOMAIN_MEMBER) {
+                        MemberDomain *mb = (MemberDomain *)mem;
+                        fprintf(f, "    %s %s;\n", mb->type, mem->name);
+                    }
+                }
+                fprintf(f, "} %s;\n```\n\n", child->name);
+
+                /* Members table */
+                if (child->child_count > 0) {
+                    fprintf(f, "**成员**:\n\n");
+                    fprintf(f, "| 名称 | 类型 | 说明 |\n");
+                    fprintf(f, "|------|------|------|\n");
+                    for (int j = 0; j < child->child_count; j++) {
+                        Domain *mem = child->children[j];
+                        if (mem->type == DOMAIN_MEMBER) {
+                            MemberDomain *mb = (MemberDomain *)mem;
+                            fprintf(f, "| `%s` | `%s` | %s |\n",
+                                    mem->name, mb->type,
+                                    mem->comment ? mem->comment : "-");
+                        }
+                    }
+                    fprintf(f, "\n");
+                }
+            }
+        }
+    }
+
+    /* API Macros */
+    int has_macros = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MACRO && is_api(child)) {
+            if (!has_macros) {
+                fprintf(f, "## 宏\n\n");
+                has_macros = 1;
+            }
+
+            MacroDomain *md = (MacroDomain *)child;
+            fprintf(f, "### `%s`\n\n", child->name);
+            if (child->comment) fprintf(f, "%s\n\n", child->comment);
+            fprintf(f, "```c\n#define %s", child->name);
+            if (md->value) fprintf(f, " %s", md->value);
+            fprintf(f, "\n```\n\n");
+        }
+    }
+
+    if (!has_funcs && !has_types && !has_macros) {
+        fprintf(f, "> 此模块没有公开 API。\n\n");
+    }
+
+    /* Sub-module API links */
+    int has_subs = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        if (mod->children[i]->type == DOMAIN_MODULE) {
+            if (!has_subs) {
+                fprintf(f, "## 子模块\n\n");
+                has_subs = 1;
+            }
+            Domain *sub = mod->children[i];
+            fprintf(f, "- [%s API](%s/API.md)", sub->name, sub->name);
+            fprintf(f, "\n");
+        }
+    }
+    if (has_subs) fprintf(f, "\n");
+
+    fprintf(f, "*Generated by CBoot v%s*\n", CBOOT_VERSION);
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generate_mod_dev - module DEV.md                                    */
+/* ================================================================== */
+
+static void write_dev_functions(Domain *mod, FILE *f) {
+    int has_funcs = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_FUNCTION) {
+            if (!has_funcs) {
+                fprintf(f, "## 函数\n\n");
+                has_funcs = 1;
+            }
+
+            FunctionDomain *func = (FunctionDomain *)child;
+            fprintf(f, "### %s %s()\n\n", func->return_type, child->name);
+
+            /* API badge */
+            if (is_api(child)) {
+                fprintf(f, "> `API` — 公开接口\n\n");
+            }
+
+            /* Business logic */
+            if (func->value) {
+                fprintf(f, "**业务逻辑**: %s\n\n", func->value);
+            }
+
+            /* Comment */
+            if (child->comment) {
+                fprintf(f, "**说明**: %s\n\n", child->comment);
+            }
+
+            /* Full signature */
+            fprintf(f, "```c\n%s %s(", func->return_type, child->name);
+            int first = 1;
+            for (int j = 0; j < child->child_count; j++) {
+                Domain *param = child->children[j];
+                if (param->type == DOMAIN_MEMBER) {
+                    MemberDomain *mb = (MemberDomain *)param;
+                    if (!first) fprintf(f, ", ");
+                    fprintf(f, "%s %s", mb->type, param->name);
+                    first = 0;
+                }
+            }
+            fprintf(f, ")\n```\n\n");
+
+            /* Parameters with details */
+            int has_params = 0;
+            for (int j = 0; j < child->child_count; j++) {
+                Domain *param = child->children[j];
+                if (param->type == DOMAIN_MEMBER) {
+                    MemberDomain *mb = (MemberDomain *)param;
+                    if (!has_params) {
+                        fprintf(f, "**参数列表**:\n\n");
+                        fprintf(f, "| 名称 | 类型 | 说明 |\n");
+                        fprintf(f, "|------|------|------|\n");
+                        has_params = 1;
+                    }
+                    fprintf(f, "| `%s` | `%s` | %s |\n",
+                            param->name, mb->type,
+                            param->comment ? param->comment : "-");
+                }
+            }
+            if (has_params) fprintf(f, "\n");
+
+            /* Local variables */
+            int has_vars = 0;
+            for (int j = 0; j < child->child_count; j++) {
+                Domain *var = child->children[j];
+                if (var->type == DOMAIN_VARIABLE) {
+                    VariableDomain *v = (VariableDomain *)var;
+                    if (!has_vars) {
+                        fprintf(f, "**局部变量**:\n\n");
+                        has_vars = 1;
+                    }
+                    fprintf(f, "- `%s` (`%s`)", var->name, v->type);
+                    if (var->comment) fprintf(f, ": %s", var->comment);
+                    fprintf(f, "\n");
+                }
+            }
+            if (has_vars) fprintf(f, "\n");
+
+            /* Implementation code if available */
+            if (func->code && strlen(func->code) > 0) {
+                fprintf(f, "**实现**:\n\n");
+                fprintf(f, "```c\n%s\n```\n\n", func->code);
+            }
+
+            fprintf(f, "---\n\n");
+        }
+    }
+}
+
+static void write_dev_types(Domain *mod, FILE *f) {
+    int has_types = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_STRUCT || child->type == DOMAIN_TYPE) {
+            if (!has_types) {
+                fprintf(f, "## 类型\n\n");
+                has_types = 1;
+            }
+
+            fprintf(f, "### %s\n\n", child->name);
+
+            if (is_api(child)) {
+                fprintf(f, "> `API` — 公开类型\n\n");
+            }
+
+            if (child->comment) {
+                fprintf(f, "**说明**: %s\n\n", child->comment);
+            }
+
+            if (child->type == DOMAIN_TYPE) {
+                TypeDomain *td = (TypeDomain *)child;
+                if (td->mode == TYPE_MODE_RENAME || td->mode == TYPE_MODE_API_RENAME) {
+                    fprintf(f, "```c\ntypedef %s %s;\n```\n\n",
+                            td->value ? td->value : "int", child->name);
+                } else {
+                    fprintf(f, "```c\ntypedef struct %s { ... } %s;\n```\n\n",
+                            child->name, child->name);
+                }
+            } else {
+                fprintf(f, "```c\ntypedef struct %s {\n", child->name);
+                for (int j = 0; j < child->child_count; j++) {
+                    Domain *mem = child->children[j];
+                    if (mem->type == DOMAIN_MEMBER) {
+                        MemberDomain *mb = (MemberDomain *)mem;
+                        fprintf(f, "    %s %s;\n", mb->type, mem->name);
+                    }
+                }
+                fprintf(f, "} %s;\n```\n\n", child->name);
+            }
+
+            /* Members table */
+            if (child->child_count > 0) {
+                fprintf(f, "**成员**:\n\n");
+                fprintf(f, "| 名称 | 类型 | 说明 |\n");
+                fprintf(f, "|------|------|------|\n");
+                for (int j = 0; j < child->child_count; j++) {
+                    Domain *mem = child->children[j];
+                    if (mem->type == DOMAIN_MEMBER) {
+                        MemberDomain *mb = (MemberDomain *)mem;
+                        fprintf(f, "| `%s` | `%s` | %s |\n",
+                                mem->name, mb->type,
+                                mem->comment ? mem->comment : "-");
+                    }
+                }
+                fprintf(f, "\n");
+            }
+
+            fprintf(f, "---\n\n");
+        }
+    }
+}
+
+static void write_dev_macros(Domain *mod, FILE *f) {
+    int has_macros = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MACRO) {
+            if (!has_macros) {
+                fprintf(f, "## 宏\n\n");
+                has_macros = 1;
+            }
+
+            MacroDomain *md = (MacroDomain *)child;
+            fprintf(f, "### `%s`\n\n", child->name);
+
+            if (is_api(child)) {
+                fprintf(f, "> `API` — 公开宏\n\n");
+            }
+
+            if (child->comment) {
+                fprintf(f, "**说明**: %s\n\n", child->comment);
+            }
+
+            fprintf(f, "```c\n#define %s", child->name);
+            if (md->value) fprintf(f, " %s", md->value);
+            fprintf(f, "\n```\n\n");
+        }
+    }
+    if (has_macros) fprintf(f, "\n");
+}
+
+static void generate_mod_dev(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/DEV.md", dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) return;
+
+    fprintf(f, "# %s 开发文档\n\n", mod->name);
+    if (mod->comment) {
+        fprintf(f, "%s\n\n", mod->comment);
+    }
+
+    /* Summary: API vs private */
+    int api_count = 0, private_count = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *c = mod->children[i];
+        if (c->type == DOMAIN_FUNCTION || c->type == DOMAIN_STRUCT ||
+            c->type == DOMAIN_TYPE || c->type == DOMAIN_MACRO) {
+            if (is_api(c)) api_count++;
+            else private_count++;
+        }
+    }
+    if (api_count > 0 || private_count > 0) {
+        fprintf(f, "## 统计\n\n");
+        fprintf(f, "- 公开 API: **%d** 项\n", api_count);
+        fprintf(f, "- 私有实现: **%d** 项\n\n", private_count);
+    }
+
+    write_dev_functions(mod, f);
+    write_dev_types(mod, f);
+    write_dev_macros(mod, f);
+
+    /* Child module links */
+    int has_child_mods = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        if (mod->children[i]->type == DOMAIN_MODULE) {
+            if (!has_child_mods) {
+                fprintf(f, "## 子模块\n\n");
+                has_child_mods = 1;
+            }
+            Domain *child = mod->children[i];
+            fprintf(f, "- [%s](%s/DEV.md)", child->name, child->name);
+            if (child->comment) fprintf(f, ": %s", child->comment);
+            fprintf(f, "\n");
+        }
+    }
+    if (has_child_mods) fprintf(f, "\n");
+
+    fprintf(f, "*Generated by CBoot v%s*\n", CBOOT_VERSION);
+    fclose(f);
+}

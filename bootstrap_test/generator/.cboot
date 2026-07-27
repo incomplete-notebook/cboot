@@ -1,0 +1,17 @@
+# CBoot minimal file for module generator
+# 此文件在模块 generator 作用域下执行，不需要 mod generator
+
+cmt "代码生成器 - 将域树转换为C源代码、CMake构建系统和文档"
+cmode normal
+void generate_project int
+cd generate_project
+mode api
+cmt "生成完整项目代码"
+value "递归处理所有模块，生成.c/.h/层级化CMake/文档/DEPENDENCIES.md"
+mem proj struct Project*
+cmt "项目定义"
+mem output_dir char*
+cmt "输出目录(项目根即为源码根)"
+cd ..
+
+# End of .cboot for generator

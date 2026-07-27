@@ -1,0 +1,44 @@
+# CBoot minimal file for module utils
+mod utils
+cmt "工具函数"
+void tokenize char**
+mode api
+cmt "分词"
+mem line char*
+cmt "行"
+mem count int*
+cmt "数量"
+void free_tokens void
+mode api
+cmt "释放token"
+mem tokens char**
+cmt "token数组"
+mem count int
+cmt "数量"
+void trim char*
+mode api
+cmt "去空白"
+mem str char*
+cmt "字符串"
+void ensure_dir void
+mode api
+cmt "创建目录"
+mem path char*
+cmt "路径"
+void file_exists int
+mode api
+cmt "文件是否存在"
+mem path char*
+cmt "路径"
+void is_valid_identifier int
+mode api
+cmt "有效标识符"
+mem name char*
+cmt "名称"
+void strip_quotes void
+mode api
+cmt "去引号"
+mem str char*
+cmt "字符串"
+
+# End of .cboot for utils

@@ -1,0 +1,17 @@
+# CBoot minimal file for module docgen
+# 此文件在模块 docgen 作用域下执行，不需要 mod docgen
+
+cmt "文档生成器 - 生成README.md/API.md/DEV.md三种文档"
+cmode normal
+void generate_docs int
+cd generate_docs
+mode api
+cmt "生成项目级文档"
+value "生成README.md、DEV.md和DEPENDENCIES.md"
+mem proj struct Project*
+cmt "项目定义"
+mem output_dir char*
+cmt "输出目录"
+cd ..
+
+# End of .cboot for docgen

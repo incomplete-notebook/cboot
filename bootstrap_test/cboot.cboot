@@ -1,0 +1,16 @@
+# CBoot project file for cboot
+# 通过引用各顶级模块的 .cboot 文件来构建整个项目
+
+project cboot
+
+# 顶级模块引用
+domain/.cboot
+commands/.cboot
+parser/.cboot
+generator/.cboot
+docgen/.cboot
+typecheck/.cboot
+utils/.cboot
+main/.cboot
+
+gen

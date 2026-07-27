@@ -1,0 +1,229 @@
+# CBoot minimal file for module domain
+mod domain
+cmt "域数据模型"
+type DomainType
+mode api rename
+cmt "域类型枚举"
+value "int"
+type ModMode
+mode api rename
+cmt "模块模式: internal/external"
+value "int"
+type ApiMode
+mode api rename
+cmt "API模式: api/normal"
+value "int"
+type TypeMode
+mode api rename
+cmt "类型模式: rename/struct/api rename/api struct"
+value "int"
+type VarMode
+mode api rename
+cmt "变量模式: static/normal"
+value "int"
+type RunMode
+mode api rename
+cmt "运行模式"
+value "int"
+struct Comment
+mode api
+cmt "注释"
+mem target char*
+cmt "目标"
+mem text char*
+cmt "文本"
+struct Domain
+mode api
+cmt "域基类"
+mem type DomainType
+cmt "域类型"
+mem name char*
+cmt "名称"
+mem parent Domain*
+cmt "父域"
+mem children Domain**
+cmt "子域数组"
+mem child_count int
+cmt "子域数量"
+mem child_capacity int
+cmt "子域容量"
+mem comments Comment*
+cmt "注释数组"
+mem comment_count int
+cmt "注释数量"
+mem comment_capacity int
+cmt "注释容量"
+mem comment char*
+cmt "域注释"
+struct ModuleDomain
+mode api
+cmt "模块域"
+mem base Domain
+cmt "基类"
+mem mode ModMode
+cmt "模块模式"
+mem value char*
+cmt "值"
+mem includes char**
+cmt "包含文件数组"
+mem include_count int
+cmt "包含文件数量"
+mem include_capacity int
+cmt "包含文件容量"
+mem dependencies char**
+cmt "依赖数组"
+mem dep_count int
+cmt "依赖数量"
+mem dep_capacity int
+cmt "依赖容量"
+struct FunctionDomain
+mode api
+cmt "函数域"
+mem base Domain
+cmt "基类"
+mem mode ApiMode
+cmt "API模式"
+mem return_type char*
+cmt "返回类型"
+mem code char*
+cmt "代码"
+mem value char*
+cmt "值"
+struct StructDomain
+mode api
+cmt "结构体域"
+mem base Domain
+cmt "基类"
+mem mode ApiMode
+cmt "API模式"
+struct TypeDomain
+mode api
+cmt "类型域"
+mem base Domain
+cmt "基类"
+mem mode TypeMode
+cmt "类型模式"
+mem value char*
+cmt "值"
+struct MacroDomain
+mode api
+cmt "宏域"
+mem base Domain
+cmt "基类"
+mem mode ApiMode
+cmt "API模式"
+mem value char*
+cmt "值"
+struct VariableDomain
+mode api
+cmt "变量域"
+mem base Domain
+cmt "基类"
+mem mode VarMode
+cmt "变量模式"
+mem type char*
+cmt "类型"
+mem value char*
+cmt "值"
+struct MemberDomain
+mode api
+cmt "成员域"
+mem base Domain
+cmt "基类"
+mem type char*
+cmt "类型"
+struct Project
+mode api
+cmt "项目状态"
+mem name char*
+cmt "项目名"
+mem root Domain*
+cmt "根域"
+mem current Domain*
+cmt "当前域"
+mem has_generated int
+cmt "是否已生成"
+mem cboot_file char*
+cmt "cboot文件"
+mem fine_tune_mode int
+cmt "微调模式"
+void domain_new Domain*
+mode api
+cmt "创建新域"
+mem type DomainType
+cmt "域类型"
+mem name char*
+cmt "名称"
+mem struct_size size_t
+cmt "结构体大小"
+void domain_add_child void
+mode api
+cmt "添加子域"
+mem parent Domain*
+cmt "父域"
+mem child Domain*
+cmt "子域"
+void domain_delete void
+mode api
+cmt "删除域"
+mem domain Domain*
+cmt "域"
+void domain_remove_child void
+mode api
+cmt "移除子域"
+mem parent Domain*
+cmt "父域"
+mem child Domain*
+cmt "子域"
+void domain_find_child Domain*
+mode api
+cmt "查找子域"
+mem parent Domain*
+cmt "父域"
+mem name char*
+cmt "名称"
+void domain_find_nearest_of_type Domain*
+mode api
+cmt "向上查找最近类型域"
+mem from Domain*
+cmt "起始域"
+mem type DomainType
+cmt "域类型"
+void domain_get_path char*
+mode api
+cmt "获取域路径"
+mem domain Domain*
+cmt "域"
+void domain_set_comment void
+mode api
+cmt "设置注释"
+mem domain Domain*
+cmt "域"
+mem text char*
+cmt "文本"
+void domain_set_value void
+mode api
+cmt "设置值"
+mem domain Domain*
+cmt "域"
+mem value char*
+cmt "值"
+void domain_set_mode void
+mode api
+cmt "设置模式"
+mem domain Domain*
+cmt "域"
+mem mode int
+cmt "模式"
+void project_new Project*
+mode api
+cmt "创建项目"
+mem name char*
+cmt "项目名"
+void project_free void
+mode api
+cmt "释放项目"
+mem proj Project*
+cmt "项目"
+
+# End of .cboot for domain

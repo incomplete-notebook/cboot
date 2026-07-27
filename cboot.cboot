@@ -1,0 +1,666 @@
+# CBoot project file for cboot
+project cboot
+
+mod domain
+cmt "域数据模型"
+  type DomainType
+  cd DomainType
+  mode api rename
+  cmt "域类型枚举"
+  value "int"
+  cd ..
+  type ModMode
+  cd ModMode
+  mode api rename
+  cmt "模块模式: internal/external"
+  value "int"
+  cd ..
+  type ApiMode
+  cd ApiMode
+  mode api rename
+  cmt "API模式: api/normal"
+  value "int"
+  cd ..
+  type TypeMode
+  cd TypeMode
+  mode api rename
+  cmt "类型模式: rename/struct/api rename/api struct"
+  value "int"
+  cd ..
+  type VarMode
+  cd VarMode
+  mode api rename
+  cmt "变量模式: static/normal"
+  value "int"
+  cd ..
+  type RunMode
+  cd RunMode
+  mode api rename
+  cmt "运行模式"
+  value "int"
+  cd ..
+  struct Comment
+  cd Comment
+  mode api
+  cmt "注释"
+    mem target char*
+    cmt "目标"
+    mem text char*
+    cmt "文本"
+  cd ..
+  struct Domain
+  cd Domain
+  mode api
+  cmt "域基类"
+    mem type DomainType
+    cmt "域类型"
+    mem name char*
+    cmt "名称"
+    mem parent Domain*
+    cmt "父域"
+    mem children Domain**
+    cmt "子域数组"
+    mem child_count int
+    cmt "子域数量"
+    mem child_capacity int
+    cmt "子域容量"
+    mem comments Comment*
+    cmt "注释数组"
+    mem comment_count int
+    cmt "注释数量"
+    mem comment_capacity int
+    cmt "注释容量"
+    mem comment char*
+    cmt "域注释"
+  cd ..
+  struct ModuleDomain
+  cd ModuleDomain
+  mode api
+  cmt "模块域"
+    mem base Domain
+    cmt "基类"
+    mem mode ModMode
+    cmt "模块模式"
+    mem value char*
+    cmt "值"
+    mem includes char**
+    cmt "包含文件数组"
+    mem include_count int
+    cmt "包含文件数量"
+    mem include_capacity int
+    cmt "包含文件容量"
+    mem dependencies char**
+    cmt "依赖数组"
+    mem dep_count int
+    cmt "依赖数量"
+    mem dep_capacity int
+    cmt "依赖容量"
+  cd ..
+  struct FunctionDomain
+  cd FunctionDomain
+  mode api
+  cmt "函数域"
+    mem base Domain
+    cmt "基类"
+    mem mode ApiMode
+    cmt "API模式"
+    mem return_type char*
+    cmt "返回类型"
+    mem code char*
+    cmt "代码"
+    mem value char*
+    cmt "值"
+  cd ..
+  struct StructDomain
+  cd StructDomain
+  mode api
+  cmt "结构体域"
+    mem base Domain
+    cmt "基类"
+    mem mode ApiMode
+    cmt "API模式"
+  cd ..
+  struct TypeDomain
+  cd TypeDomain
+  mode api
+  cmt "类型域"
+    mem base Domain
+    cmt "基类"
+    mem mode TypeMode
+    cmt "类型模式"
+    mem value char*
+    cmt "值"
+  cd ..
+  struct MacroDomain
+  cd MacroDomain
+  mode api
+  cmt "宏域"
+    mem base Domain
+    cmt "基类"
+    mem mode ApiMode
+    cmt "API模式"
+    mem value char*
+    cmt "值"
+  cd ..
+  struct VariableDomain
+  cd VariableDomain
+  mode api
+  cmt "变量域"
+    mem base Domain
+    cmt "基类"
+    mem mode VarMode
+    cmt "变量模式"
+    mem type char*
+    cmt "类型"
+    mem value char*
+    cmt "值"
+  cd ..
+  struct MemberDomain
+  cd MemberDomain
+  mode api
+  cmt "成员域"
+    mem base Domain
+    cmt "基类"
+    mem type char*
+    cmt "类型"
+  cd ..
+  struct Dependency
+  cd Dependency
+  mode api
+  cmt "依赖记录 (im命令)"
+    mem importer char*
+    cmt "导入方路径"
+    mem source char*
+    cmt "源模块路径"
+    mem cboot_file char*
+    cmt "源cboot文件"
+  cd ..
+  struct Project
+  cd Project
+  mode api
+  cmt "项目状态"
+    mem name char*
+    cmt "项目名"
+    mem root Domain*
+    cmt "根域"
+    mem current Domain*
+    cmt "当前域"
+    mem has_generated int
+    cmt "是否已生成"
+    mem cboot_file char*
+    cmt "cboot文件"
+    mem fine_tune_mode int
+    cmt "微调模式"
+    mem imported_projects char**
+    cmt "in命令导入的项目"
+    mem import_count int
+    cmt "导入数量"
+    mem import_capacity int
+    cmt "导入容量"
+    mem imported_libs char**
+    cmt "导入库数组"
+    mem lib_count int
+    cmt "库数量"
+    mem lib_capacity int
+    cmt "库容量"
+    mem dependencies Dependency*
+    cmt "im命令依赖数组"
+    mem dep_count int
+    cmt "依赖数量"
+    mem dep_capacity int
+    cmt "依赖容量"
+  cd ..
+  void domain_new Domain*
+  cd domain_new
+  mode api
+  cmt "创建新域"
+    mem type DomainType
+    cmt "域类型"
+    mem name char*
+    cmt "名称"
+    mem struct_size size_t
+    cmt "结构体大小"
+  cd ..
+  void domain_add_child void
+  cd domain_add_child
+  mode api
+  cmt "添加子域"
+    mem parent Domain*
+    cmt "父域"
+    mem child Domain*
+    cmt "子域"
+  cd ..
+  void domain_delete void
+  cd domain_delete
+  mode api
+  cmt "删除域"
+    mem domain Domain*
+    cmt "域"
+  cd ..
+  void domain_remove_child void
+  cd domain_remove_child
+  mode api
+  cmt "移除子域"
+    mem parent Domain*
+    cmt "父域"
+    mem child Domain*
+    cmt "子域"
+  cd ..
+  void domain_find_child Domain*
+  cd domain_find_child
+  mode api
+  cmt "查找子域"
+    mem parent Domain*
+    cmt "父域"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void domain_find_nearest_of_type Domain*
+  cd domain_find_nearest_of_type
+  mode api
+  cmt "向上查找最近类型域"
+    mem from Domain*
+    cmt "起始域"
+    mem type DomainType
+    cmt "域类型"
+  cd ..
+  void domain_find_api_in_submodules Domain*
+  cd domain_find_api_in_submodules
+  mode api
+  cmt "在子模块中查找API项"
+    mem scope Domain*
+    cmt "作用域"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void domain_check_api_name_conflict Domain*
+  cd domain_check_api_name_conflict
+  mode api
+  cmt "检查API名称冲突"
+    mem scope Domain*
+    cmt "作用域"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void domain_get_path char*
+  cd domain_get_path
+  mode api
+  cmt "获取域路径"
+    mem domain Domain*
+    cmt "域"
+  cd ..
+  void domain_set_comment void
+  cd domain_set_comment
+  mode api
+  cmt "设置注释"
+    mem domain Domain*
+    cmt "域"
+    mem text char*
+    cmt "文本"
+  cd ..
+  void domain_set_value void
+  cd domain_set_value
+  mode api
+  cmt "设置值"
+    mem domain Domain*
+    cmt "域"
+    mem value char*
+    cmt "值"
+  cd ..
+  void domain_set_mode void
+  cd domain_set_mode
+  mode api
+  cmt "设置模式"
+    mem domain Domain*
+    cmt "域"
+    mem mode int
+    cmt "模式"
+  cd ..
+  void project_new Project*
+  cd project_new
+  mode api
+  cmt "创建项目"
+    mem name char*
+    cmt "项目名"
+  cd ..
+  void project_free void
+  cd project_free
+  mode api
+  cmt "释放项目"
+    mem proj Project*
+    cmt "项目"
+  cd ..
+  void project_add_dependency void
+  cd project_add_dependency
+  mode api
+  cmt "添加依赖记录"
+    mem proj Project*
+    cmt "项目"
+    mem importer char*
+    cmt "导入方"
+    mem source char*
+    cmt "源模块"
+    mem cboot_file char*
+    cmt "cboot文件"
+  cd ..
+  void project_has_dependency int
+  cd project_has_dependency
+  mode api
+  cmt "检查依赖是否存在"
+    mem proj Project*
+    cmt "项目"
+    mem importer char*
+    cmt "导入方"
+    mem source char*
+    cmt "源模块"
+  cd ..
+cd ..
+mod commands
+cmt "命令处理器"
+  void cmd_mod int
+  cd cmd_mod
+  mode api
+  cmt "创建模块"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void cmd_struct int
+  cd cmd_struct
+  mode api
+  cmt "创建结构体"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void cmd_type int
+  cd cmd_type
+  mode api
+  cmt "创建类型"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void cmd_def int
+  cd cmd_def
+  mode api
+  cmt "创建宏"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void cmd_void int
+  cd cmd_void
+  mode api
+  cmt "创建函数"
+    mem name char*
+    cmt "名称"
+    mem return_type char*
+    cmt "返回类型"
+  cd ..
+  void cmd_var int
+  cd cmd_var
+  mode api
+  cmt "创建变量"
+    mem name char*
+    cmt "名称"
+    mem type char*
+    cmt "类型"
+  cd ..
+  void cmd_mem int
+  cd cmd_mem
+  mode api
+  cmt "创建成员/参数"
+    mem name char*
+    cmt "名称"
+    mem type char*
+    cmt "类型"
+  cd ..
+  void cmd_enum int
+  cd cmd_enum
+  mode api
+  cmt "枚举创建宏"
+    mem defs char*
+    cmt "定义"
+    mem start_num char*
+    cmt "起始编号"
+  cd ..
+  void cmd_cmt int
+  cd cmd_cmt
+  mode api
+  cmt "设置注释"
+    mem text char*
+    cmt "文本"
+  cd ..
+  void cmd_value int
+  cd cmd_value
+  mode api
+  cmt "设置值"
+    mem text char*
+    cmt "文本"
+  cd ..
+  void cmd_mode int
+  cd cmd_mode
+  mode api
+  cmt "设置模式"
+    mem text char*
+    cmt "文本"
+  cd ..
+  void cmd_cd int
+  cd cmd_cd
+  mode api
+  cmt "导航域树"
+    mem path char*
+    cmt "路径"
+  cd ..
+  void cmd_rm int
+  cd cmd_rm
+  mode api
+  cmt "删除子域"
+    mem name char*
+    cmt "名称"
+    mem force int
+    cmt "强制"
+  cd ..
+  void cmd_find int
+  cd cmd_find
+  mode api
+  cmt "搜索域"
+    mem type_filter char*
+    cmt "类型过滤"
+    mem pattern char*
+    cmt "模式"
+    mem flags int
+    cmt "标志"
+  cd ..
+  void cmd_ls int
+  cd cmd_ls
+  mode api
+  cmt "查看域"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void cmd_mv int
+  cd cmd_mv
+  mode api
+  cmt "移动域"
+    mem src char*
+    cmt "源"
+    mem target char*
+    cmt "目标"
+  cd ..
+  void cmd_exit int
+  cd cmd_exit
+  mode api
+  cmt "退出"
+  cd ..
+  void cmd_gen int
+  cd cmd_gen
+  mode api
+  cmt "生成代码"
+  cd ..
+  void cmd_im int
+  cd cmd_im
+  mode api
+  cmt "导入API定义 (仅项目内)"
+    mem path char*
+    cmt "路径"
+  cd ..
+  void cmd_in int
+  cd cmd_in
+  mode api
+  cmt "导入完整项目作为子模块"
+    mem path char*
+    cmt "路径"
+  cd ..
+  void cmd_res int
+  cd cmd_res
+  mode api
+  cmt "添加资源"
+    mem file_path char*
+    cmt "文件路径"
+  cd ..
+cd ..
+mod parser
+cmt "脚本解析器"
+  void parse_cboot_script int
+  cd parse_cboot_script
+  mode api
+  cmt "解析.cboot脚本"
+    mem filename char*
+    cmt "文件名"
+  cd ..
+cd ..
+mod generator
+cmt "代码生成器"
+  void generate_project int
+  cd generate_project
+  mode api
+  cmt "生成项目"
+    mem proj Project*
+    cmt "项目"
+  cd ..
+cd ..
+mod docgen
+cmt "文档生成器"
+  void generate_docs int
+  cd generate_docs
+  mode api
+  cmt "生成文档"
+    mem proj Project*
+    cmt "项目"
+    mem output_dir char*
+    cmt "输出目录"
+  cd ..
+  void generate_module_docs void
+  cd generate_module_docs
+  mode api
+  cmt "生成模块文档"
+    mem mod Domain*
+    cmt "模块"
+    mem dir char*
+    cmt "目录"
+  cd ..
+cd ..
+mod typecheck
+cmt "类型检查器"
+  struct TypeChecker
+  cd TypeChecker
+  mode api
+  cmt "类型检查器"
+    mem scope Domain*
+    cmt "作用域"
+    mem error_buf char*
+    cmt "错误缓冲区"
+    mem error_len int
+    cmt "错误长度"
+  cd ..
+  void type_checker_init void
+  cd type_checker_init
+  mode api
+  cmt "初始化"
+    mem tc TypeChecker*
+    cmt "类型检查器"
+    mem scope Domain*
+    cmt "作用域"
+  cd ..
+  void type_checker_validate int
+  cd type_checker_validate
+  mode api
+  cmt "验证类型"
+    mem tc TypeChecker*
+    cmt "类型检查器"
+    mem type_name char*
+    cmt "类型名"
+  cd ..
+  void type_checker_is_builtin int
+  cd type_checker_is_builtin
+  mode api
+  cmt "是否内置类型"
+    mem type_name char*
+    cmt "类型名"
+  cd ..
+  void type_checker_validate_value int
+  cd type_checker_validate_value
+  mode api
+  cmt "验证值"
+    mem type_name char*
+    cmt "类型名"
+    mem value char*
+    cmt "值"
+  cd ..
+cd ..
+mod utils
+cmt "工具函数"
+  void tokenize char**
+  cd tokenize
+  mode api
+  cmt "分词"
+    mem line char*
+    cmt "行"
+    mem count int*
+    cmt "数量"
+  cd ..
+  void free_tokens void
+  cd free_tokens
+  mode api
+  cmt "释放token"
+    mem tokens char**
+    cmt "token数组"
+    mem count int
+    cmt "数量"
+  cd ..
+  void trim char*
+  cd trim
+  mode api
+  cmt "去空白"
+    mem str char*
+    cmt "字符串"
+  cd ..
+  void ensure_dir void
+  cd ensure_dir
+  mode api
+  cmt "创建目录"
+    mem path char*
+    cmt "路径"
+  cd ..
+  void file_exists int
+  cd file_exists
+  mode api
+  cmt "文件是否存在"
+    mem path char*
+    cmt "路径"
+  cd ..
+  void is_valid_identifier int
+  cd is_valid_identifier
+  mode api
+  cmt "有效标识符"
+    mem name char*
+    cmt "名称"
+  cd ..
+  void strip_quotes void
+  cd strip_quotes
+  mode api
+  cmt "去引号"
+    mem str char*
+    cmt "字符串"
+  cd ..
+cd ..
+
+gen

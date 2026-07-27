@@ -152,10 +152,9 @@ int main(int argc, char **argv) {
 /* ------------------------------------------------------------------ */
 
 static int detect_fine_tune_mode(void) {
-    /* Simple detection: check if src/ directory exists */
-    if (file_exists("src")) {
-        /* Check for generated main.c */
-        if (file_exists("src/main.c")) {
+    /* 检测是否已生成项目：检查 CMakeLists.txt 和 main.c */
+    if (file_exists("CMakeLists.txt")) {
+        if (file_exists("main.c")) {
             return 1;
         }
     }
@@ -187,7 +186,8 @@ static void print_usage(const char *prog) {
     printf("  修改字段:\n");
     printf("    cmt \"文本\"             设置注释\n");
     printf("    value <值>             设置值\n");
-    printf("    mode <模式>            设置模式\n");
+    printf("    mode <模式>            设置模式 (internal/external/api/normal/...)\n");
+    printf("    cmode <模式>           设置编译器模式 (exe/sl/dl/normal)\n");
     printf("  控制:\n");
     printf("    cd <路径>              导航域树\n");
     printf("    rm <名称> [-f]         删除子域\n");
@@ -202,6 +202,195 @@ static void print_usage(const char *prog) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Tab completion helpers                                               */
+/* ------------------------------------------------------------------ */
+
+/* All command names for tab completion */
+static const char *g_cmd_names[] = {
+    "mod", "struct", "type", "def", "void", "var", "mem", "enum",
+    "cmt", "value", "mode", "cmode",
+    "cd", "rm", "mv", "find", "ls",
+    "gen", "im", "in", "res", "exit", "help", "?",
+    NULL
+};
+
+/* Domain type names for find command */
+static const char *g_domain_types[] = {
+    "mod", "void", "struct", "type", "def", "var", "mem",
+    NULL
+};
+
+/* Mode values for mode command */
+static const char *g_mode_values[] = {
+    "internal", "external", "api", "normal", "static",
+    "rename", "struct", "api rename", "api struct",
+    NULL
+};
+
+/* Compiler mode values for cmode command */
+static const char *g_cmode_values[] = {
+    "exe", "sl", "dl", "normal",
+    NULL
+};
+
+/*
+ * try_complete - given a prefix, find all matching strings.
+ * Returns number of matches; fills matches[] with pointers.
+ */
+static int try_complete(const char *prefix, const char **candidates, int max_matches,
+                        const char **matches)
+{
+    int count = 0;
+    int plen = (int)strlen(prefix);
+    for (int i = 0; candidates[i] && count < max_matches; i++) {
+        if (strncmp(candidates[i], prefix, plen) == 0) {
+            matches[count++] = candidates[i];
+        }
+    }
+    return count;
+}
+
+/*
+ * common_prefix_len - find the length of the longest common prefix
+ * among the given strings.
+ */
+static int common_prefix_len(const char **strs, int count)
+{
+    if (count <= 0) return 0;
+    int len = (int)strlen(strs[0]);
+    for (int i = 1; i < count; i++) {
+        int j = 0;
+        while (j < len && strs[0][j] == strs[i][j]) j++;
+        len = j;
+    }
+    return len;
+}
+
+/*
+ * do_tab_complete - perform tab completion on the current line.
+ * Modifies line and updates pos. Returns 1 if display was refreshed.
+ */
+static int do_tab_complete(char *line, int *pos, const char *prompt)
+{
+    /* Make a working copy of the line up to cursor */
+    char buf[MAX_LINE_LEN];
+    strncpy(buf, line, *pos);
+    buf[*pos] = '\0';
+
+    /* Tokenize what's been typed so far */
+    int tc = 0;
+    char **tokens = tokenize(buf, &tc);
+
+    const char *matches[128];
+    int match_count = 0;
+
+    if (tc == 0 || (tc == 1 && buf[*pos - 1] != ' ')) {
+        /* Completing first token (command name) */
+        const char *prefix = (tc > 0) ? tokens[0] : "";
+        match_count = try_complete(prefix, g_cmd_names, 128, matches);
+    } else {
+        /* Completing second+ token - context-sensitive */
+        const char *cmd = tokens[0];
+        const char *partial = (tc > 1) ? tokens[tc - 1] : "";
+        int is_last_space = (buf[*pos - 1] == ' ');
+
+        if (str_eq(cmd, "cd") || str_eq(cmd, "rm") || str_eq(cmd, "ls")) {
+            /* Complete with child domain names */
+            int plen = (int)strlen(partial);
+            Domain *cur = g_proj->current;
+            for (int i = 0; i < cur->child_count && match_count < 128; i++) {
+                if (strncmp(cur->children[i]->name, partial, plen) == 0) {
+                    matches[match_count++] = cur->children[i]->name;
+                }
+            }
+        } else if (str_eq(cmd, "find") && tc == 2 && !is_last_space) {
+            /* Complete domain type for find command */
+            match_count = try_complete(partial, g_domain_types, 128, matches);
+        } else if (str_eq(cmd, "mode")) {
+            /* Complete mode values */
+            match_count = try_complete(partial, g_mode_values, 128, matches);
+        } else if (str_eq(cmd, "cmode")) {
+            /* Complete compiler mode values */
+            match_count = try_complete(partial, g_cmode_values, 128, matches);
+        } else {
+            /* Default: complete with child domain names */
+            int plen = (int)strlen(partial);
+            Domain *cur = g_proj->current;
+            for (int i = 0; i < cur->child_count && match_count < 128; i++) {
+                if (strncmp(cur->children[i]->name, partial, plen) == 0) {
+                    matches[match_count++] = cur->children[i]->name;
+                }
+            }
+        }
+    }
+
+    free_tokens(tokens, tc);
+
+    if (match_count == 0) {
+        /* No match - beep */
+        printf("\a");
+        fflush(stdout);
+        return 0;
+    }
+
+    if (match_count == 1) {
+        /* Single match - complete it */
+        /* Find where the current partial token starts */
+        char *last_space = strrchr(buf, ' ');
+        int base_len;
+        if (last_space)
+            base_len = (int)(last_space - buf) + 1;
+        else
+            base_len = 0;
+
+        const char *completion = matches[0];
+        const char *suffix = completion + (*pos - base_len);
+        int suffix_len = (int)strlen(suffix);
+
+        /* Append suffix + space */
+        if (*pos + suffix_len + 1 < MAX_LINE_LEN) {
+            memcpy(line + *pos, suffix, suffix_len);
+            line[*pos + suffix_len] = ' ';
+            line[*pos + suffix_len + 1] = '\0';
+            *pos = *pos + suffix_len + 1;
+        }
+        /* Redisplay */
+        printf("\r\033[K%s%s", prompt, line);
+        fflush(stdout);
+        return 1;
+    }
+
+    /* Multiple matches - complete to common prefix */
+    char *last_space = strrchr(buf, ' ');
+    int base_len;
+    if (last_space)
+        base_len = (int)(last_space - buf) + 1;
+    else
+        base_len = 0;
+
+    int cplen = common_prefix_len(matches, match_count);
+    const char *first = matches[0];
+    const char *suffix = first + (*pos - base_len);
+    int new_cplen = cplen - (*pos - base_len);
+    if (new_cplen < 0) new_cplen = 0;
+
+    if (new_cplen > 0 && *pos + new_cplen < MAX_LINE_LEN) {
+        memcpy(line + *pos, suffix, new_cplen);
+        line[*pos + new_cplen] = '\0';
+        *pos = *pos + new_cplen;
+    }
+
+    /* Show the common prefix completion, then list matches */
+    printf("\r\033[K%s%s\n", prompt, line);
+    for (int i = 0; i < match_count; i++) {
+        printf("%s  ", matches[i]);
+    }
+    printf("\n%s%s", prompt, line);
+    fflush(stdout);
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
 /* REPL loop                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -209,10 +398,12 @@ static void print_usage(const char *prog) {
 
 static void repl_loop(void) {
     char line[MAX_LINE_LEN];
+    char saved_line[MAX_LINE_LEN]; /* saves in-progress line when browsing history */
     char prompt[MAX_PATH_LEN];
     char *history[CBOOT_HISTORY_MAX] = {0};
     int hist_count = 0;
     int hist_pos = 0;
+    int hist_browsing = 0; /* whether we are browsing history */
 
     /* 保存并设置终端为 raw 模式 */
     struct termios old_term, new_term;
@@ -220,6 +411,10 @@ static void repl_loop(void) {
     new_term = old_term;
     new_term.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
+
+    /* 启用 bracketed paste mode */
+    printf("\033[?2004h");
+    fflush(stdout);
 
     while (g_running) {
         /* 构建提示符 */
@@ -233,7 +428,7 @@ static void repl_loop(void) {
 
         /* 逐字符读取输入 */
         int pos = 0;
-        int esc_state = 0; /* 0=normal, 1=saw ESC, 2=saw ESC[ */
+        int esc_state = 0;   /* 0=normal, 1=saw ESC, 2=saw ESC[, 3=saw ESC[? (bracketed paste) */
         line[0] = '\0';
 
         while (1) {
@@ -248,36 +443,99 @@ static void repl_loop(void) {
                 esc_state = 1;
                 continue;
             }
-            if (esc_state == 1 && c == '[') {
-                esc_state = 2;
+            if (esc_state == 1) {
+                if (c == '[') {
+                    esc_state = 2;
+                    continue;
+                }
+                /* Lone ESC */
+                esc_state = 0;
                 continue;
             }
             if (esc_state == 2) {
                 if (c == 'A') {
-                    /* 上箭头 */
+                    /* 上箭头 - 命令回滚 */
                     if (hist_count > 0) {
-                        if (hist_pos == hist_count)
-                            line[0] = '\0';
-                        hist_pos = (hist_pos > 0) ? hist_pos - 1 : hist_count - 1;
-                        strcpy(line, history[hist_pos]);
+                        if (!hist_browsing) {
+                            /* Save current in-progress line */
+                            strcpy(saved_line, line);
+                            hist_browsing = 1;
+                            hist_pos = hist_count; /* will be decremented below */
+                        }
+                        if (hist_pos > 0) {
+                            hist_pos--;
+                            strcpy(line, history[hist_pos]);
+                            printf("\r\033[K%s%s", prompt, line);
+                            fflush(stdout);
+                            pos = (int)strlen(line);
+                        }
+                    }
+                    esc_state = 0;
+                    continue;
+                } else if (c == 'B') {
+                    /* 下箭头 - 命令回滚 */
+                    if (hist_browsing) {
+                        if (hist_pos < hist_count - 1) {
+                            hist_pos++;
+                            strcpy(line, history[hist_pos]);
+                        } else {
+                            /* Past the last history entry - restore saved line */
+                            hist_pos = hist_count;
+                            strcpy(line, saved_line);
+                            hist_browsing = 0;
+                        }
                         printf("\r\033[K%s%s", prompt, line);
                         fflush(stdout);
                         pos = (int)strlen(line);
                     }
-                } else if (c == 'B') {
-                    /* 下箭头 */
-                    if (hist_pos < hist_count - 1) {
-                        hist_pos++;
-                        strcpy(line, history[hist_pos]);
-                    } else if (hist_pos == hist_count - 1) {
-                        hist_pos = hist_count;
-                        line[0] = '\0';
+                    esc_state = 0;
+                    continue;
+                } else if (c == 'C') {
+                    /* 右箭头 - 忽略，清除esc状态 */
+                    esc_state = 0;
+                    continue;
+                } else if (c == 'D') {
+                    /* 左箭头 - 忽略，清除esc状态 */
+                    esc_state = 0;
+                    continue;
+                } else if (c == '?') {
+                    /* Bracketed paste start prefix: ESC[? */
+                    esc_state = 3;
+                    continue;
+                } else if (c >= '0' && c <= '9') {
+                    /* Extended escape sequence like ESC[1~ or ESC[200~ */
+                    /* Read the rest until '~' or letter */
+                    while (1) {
+                        if (read(STDIN_FILENO, &c, 1) != 1) break;
+                        if (c == '~' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+                            break;
                     }
-                    printf("\r\033[K%s%s", prompt, line);
-                    fflush(stdout);
-                    pos = (int)strlen(line);
+                    /* Bracketed paste ESC[200~/ESC[201~ and others are consumed silently */
+                    esc_state = 0;
+                    continue;
+                } else {
+                    /* Unknown ESC[ sequence */
+                    esc_state = 0;
+                    continue;
+                }
+            }
+            if (esc_state == 3) {
+                /* After ESC[?, consume digits then ~ (e.g. ESC[?2004h reply) */
+                if (c >= '0' && c <= '9') {
+                    while (1) {
+                        if (read(STDIN_FILENO, &c, 1) != 1) break;
+                        if (c == '~' || c == 'h' || c == 'l') break;
+                    }
                 }
                 esc_state = 0;
+                continue;
+            }
+
+            /* Tab - command completion */
+            if (c == '\t') {
+                if (pos > 0) {
+                    do_tab_complete(line, &pos, prompt);
+                }
                 continue;
             }
 
@@ -286,6 +544,32 @@ static void repl_loop(void) {
                 line[pos] = '\0';
                 printf("\n");
                 break;
+            }
+
+            /* Ctrl+C - clear line */
+            if (c == 3) {
+                line[0] = '\0';
+                pos = 0;
+                printf("^C\n%s", prompt);
+                fflush(stdout);
+                continue;
+            }
+
+            /* Ctrl+D - exit on empty line */
+            if (c == 4) {
+                if (pos == 0) {
+                    printf("\n");
+                    g_running = 0;
+                    break;
+                }
+                continue;
+            }
+
+            /* Ctrl+L - clear screen */
+            if (c == 12) {
+                printf("\033[2J\033[H%s%s", prompt, line);
+                fflush(stdout);
+                continue;
             }
 
             /* Backspace */
@@ -299,7 +583,7 @@ static void repl_loop(void) {
                 continue;
             }
 
-            /* 普通字符 */
+            /* 普通字符 (including pasted text) */
             if (pos < MAX_LINE_LEN - 1 && c >= 32) {
                 line[pos++] = c;
                 line[pos] = '\0';
@@ -309,6 +593,9 @@ static void repl_loop(void) {
         }
 
         if (!g_running) break;
+
+        /* Reset history browsing state */
+        hist_browsing = 0;
 
         /* 跳过空行 */
         char *trimmed = trim(line);
@@ -340,7 +627,9 @@ static void repl_loop(void) {
         free_tokens(tokens, token_count);
     }
 
-    /* 恢复终端 */
+    /* 禁用 bracketed paste mode 并恢复终端 */
+    printf("\033[?2004l");
+    fflush(stdout);
     tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
 
     /* 释放历史 */
@@ -417,7 +706,16 @@ static int dispatch_command(char **tokens, int count) {
     }
     if (str_eq(cmd, "mode")) {
         if (count < 2) { printf("用法: mode <模式>\n"); return -1; }
-        return cmd_mode(tokens[1]);
+        char mode_buf[MAX_LINE_LEN] = {0};
+        for (int i = 1; i < count; i++) {
+            if (i > 1) strcat(mode_buf, " ");
+            strcat(mode_buf, tokens[i]);
+        }
+        return cmd_mode(mode_buf);
+    }
+    if (str_eq(cmd, "cmode")) {
+        if (count < 2) { printf("用法: cmode <exe|sl|dl|normal>\n"); return -1; }
+        return cmd_cmode(tokens[1]);
     }
 
     /* 控制 */
@@ -470,16 +768,27 @@ static int dispatch_command(char **tokens, int count) {
         return cmd_gen();
     }
 
-    /* 导入 */
+    /* 导入: im - 仅API定义 */
     if (str_eq(cmd, "im")) {
         if (count < 2) { printf("用法: im <.cboot 文件>\n"); return -1; }
         return cmd_im(tokens[1]);
+    }
+
+    /* 导入: in - 完整项目作为子模块 */
+    if (str_eq(cmd, "in")) {
+        if (count < 2) { printf("用法: in <.cboot 文件>\n"); return -1; }
+        return cmd_in(tokens[1]);
     }
 
     /* 资源 */
     if (str_eq(cmd, "res")) {
         if (count < 2) { printf("用法: res <资源文件>\n"); return -1; }
         return cmd_res(tokens[1]);
+    }
+
+    /* .cboot 文件引用: <dir>/.cboot 或 .cboot */
+    if (try_cboot_ref(cmd)) {
+        return 0;
     }
 
     printf("未知命令: %s (输入 help 查看帮助)\n", cmd);
