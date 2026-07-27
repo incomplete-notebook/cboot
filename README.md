@@ -1,5 +1,7 @@
 # cboot
 
+本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。
+
 ## 文档
 
 - [开发文档](DEV.md)

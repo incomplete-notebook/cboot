@@ -1,5 +1,7 @@
 # cboot 开发文档
 
+本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。
+
 ## 模块概览
 
 | 模块 | 说明 | 路径 |

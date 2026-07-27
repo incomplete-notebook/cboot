@@ -44,6 +44,9 @@ int main(int argc, char **argv) {
         } else if (str_eq(argv[i], "-h") || str_eq(argv[i], "--help")) {
             print_usage(argv[0]);
             return 0;
+        } else if (str_eq(argv[i], "-v") || str_eq(argv[i], "--version")) {
+            printf("CBoot V%s\n", CBOOT_VERSION);
+            return 0;
         } else if (str_eq(argv[i], "-to_cboot")) {
             g_mode = MODE_TO_CBOOT;
             if (i + 1 < argc) {
@@ -71,7 +74,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "用法: cboot -to_cboot <目录>\n");
             return 1;
         }
-        printf("CBoot v%s - to_cboot 模式\n", CBOOT_VERSION);
+        printf("CBoot V%s - to_cboot 模式\n", CBOOT_VERSION);
         printf("目标目录: %s\n", to_cboot_dir);
         printf("(to_cboot 功能尚未实现)\n");
         return 0;
@@ -85,7 +88,7 @@ int main(int argc, char **argv) {
             return 1;
         }
         g_proj = project_new("cboot_project");
-        printf("CBoot v%s - 批处理模式 (%s)\n", CBOOT_VERSION, script_file);
+        printf("CBoot V%s - 批处理模式 (%s)\n", CBOOT_VERSION, script_file);
         if (parse_cboot_script(script_file) != 0) {
             fprintf(stderr, "cboot: 脚本执行失败\n");
             return 1;
@@ -99,7 +102,7 @@ int main(int argc, char **argv) {
         if (file_exists(".cboot")) {
             g_mode = MODE_BATCH;
             g_proj = project_new("cboot_project");
-            printf("CBoot v%s - 批处理模式 (.cboot)\n", CBOOT_VERSION);
+            printf("CBoot V%s - 批处理模式 (.cboot)\n", CBOOT_VERSION);
             if (parse_cboot_script(".cboot") != 0) {
                 fprintf(stderr, "cboot: 脚本执行失败\n");
                 return 1;
@@ -143,7 +146,7 @@ int main(int argc, char **argv) {
     /* 初始化项目 */
     g_proj = project_new(proj_name);
 
-    printf("CBoot v%s - 交互模式\n", CBOOT_VERSION);
+    printf("CBoot V%s - 交互模式\n", CBOOT_VERSION);
     printf("项目 '%s' 已创建。输入命令开始构建，输入 help 查看帮助。\n\n", proj_name);
 
     /* 进入 REPL */
@@ -173,13 +176,14 @@ static int detect_fine_tune_mode(void) {
 /* ------------------------------------------------------------------ */
 
 static void print_usage(const char *prog) {
-    printf("CBoot v%s - C 项目引导工具\n\n", CBOOT_VERSION);
+    printf("CBoot V%s - C 项目引导工具\n\n", CBOOT_VERSION);
     printf("用法:\n");
     printf("  %s <项目名>            交互模式，创建项目并进入 REPL\n", prog);
     printf("  %s <项目名> -f         交互模式，强制重建项目\n", prog);
     printf("  %s <file.cboot>        执行指定的 .cboot 脚本文件\n", prog);
     printf("  %s                     批处理模式，读取当前目录 .cboot\n", prog);
     printf("  %s -to_cboot <目录>    反向工程：将 C 项目转为 .cboot\n", prog);
+    printf("  %s -v                  显示版本号\n", prog);
     printf("  %s -h                  显示帮助\n", prog);
     printf("\n交互模式命令:\n");
     printf("  建立域:\n");
