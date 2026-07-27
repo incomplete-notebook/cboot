@@ -11,5 +11,31 @@ value "递归创建目录结构，使用mkdir系统调用"
 mem path char*
 cmt "目录路径"
 cd ..
+void str_eq int
+cd str_eq
+mode api
+cmt "字符串相等比较"
+value "使用strcmp比较，返回1(相等)或0(不等)"
+mem a char*
+cmt "字符串A"
+mem b char*
+cmt "字符串B"
+cd ..
+void str_dup char*
+cd str_dup
+mode api
+cmt "字符串复制"
+value "分配新内存并复制字符串，返回新指针"
+mem src char*
+cmt "源字符串"
+cd ..
+void strip_quotes void
+cd strip_quotes
+mode api
+cmt "去除字符串首尾的引号"
+value "原地修改，去除首尾的单引号或双引号"
+mem str char*
+cmt "待处理字符串"
+cd ..
 
 # End of .cboot for utils

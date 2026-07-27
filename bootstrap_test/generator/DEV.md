@@ -4,7 +4,7 @@
 
 ## 统计
 
-- 公开 API: **1** 项
+- 公开 API: **7** 项
 - 私有实现: **0** 项
 
 ## 函数
@@ -27,6 +27,166 @@ int generate_project(struct Project* proj, char* output_dir)
 |------|------|------|
 | `proj` | `struct Project*` | 项目定义 |
 | `output_dir` | `char*` | 输出目录(项目根即为源码根) |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_module()
+
+> `API` — 公开接口
+
+**业务逻辑**: 创建模块目录，生成.c/.h/CMakeLists.txt/.cboot/文档，递归处理子模块
+
+**说明**: 为单个模块生成代码
+
+```c
+void generate_module(struct Domain* mod, char* parent_dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `struct Domain*` | 模块域 |
+| `parent_dir` | `char*` | 父目录 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_mod_c()
+
+> `API` — 公开接口
+
+**业务逻辑**: 包含头文件、宏、类型、变量、函数实现；非API函数自动static化避免符号冲突
+
+**说明**: 生成模块的.c源文件
+
+```c
+void generate_mod_c(struct Domain* mod, char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `struct Domain*` | 模块域 |
+| `dir` | `char*` | 模块目录路径 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_mod_h()
+
+> `API` — 公开接口
+
+**业务逻辑**: 生成include guard、API宏/类型/函数声明；dl模式添加dll导出宏
+
+**说明**: 生成模块的.h头文件(仅API声明)
+
+```c
+void generate_mod_h(struct Domain* mod, char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `struct Domain*` | 模块域 |
+| `dir` | `char*` | 模块目录路径 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_mod_cmake()
+
+> `API` — 公开接口
+
+**业务逻辑**: 根据compiler模式生成: normal(收集.o)/exe(可执行)/sl(静态库)/dl(动态库)，含子模块add_subdirectory
+
+**说明**: 生成模块的CMakeLists.txt
+
+```c
+void generate_mod_cmake(struct Domain* mod, char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `struct Domain*` | 模块域 |
+| `dir` | `char*` | 模块目录路径 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_top_cmake()
+
+> `API` — 公开接口
+
+**业务逻辑**: 无exe模块时收集所有normal模块源文件+main.c生成默认可执行；有exe模块时链接库模块
+
+**说明**: 生成顶层CMakeLists.txt
+
+```c
+void generate_top_cmake(struct Project* proj)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `struct Project*` | 项目定义 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_top_main()
+
+> `API` — 公开接口
+
+**业务逻辑**: 仅在无exe模块时生成默认main.c，包含所有顶层模块头文件
+
+**说明**: 生成顶层main.c入口
+
+```c
+void generate_top_main(struct Project* proj)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `struct Project*` | 项目定义 |
 
 **实现**:
 

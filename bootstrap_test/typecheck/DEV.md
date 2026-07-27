@@ -4,7 +4,7 @@
 
 ## 统计
 
-- 公开 API: **1** 项
+- 公开 API: **2** 项
 - 私有实现: **0** 项
 
 ## 函数
@@ -26,6 +26,32 @@ int typecheck_domain(struct Domain* domain)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `domain` | `struct Domain*` | 待检查域 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### int typecheck_project()
+
+> `API` — 公开接口
+
+**业务逻辑**: 递归遍历所有域，调用typecheck_domain，输出错误列表
+
+**说明**: 检查整个项目的类型一致性
+
+```c
+int typecheck_project(struct Project* proj)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `struct Project*` | 项目定义 |
 
 **实现**:
 

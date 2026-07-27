@@ -9,3 +9,9 @@ int parse_cboot(char* filepath, struct Project* proj) {
 //请在这里输入代码
 }
 
+// 分派单行脚本命令
+// 业务逻辑: 根据首个分词(命令名)调用对应cmd_函数
+int dispatch_script_line(char** tokens, int count) {
+//请在这里输入代码
+}
+

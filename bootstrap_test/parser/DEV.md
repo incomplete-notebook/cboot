@@ -4,7 +4,7 @@
 
 ## 统计
 
-- 公开 API: **1** 项
+- 公开 API: **2** 项
 - 私有实现: **0** 项
 
 ## 函数
@@ -27,6 +27,33 @@ int parse_cboot(char* filepath, struct Project* proj)
 |------|------|------|
 | `filepath` | `char*` | 文件路径 |
 | `proj` | `struct Project*` | 输出项目 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### int dispatch_script_line()
+
+> `API` — 公开接口
+
+**业务逻辑**: 根据首个分词(命令名)调用对应cmd_函数
+
+**说明**: 分派单行脚本命令
+
+```c
+int dispatch_script_line(char** tokens, int count)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tokens` | `char**` | 分词数组 |
+| `count` | `int` | 分词数量 |
 
 **实现**:
 

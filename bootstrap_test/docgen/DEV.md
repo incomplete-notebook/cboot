@@ -4,7 +4,7 @@
 
 ## 统计
 
-- 公开 API: **1** 项
+- 公开 API: **2** 项
 - 私有实现: **0** 项
 
 ## 函数
@@ -27,6 +27,33 @@ int generate_docs(struct Project* proj, char* output_dir)
 |------|------|------|
 | `proj` | `struct Project*` | 项目定义 |
 | `output_dir` | `char*` | 输出目录 |
+
+**实现**:
+
+```c
+//请在这里输入代码
+```
+
+---
+
+### void generate_module_docs()
+
+> `API` — 公开接口
+
+**业务逻辑**: 生成README.md(模块说明+子模块链接)、API.md(仅API项)、DEV.md(所有项+业务逻辑)
+
+**说明**: 为单个模块生成文档
+
+```c
+void generate_module_docs(struct Domain* mod, char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `struct Domain*` | 模块域 |
+| `dir` | `char*` | 模块目录路径 |
 
 **实现**:
 

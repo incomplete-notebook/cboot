@@ -13,5 +13,15 @@ cmt "项目定义"
 mem output_dir char*
 cmt "输出目录"
 cd ..
+void generate_module_docs void
+cd generate_module_docs
+mode api
+cmt "为单个模块生成文档"
+value "生成README.md(模块说明+子模块链接)、API.md(仅API项)、DEV.md(所有项+业务逻辑)"
+mem mod struct Domain*
+cmt "模块域"
+mem dir char*
+cmt "模块目录路径"
+cd ..
 
 # End of .cboot for docgen

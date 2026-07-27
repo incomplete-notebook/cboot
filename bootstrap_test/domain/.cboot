@@ -58,5 +58,300 @@ cmt "子域数量"
 mem child_capacity int
 cmt "子域数组容量"
 cd ..
+struct ModuleDomain
+cd ModuleDomain
+mode api
+cmt "模块域 - 项目中的一个模块节点，含编译模式和依赖管理"
+mem base struct Domain
+cmt "基础域"
+mem mode int
+cmt "模块模式(ModMode枚举)"
+mem compiler int
+cmt "编译模式(CompilerMode枚举): exe/sl/dl/normal"
+mem value char*
+cmt "模块值"
+mem includes char**
+cmt "头文件包含列表"
+mem include_count int
+cmt "包含数量"
+mem dependencies char**
+cmt "依赖模块名称列表"
+mem dep_count int
+cmt "依赖数量"
+cd ..
+struct FunctionDomain
+cd FunctionDomain
+mode api
+cmt "函数域 - 项目中的函数定义"
+mem base struct Domain
+cmt "基础域"
+mem mode int
+cmt "API模式(ApiMode枚举)"
+mem return_type char*
+cmt "返回类型"
+mem code char*
+cmt "函数实现代码"
+mem value char*
+cmt "业务逻辑描述"
+cd ..
+struct StructDomain
+cd StructDomain
+mode api
+cmt "结构体域 - 项目中的结构体类型定义"
+mem base struct Domain
+cmt "基础域"
+mem mode int
+cmt "API模式(ApiMode枚举)"
+cd ..
+struct TypeDomain
+cd TypeDomain
+mode api
+cmt "类型域 - typedef定义"
+mem base struct Domain
+cmt "基础域"
+mem mode int
+cmt "类型模式(TypeMode枚举)"
+mem value char*
+cmt "底层类型(rename模式)或值"
+cd ..
+struct MacroDomain
+cd MacroDomain
+mode api
+cmt "宏域 - #define定义"
+mem base struct Domain
+cmt "基础域"
+mem mode int
+cmt "API模式(ApiMode枚举)"
+mem value char*
+cmt "宏值"
+cd ..
+struct VariableDomain
+cd VariableDomain
+mode api
+cmt "变量域 - 变量定义"
+mem base struct Domain
+cmt "基础域"
+mem mode int
+cmt "变量模式(VarMode枚举)"
+mem type char*
+cmt "变量类型"
+mem value char*
+cmt "变量初始值"
+cd ..
+struct MemberDomain
+cd MemberDomain
+mode api
+cmt "成员域 - 结构体成员或函数参数"
+mem base struct Domain
+cmt "基础域"
+mem type char*
+cmt "成员类型"
+cd ..
+struct Dependency
+cd Dependency
+mode api
+cmt "依赖记录 - im命令建立的API依赖关系"
+mem importer char*
+cmt "导入方模块路径"
+mem source char*
+cmt "源模块路径"
+mem cboot_file char*
+cmt "源.cboot文件路径"
+cd ..
+struct Project
+cd Project
+mode api
+cmt "项目容器 - 整个项目的根节点和全局状态"
+mem name char*
+cmt "项目名称"
+mem root struct Domain*
+cmt "根域(包含所有模块)"
+mem current struct Domain*
+cmt "当前作用域指针"
+mem has_generated int
+cmt "是否已生成代码"
+mem cboot_file char*
+cmt ".cboot文件路径"
+mem dependencies struct Dependency*
+cmt "API依赖数组"
+mem dep_count int
+cmt "依赖数量"
+cd ..
+void domain_new struct Domain*
+cd domain_new
+mode api
+cmt "创建新域节点，分配内存并初始化所有字段"
+value "分配内存，设置类型和名称，初始化子域数组，返回新指针"
+mem type int
+cmt "域类型(DomainType枚举)"
+mem name char*
+cmt "域名称"
+mem size size_t
+cmt "结构体大小"
+cd ..
+void module_domain_new struct ModuleDomain*
+cd module_domain_new
+mode api
+cmt "创建新模块域"
+value "调用domain_new，设置默认模式为INTERNAL，默认编译模式为NORMAL"
+mem name char*
+cmt "模块名称"
+cd ..
+void function_domain_new struct FunctionDomain*
+cd function_domain_new
+mode api
+cmt "创建新函数域"
+value "调用domain_new，设置返回类型，默认API模式为NORMAL"
+mem name char*
+cmt "函数名称"
+mem return_type char*
+cmt "返回类型"
+cd ..
+void struct_domain_new struct StructDomain*
+cd struct_domain_new
+mode api
+cmt "创建新结构体域"
+value "调用domain_new，默认API模式为NORMAL"
+mem name char*
+cmt "结构体名称"
+cd ..
+void type_domain_new struct TypeDomain*
+cd type_domain_new
+mode api
+cmt "创建新类型域"
+value "调用domain_new，默认类型模式为RENAME"
+mem name char*
+cmt "类型名称"
+cd ..
+void macro_domain_new struct MacroDomain*
+cd macro_domain_new
+mode api
+cmt "创建新宏域"
+value "调用domain_new，默认API模式为NORMAL"
+mem name char*
+cmt "宏名称"
+cd ..
+void variable_domain_new struct VariableDomain*
+cd variable_domain_new
+mode api
+cmt "创建新变量域"
+value "调用domain_new，设置类型，默认变量模式为NORMAL"
+mem name char*
+cmt "变量名称"
+mem type char*
+cmt "变量类型"
+cd ..
+void member_domain_new struct MemberDomain*
+cd member_domain_new
+mode api
+cmt "创建新成员域(结构体成员或函数参数)"
+value "调用domain_new，设置类型"
+mem name char*
+cmt "成员名称"
+mem type char*
+cmt "成员类型"
+cd ..
+void domain_add_child void
+cd domain_add_child
+mode api
+cmt "添加子域到父域，自动设置parent指针"
+value "检查容量，扩容数组，添加子域，设置parent"
+mem parent struct Domain*
+cmt "父域指针"
+mem child struct Domain*
+cmt "子域指针"
+cd ..
+void domain_find_child struct Domain*
+cd domain_find_child
+mode api
+cmt "按名称查找直接子域"
+value "遍历子域数组，返回匹配名称的子域指针，未找到返回NULL"
+mem parent struct Domain*
+cmt "父域指针"
+mem name char*
+cmt "目标名称"
+cd ..
+void domain_find_api_in_submodules struct Domain*
+cd domain_find_api_in_submodules
+mode api
+cmt "在子模块中递归查找API项，用于名称冲突检测和类型解析"
+value "先在直接子域中查找，再递归进入子模块查找API模式项"
+mem scope struct Domain*
+cmt "搜索起始域"
+mem name char*
+cmt "目标名称"
+cd ..
+void domain_check_api_name_conflict struct Domain*
+cd domain_check_api_name_conflict
+mode api
+cmt "检查名称是否与子模块API项冲突"
+value "调用domain_find_api_in_submodules，返回冲突域或NULL"
+mem scope struct Domain*
+cmt "检查起始域"
+mem name char*
+cmt "目标名称"
+cd ..
+void domain_get_path char*
+cd domain_get_path
+mode api
+cmt "获取域的完整路径字符串(如 /module/submodule)"
+value "从当前域向上遍历到根，拼接路径字符串"
+mem domain struct Domain*
+cmt "目标域"
+cd ..
+void domain_set_comment void
+cd domain_set_comment
+mode api
+cmt "设置域的注释文本"
+value "复制文本并设置到域的comment字段"
+mem domain struct Domain*
+cmt "目标域"
+mem text char*
+cmt "注释文本"
+cd ..
+void domain_set_mode void
+cd domain_set_mode
+mode api
+cmt "设置域的模式字段"
+value "根据域类型设置对应的模式字段"
+mem domain struct Domain*
+cmt "目标域"
+mem mode int
+cmt "模式值"
+cd ..
+void project_new struct Project*
+cd project_new
+mode api
+cmt "创建新项目"
+value "创建根模块域，初始化项目状态和依赖数组"
+mem name char*
+cmt "项目名称"
+cd ..
+void project_add_dependency void
+cd project_add_dependency
+mode api
+cmt "添加依赖记录(im命令使用)"
+value "检查容量，扩容数组，添加新依赖记录"
+mem proj struct Project*
+cmt "项目指针"
+mem importer_path char*
+cmt "导入方路径"
+mem source_path char*
+cmt "源模块路径"
+mem cboot_file char*
+cmt "源.cboot文件路径"
+cd ..
+void project_has_dependency int
+cd project_has_dependency
+mode api
+cmt "检查依赖是否已存在"
+value "遍历依赖数组，返回1(存在)或0(不存在)"
+mem proj struct Project*
+cmt "项目指针"
+mem importer_path char*
+cmt "导入方路径"
+mem source_path char*
+cmt "源模块路径"
+cd ..
 
 # End of .cboot for domain

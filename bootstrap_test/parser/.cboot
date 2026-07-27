@@ -13,5 +13,15 @@ cmt "文件路径"
 mem proj struct Project*
 cmt "输出项目"
 cd ..
+void dispatch_script_line int
+cd dispatch_script_line
+mode api
+cmt "分派单行脚本命令"
+value "根据首个分词(命令名)调用对应cmd_函数"
+mem tokens char**
+cmt "分词数组"
+mem count int
+cmt "分词数量"
+cd ..
 
 # End of .cboot for parser

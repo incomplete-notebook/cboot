@@ -11,5 +11,125 @@ value "验证名称唯一性，创建ModuleDomain并添加到当前作用域"
 mem name char*
 cmt "模块名称"
 cd ..
+void cmd_struct int
+cd cmd_struct
+mode api
+cmt "创建新结构体命令"
+value "在当前模块作用域中创建StructDomain"
+mem name char*
+cmt "结构体名称"
+cd ..
+void cmd_type int
+cd cmd_type
+mode api
+cmt "创建新类型(typedef)命令"
+value "在当前模块作用域中创建TypeDomain"
+mem name char*
+cmt "类型名称"
+cd ..
+void cmd_def int
+cd cmd_def
+mode api
+cmt "创建新宏(#define)命令"
+value "在当前模块作用域中创建MacroDomain"
+mem name char*
+cmt "宏名称"
+cd ..
+void cmd_void int
+cd cmd_void
+mode api
+cmt "创建新函数命令"
+value "验证名称唯一性，创建FunctionDomain并设为当前"
+mem name char*
+cmt "函数名称"
+mem return_type char*
+cmt "返回类型"
+cd ..
+void cmd_var int
+cd cmd_var
+mode api
+cmt "创建新变量命令"
+value "在当前作用域创建VariableDomain"
+mem name char*
+cmt "变量名称"
+mem type char*
+cmt "变量类型"
+cd ..
+void cmd_mem int
+cd cmd_mem
+mode api
+cmt "添加成员/参数命令"
+value "根据当前作用域(函数/结构体/类型)创建MemberDomain，设为当前"
+mem name char*
+cmt "成员/参数名称"
+mem type char*
+cmt "类型"
+cd ..
+void cmd_cmt int
+cd cmd_cmt
+mode api
+cmt "设置注释命令"
+value "设置当前域的注释；若当前是成员/参数，设置后恢复到父作用域"
+mem text char*
+cmt "注释文本"
+cd ..
+void cmd_mode int
+cd cmd_mode
+mode api
+cmt "设置模式命令"
+value "根据当前域类型设置对应模式；模块支持internal/external，函数/结构体/宏支持api/normal"
+mem text char*
+cmt "模式值(api/normal/internal/external/static/rename/struct等)"
+cd ..
+void cmd_cmode int
+cd cmd_cmode
+mode api
+cmt "设置编译器模式命令"
+value "仅对模块有效：exe生成可执行文件(代码放main.c)，sl静态库，dl动态库，normal普通.o"
+mem text char*
+cmt "编译器模式值(exe/sl/dl/normal)"
+cd ..
+void cmd_cd int
+cd cmd_cd
+mode api
+cmt "导航命令 - 进入子域或返回父域"
+value "解析路径段，逐级在域树中导航"
+mem path char*
+cmt "目标路径(支持..和/前缀)"
+cd ..
+void cmd_gen int
+cd cmd_gen
+mode api
+cmt "生成项目代码命令"
+value "遍历域树，生成.c/.h/CMakeLists.txt/文档，项目根为源码根"
+cd ..
+void cmd_im int
+cd cmd_im
+mode api
+cmt "API导入命令 - 从.cboot文件仅导入API项"
+value "解析源文件，提取API模式项，创建external模块，记录依赖链"
+mem filename char*
+cmt "源.cboot文件路径"
+cd ..
+void cmd_in int
+cd cmd_in
+mode api
+cmt "完整项目导入命令"
+value "完整导入源项目作为子模块，包括所有非API项"
+mem filename char*
+cmt "源.cboot文件路径"
+cd ..
+void cmd_help int
+cd cmd_help
+mode api
+cmt "帮助命令"
+value "打印所有可用命令的帮助信息"
+cd ..
+void cmd_quit int
+cd cmd_quit
+mode api
+cmt "退出命令"
+value "设置运行标志为0，退出交互/批处理模式"
+cd ..
 
 # End of .cboot for commands
