@@ -269,6 +269,22 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return commands_cmd_cmode(tokens[1]);
     }
 
+    /* 修改字段: code (单行，兼容) */
+    if (utils_str_eq(cmd, "code")) {
+        if (count >= 2 && !utils_str_eq(tokens[1], "<<EOF")) {
+            char code_buf[MAX_LINE_LEN];
+            code_buf[0] = '\0';
+            for (int i = 1; i < count; i++) {
+                if (i > 1) strcat(code_buf, " ");
+                strcat(code_buf, tokens[i]);
+            }
+            domain_domain_set_code(g_proj->current, code_buf);
+            return 0;
+        }
+        /* code <<EOF 由外层循环处理（需要读取多行） */
+        return 1;  /* 特殊返回值: 由外层处理 heredoc */
+    }
+
     /* 控制: cd <path> */
     if (utils_str_eq(cmd, "cd")) {
         if (count < 2) {
@@ -427,6 +443,48 @@ int parser_parse_cboot_script(const char *filename) {
         /* Dispatch */
         int ret = parser_dispatch_script_line(tokens, token_count);
         utils_free_tokens(tokens, token_count);
+
+        if (ret == 1) {
+            /* heredoc 模式: 读取多行代码直到 EOF 标记 */
+            char code_buf[MAX_LINE_LEN * 64];
+            code_buf[0] = '\0';
+            int first = 1;
+            while (fgets(line, sizeof(line), f)) {
+                line_no++;
+                size_t len2 = strlen(line);
+                if (len2 > 0 && line[len2 - 1] == '\n')
+                    line[len2 - 1] = '\0';
+
+                char *line_trimmed = trim(line);
+                if (utils_str_eq(line_trimmed, "EOF")) {
+                    /* 移除末尾多余换行 */
+                    if (!first) {
+                        size_t clen = strlen(code_buf);
+                        while (clen > 0 && code_buf[clen - 1] == '\n') {
+                            code_buf[--clen] = '\0';
+                        }
+                    }
+                    domain_domain_set_code(g_proj->current, code_buf);
+                    break;
+                }
+
+                if (line_trimmed[0] == '\0' && first) continue;
+
+                if (!first) {
+                    strncat(code_buf, "\n", sizeof(code_buf) - strlen(code_buf) - 1);
+                }
+                strncat(code_buf, line, sizeof(code_buf) - strlen(code_buf) - 1);
+                first = 0;
+            }
+            if (first) {
+                fprintf(stderr, "parser: code <<EOF 缺少代码内容\n");
+                fclose(f);
+                strcpy(g_script_dir, saved_script_dir);
+                return -1;
+            }
+            /* 继续外层循环 */
+            continue;
+        }
 
         if (ret != 0) {
             fprintf(stderr, "parser: 第 %d 行执行失败\n", line_no);

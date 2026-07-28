@@ -74,11 +74,18 @@ static const char *generator_compiler_mode_str(CompilerMode c) {
  *      cboot/a/b → "a_b"
  * 从当前模块向上走到根项目，收集模块名（不含项目名），用下划线连接
  *
- * 对于外部模块（im 导入的 API 引用），使用模块名本身作为前缀，
- * 这样 .h 中声明的符号名与源模块一致（假定源模块是顶级模块）。
+ * 符号命名规则：
+ * - src/static/external: 使用绝对符号名（模块前缀_函数名）
+ * - dynamic: 使用原始函数名（不加前缀，动态链接调用方直接用原始名）
  */
 static void generator_get_module_prefix(Domain *mod, char *buf, size_t size) {
     ModuleDomain *md = (ModuleDomain *)mod;
+
+    /* dynamic 模式：使用空前缀，函数名保持原样 */
+    if (md->mode == MOD_MODE_DYNAMIC) {
+        buf[0] = '\0';
+        return;
+    }
 
     /* 外部模块(im 导入): 使用模块名作为前缀，与源模块符号一致 */
     if (md->mode == MOD_MODE_EXTERNAL) {
@@ -111,10 +118,15 @@ static void generator_get_module_prefix(Domain *mod, char *buf, size_t size) {
 
 /* generator_make_abs_name - 生成绝对符号名（模块路径_函数名）
  * main 函数保持原名，其余函数加前缀
+ * 当 prefix 为空时（dynamic 模式），使用原始函数名
  */
 static void generator_make_abs_name(const char *prefix, const char *name, char *buf, size_t size) {
     if (strcmp(name, "main") == 0) {
         strncpy(buf, "main", size - 1);
+        buf[size - 1] = '\0';
+    } else if (prefix[0] == '\0') {
+        /* dynamic 模式：prefix 为空，使用原始函数名 */
+        strncpy(buf, name, size - 1);
         buf[size - 1] = '\0';
     } else {
         snprintf(buf, size, "%s_%s", prefix, name);
@@ -168,16 +180,23 @@ static void generator_generate_module(Domain *mod, const char *parent_dir) {
     utils_ensure_dir(mod_dir);
 
     ModuleDomain *md = (ModuleDomain *)mod;
-    int is_external = (md->mode == MOD_MODE_EXTERNAL);
 
-    if (is_external) {
+    if (md->mode == MOD_MODE_EXTERNAL) {
         /* External API-reference module (from im command):
          * Only generate .h file (API declarations), no .c, no CMakeLists.txt */
         generator_generate_mod_h(mod, mod_dir);
         generator_generate_mod_cboot(mod, mod_dir);
         docgen_generate_module_docs(mod, mod_dir);
+    } else if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
+        /* 预编译库模式：只生成 .h、.md、CMakeLists.txt
+         * - static: .h 用绝对符号名（静态链接进去，重命名函数名）
+         * - dynamic: .h 用原始函数名（动态链接，调用方直接用原始名） */
+        generator_generate_mod_h(mod, mod_dir);
+        generator_generate_mod_cmake(mod, mod_dir);
+        generator_generate_mod_cboot(mod, mod_dir);
+        docgen_generate_module_docs(mod, mod_dir);
     } else {
-        /* Generate .c (or main.c for exe mode) and .h */
+        /* MOD_MODE_SRC: 生成 .c (或 main.c for exe) 和 .h */
         generator_generate_mod_c(mod, mod_dir);
         generator_generate_mod_h(mod, mod_dir);
 
@@ -392,8 +411,6 @@ static void generator_generate_mod_c(Domain *mod, const char *dir) {
     ModuleDomain *md = (ModuleDomain *)mod;
     CompilerMode cmode = md->compiler;
 
-    /* For exe mode, the implementation goes into main.c */
-    /* For other modes, it goes into <mod>.c */
     char file_path[MAX_PATH_LEN];
     if (cmode == COMPILER_EXE) {
         snprintf(file_path, sizeof(file_path), "%s/main.c", dir);
@@ -404,6 +421,15 @@ static void generator_generate_mod_c(Domain *mod, const char *dir) {
     FILE *f = fopen(file_path, "w");
     if (!f) {
         fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    /* 如果模块有 code 字段，直接使用原始代码 */
+    if (md->code && md->code[0] != '\0') {
+        fprintf(f, "/* %s.c - CBoot generated (compiler: %s) */\n", mod->name, generator_compiler_mode_str(cmode));
+        fprintf(f, "/* Module: %s */\n\n", mod->name);
+        fprintf(f, "%s\n", md->code);
+        fclose(f);
         return;
     }
 
@@ -635,6 +661,27 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         return;
     }
 
+    /* 预编译库模式（static/dynamic）：链接 value 指定的 .a/.so */
+    if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
+        const char *lib_type = (md->mode == MOD_MODE_STATIC) ? "STATIC" : "SHARED";
+        const char *mode_str = (md->mode == MOD_MODE_STATIC) ? "static" : "dynamic";
+        const char *lib_path = md->value ? md->value : "";
+
+        fprintf(f, "# CMakeLists.txt for module %s (CBoot generated, mode: %s)\n\n",
+                mod->name, mode_str);
+
+        fprintf(f, "# 预编译%s库：value 字段指定库文件路径\n",
+                md->mode == MOD_MODE_STATIC ? "静态" : "动态");
+        fprintf(f, "add_library(%s %s IMPORTED)\n", mod->name, lib_type);
+        fprintf(f, "set_target_properties(%s PROPERTIES\n", mod->name);
+        fprintf(f, "    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/%s\n", lib_path);
+        fprintf(f, "    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}\n");
+        fprintf(f, ")\n");
+
+        fclose(f);
+        return;
+    }
+
     fprintf(f, "# CMakeLists.txt for module %s (CBoot generated, compiler: %s)\n\n",
             mod->name, generator_compiler_mode_str(cmode));
 
@@ -649,7 +696,9 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         for (int i = 0; i < mod->child_count; i++) {
             if (mod->children[i]->type == DOMAIN_MODULE) {
                 ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL) continue;
+                if (child_md->mode == MOD_MODE_EXTERNAL ||
+                    child_md->mode == MOD_MODE_STATIC ||
+                    child_md->mode == MOD_MODE_DYNAMIC) continue;
                 if (!has_subdirs) {
                     fprintf(f, "# Sub-modules\n");
                     has_subdirs = 1;
@@ -673,7 +722,9 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         for (int i = 0; i < mod->child_count; i++) {
             if (mod->children[i]->type == DOMAIN_MODULE) {
                 ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL) continue;
+                if (child_md->mode == MOD_MODE_EXTERNAL ||
+                    child_md->mode == MOD_MODE_STATIC ||
+                    child_md->mode == MOD_MODE_DYNAMIC) continue;
                 if (!has_subdirs) {
                     fprintf(f, "# Sub-modules\n");
                     has_subdirs = 1;
@@ -697,7 +748,9 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         for (int i = 0; i < mod->child_count; i++) {
             if (mod->children[i]->type == DOMAIN_MODULE) {
                 ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL) continue;
+                if (child_md->mode == MOD_MODE_EXTERNAL ||
+                    child_md->mode == MOD_MODE_STATIC ||
+                    child_md->mode == MOD_MODE_DYNAMIC) continue;
                 if (!has_subdirs) {
                     fprintf(f, "# Sub-modules\n");
                     has_subdirs = 1;
@@ -722,7 +775,9 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         for (int i = 0; i < mod->child_count; i++) {
             if (mod->children[i]->type == DOMAIN_MODULE) {
                 ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL) continue;
+                if (child_md->mode == MOD_MODE_EXTERNAL ||
+                    child_md->mode == MOD_MODE_STATIC ||
+                    child_md->mode == MOD_MODE_DYNAMIC) continue;
                 if (!has_subdirs) {
                     fprintf(f, "# Sub-modules\n");
                     has_subdirs = 1;
@@ -763,12 +818,29 @@ static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
         fprintf(f, "cmt \"%s\"\n", mod->comment);
     }
 
-    if (md->mode == MOD_MODE_EXTERNAL) {
-        fprintf(f, "mode external\n");
+    /* 输出模块模式 */
+    switch (md->mode) {
+        case MOD_MODE_SRC:      fprintf(f, "mode src\n"); break;
+        case MOD_MODE_STATIC:   fprintf(f, "mode static\n"); break;
+        case MOD_MODE_DYNAMIC:  fprintf(f, "mode dynamic\n"); break;
+        case MOD_MODE_EXTERNAL: fprintf(f, "mode external\n"); break;
+    }
+
+    /* static/dynamic 模式：输出 value（库文件路径） */
+    if ((md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) && md->value) {
+        fprintf(f, "value \"%s\"\n", md->value);
     }
 
     /* 编译器模式始终输出（包括 normal，确保信息完整）*/
     fprintf(f, "cmode %s\n", generator_compiler_mode_str(md->compiler));
+
+    /* src 模式且有 code 字段：输出模块实现代码 */
+    if (md->mode == MOD_MODE_SRC && md->code && md->code[0] != '\0') {
+        fprintf(f, "code <<EOF\n");
+        fprintf(f, "%s", md->code);
+        if (md->code[strlen(md->code) - 1] != '\n') fprintf(f, "\n");
+        fprintf(f, "EOF\n");
+    }
 
     /* im 导入的模块（外部引用子模块）*/
     for (int i = 0; i < mod->child_count; i++) {
@@ -939,6 +1011,8 @@ static void generator_generate_top_cmake(Project *proj) {
             if (child->type == DOMAIN_MODULE && child != exe_mod) {
                 ModuleDomain *md = (ModuleDomain *)child;
                 if (md->mode == MOD_MODE_EXTERNAL) continue;
+                /* static/dynamic 模式没有 SOURCES 变量，跳过 */
+                if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
                 if (md->compiler == COMPILER_NORMAL) {
                     fprintf(f, "target_sources(%s PRIVATE ${%s_SOURCES})\n",
                             exe_mod->name, child->name);
@@ -948,13 +1022,15 @@ static void generator_generate_top_cmake(Project *proj) {
             }
         }
 
-        /* For sl/dl modules that are not exe, link them into the exe */
+        /* For sl/dl modules and static/dynamic prebuilt libs, link them into the exe */
         fprintf(f, "\n# Link library modules into executable\n");
         for (int i = 0; i < proj->root->child_count; i++) {
             Domain *child = proj->root->children[i];
             if (child->type == DOMAIN_MODULE && child != exe_mod) {
                 ModuleDomain *md = (ModuleDomain *)child;
-                if (md->compiler == COMPILER_SL || md->compiler == COMPILER_DL) {
+                if (md->mode == MOD_MODE_EXTERNAL) continue;
+                if (md->compiler == COMPILER_SL || md->compiler == COMPILER_DL ||
+                    md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
                     fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", exe_mod->name, child->name);
                 }
             }
@@ -980,6 +1056,8 @@ static void generator_generate_top_cmake(Project *proj) {
             if (child->type == DOMAIN_MODULE) {
                 ModuleDomain *md = (ModuleDomain *)child;
                 if (md->mode == MOD_MODE_EXTERNAL) continue;
+                /* static/dynamic 模式没有 SOURCES 变量，跳过 */
+                if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
                 if (md->compiler == COMPILER_NORMAL) {
                     fprintf(f, "list(APPEND ALL_SOURCES ${%s_SOURCES})\n", child->name);
                 }
@@ -989,6 +1067,18 @@ static void generator_generate_top_cmake(Project *proj) {
         fprintf(f, "\n# Main executable\n");
         fprintf(f, "add_executable(%s ${ALL_SOURCES})\n\n", proj->name);
         fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", proj->name);
+
+        /* Link static/dynamic prebuilt libs */
+        fprintf(f, "\n# Link prebuilt library modules\n");
+        for (int i = 0; i < proj->root->child_count; i++) {
+            Domain *child = proj->root->children[i];
+            if (child->type == DOMAIN_MODULE) {
+                ModuleDomain *md = (ModuleDomain *)child;
+                if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
+                    fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", proj->name, child->name);
+                }
+            }
+        }
     }
 
     fprintf(f, "\n# End of CMakeLists.txt\n");
@@ -1088,3 +1178,4 @@ static void generator_generate_project_cboot(Project *proj) {
     fprintf(f, "\ngen\n");
     fclose(f);
 }
+

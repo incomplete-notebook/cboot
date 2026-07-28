@@ -91,7 +91,13 @@ static const char *commands_mode_str(Domain *d) {
     switch (d->type) {
         case DOMAIN_MODULE: {
             ModuleDomain *mod = (ModuleDomain *)d;
-            return mod->mode == MOD_MODE_INTERNAL ? "internal" : "external";
+            switch (mod->mode) {
+                case MOD_MODE_SRC:      return "src";
+                case MOD_MODE_STATIC:   return "static";
+                case MOD_MODE_DYNAMIC:  return "dynamic";
+                case MOD_MODE_EXTERNAL: return "external";
+            }
+            return "?";
         }
         case DOMAIN_FUNCTION: {
             FunctionDomain *f = (FunctionDomain *)d;
@@ -573,12 +579,16 @@ int commands_cmd_mode(const char *text) {
 
     switch (cur->type) {
         case DOMAIN_MODULE: {
-            if (utils_str_eq(text, "internal")) {
-                domain_domain_set_mode(cur, MOD_MODE_INTERNAL);
+            if (utils_str_eq(text, "src")) {
+                domain_domain_set_mode(cur, MOD_MODE_SRC);
+            } else if (utils_str_eq(text, "static")) {
+                domain_domain_set_mode(cur, MOD_MODE_STATIC);
+            } else if (utils_str_eq(text, "dynamic")) {
+                domain_domain_set_mode(cur, MOD_MODE_DYNAMIC);
             } else if (utils_str_eq(text, "external")) {
                 domain_domain_set_mode(cur, MOD_MODE_EXTERNAL);
             } else {
-                printf("错误: 模块模式只能是 internal/external\n");
+                printf("错误: 模块模式只能是 src/static/dynamic/external\n");
                 return -1;
             }
             break;

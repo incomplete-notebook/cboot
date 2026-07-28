@@ -34,9 +34,10 @@ ModuleDomain *domain_module_domain_new(const char *name)
 	if (!base) return NULL;
 
 	ModuleDomain *mod = (ModuleDomain *)base;
-	mod->mode = MOD_MODE_INTERNAL;
+	mod->mode = MOD_MODE_SRC;
 	mod->compiler = COMPILER_NORMAL;
 	mod->value = NULL;
+	mod->code = NULL;
 	mod->include_capacity = 4;
 	mod->includes = (char **)malloc(sizeof(char *) * mod->include_capacity);
 	mod->include_count = 0;
@@ -175,6 +176,7 @@ void domain_domain_delete(Domain *domain)
 	case DOMAIN_MODULE: {
 		ModuleDomain *mod = (ModuleDomain *)domain;
 		free(mod->value);
+		free(mod->code);
 		for (int i = 0; i < mod->include_count; i++) free(mod->includes[i]);
 		free(mod->includes);
 		for (int i = 0; i < mod->dep_count; i++) free(mod->dependencies[i]);
@@ -490,6 +492,28 @@ void domain_domain_set_value(Domain *domain, const char *value)
 	case DOMAIN_STRUCT:
 	case DOMAIN_MEMBER:
 		/* No value field to set */
+		break;
+	}
+}
+
+void domain_domain_set_code(Domain *domain, const char *code)
+{
+	if (!domain) return;
+
+	switch (domain->type) {
+	case DOMAIN_MODULE: {
+		ModuleDomain *mod = (ModuleDomain *)domain;
+		free(mod->code);
+		mod->code = code ? utils_str_dup(code) : NULL;
+		break;
+	}
+	case DOMAIN_FUNCTION: {
+		FunctionDomain *func = (FunctionDomain *)domain;
+		free(func->code);
+		func->code = code ? utils_str_dup(code) : utils_str_dup("//请在这里输入代码");
+		break;
+	}
+	default:
 		break;
 	}
 }

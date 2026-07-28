@@ -220,7 +220,7 @@ static void main_print_usage(const char *prog) {
 /* All command names for tab completion */
 static const char *g_cmd_names[] = {
     "mod", "struct", "type", "def", "void", "var", "mem", "enum",
-    "cmt", "value", "mode", "cmode",
+    "cmt", "value", "mode", "cmode", "code",
     "cd", "rm", "mv", "find", "ls",
     "gen", "im", "in", "res", "exit", "help", "?",
     NULL
@@ -234,7 +234,7 @@ static const char *g_domain_types[] = {
 
 /* Mode values for mode command */
 static const char *g_mode_values[] = {
-    "internal", "external", "api", "normal", "static",
+    "src", "static", "dynamic", "external", "api", "normal",
     "rename", "struct", "api rename", "api struct",
     NULL
 };
@@ -728,6 +728,39 @@ static int main_dispatch_command(char **tokens, int count) {
     if (utils_str_eq(cmd, "cmode")) {
         if (count < 2) { printf("用法: cmode <exe|sl|dl|normal>\n"); return -1; }
         return commands_cmd_cmode(tokens[1]);
+    }
+
+    /* 修改字段: code — 设置模块/函数的实现代码 */
+    if (utils_str_eq(cmd, "code")) {
+        if (count < 2) {
+            /* 交互模式: 进入多行代码输入 */
+            printf("输入代码，以 Ctrl+D 或 EOF 结束:\n");
+            char code_buf[MAX_LINE_LEN * 64];
+            code_buf[0] = '\0';
+            char line[MAX_LINE_LEN];
+            int first = 1;
+            while (fgets(line, sizeof(line), stdin)) {
+                size_t len = strlen(line);
+                if (len > 0 && line[len - 1] == '\n')
+                    line[len - 1] = '\0';
+                if (utils_str_eq(line, "EOF")) break;
+                if (!first) strcat(code_buf, "\n");
+                strncat(code_buf, line, sizeof(code_buf) - strlen(code_buf) - 1);
+                first = 0;
+            }
+            domain_domain_set_code(g_proj->current, code_buf);
+            printf("code 已设置。\n");
+            return 0;
+        }
+        /* 单行 code */
+        char code_buf[MAX_LINE_LEN] = {0};
+        for (int i = 1; i < count; i++) {
+            if (i > 1) strcat(code_buf, " ");
+            strcat(code_buf, tokens[i]);
+        }
+        domain_domain_set_code(g_proj->current, code_buf);
+        printf("code 已设置。\n");
+        return 0;
     }
 
     /* 控制 */

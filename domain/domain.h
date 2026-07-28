@@ -27,8 +27,10 @@ typedef enum {
 /* ------------------------------------------------------------------ */
 
 typedef enum {
-	MOD_MODE_INTERNAL,
-	MOD_MODE_EXTERNAL
+	MOD_MODE_SRC,       /* 源代码模式（生成 .c） */
+	MOD_MODE_STATIC,    /* 预编译静态库 (.a)，value 字段存放路径 */
+	MOD_MODE_DYNAMIC,   /* 预编译动态库 (.so)，value 字段存放路径 */
+	MOD_MODE_EXTERNAL   /* im 导入的 API 引用 */
 } ModMode;
 
 typedef enum {
@@ -102,6 +104,7 @@ typedef struct ModuleDomain {
 	ModMode     mode;
 	CompilerMode compiler;
 	char       *value;
+	char       *code;
 	char       **includes;
 	int         include_count;
 	int         include_capacity;
@@ -268,6 +271,7 @@ Comment *domain_find_child_comment(Domain *domain, const char *target);
 
 void domain_domain_set_value(Domain *domain, const char *value);
 void domain_domain_set_mode(Domain *domain, int mode);
+void domain_domain_set_code(Domain *domain, const char *code);
 
 /* ------------------------------------------------------------------ */
 /* Project operations                                                   */
