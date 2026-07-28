@@ -3,6 +3,15 @@
 
 project cboot
 
+# im 依赖链记录:
+# im-dep: /commands -> /domain (domain)
+# im-dep: /parser -> /domain (domain)
+# im-dep: /generator -> /domain (domain)
+# im-dep: /docgen -> /domain (domain)
+# im-dep: /typecheck -> /domain (domain)
+# im-dep: /utils -> /domain (domain)
+# im-dep: /main -> /domain (domain)
+
 # 顶级模块引用
 domain/.cboot
 commands/.cboot

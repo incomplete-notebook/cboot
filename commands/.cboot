@@ -2,7 +2,9 @@
 # 此文件在模块 commands 作用域下执行，不需要 mod commands
 
 cmt "命令处理器 - 实现交互式和批处理模式的所有命令"
+mode src
 cmode normal
+im domain
 void cmd_mod int
 cd cmd_mod
 mode api
@@ -131,5 +133,8 @@ mode api
 cmt "退出命令"
 value "设置运行标志为0，退出交互/批处理模式"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for commands

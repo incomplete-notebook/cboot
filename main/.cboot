@@ -2,7 +2,9 @@
 # 此文件在模块 main 作用域下执行，不需要 mod main
 
 cmt "可执行入口模块 - CBoot的主程序入口"
+mode src
 cmode exe
+im domain
 void main int
 cd main
 mode api
@@ -13,5 +15,8 @@ cmt "命令行参数数量"
 mem argv char**
 cmt "命令行参数数组"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for main

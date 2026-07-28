@@ -2,7 +2,9 @@
 # 此文件在模块 parser 作用域下执行，不需要 mod parser
 
 cmt "脚本解析器 - 解析.cboot脚本文件为项目定义"
+mode src
 cmode normal
+im domain
 void parse_cboot int
 cd parse_cboot
 mode api
@@ -23,5 +25,8 @@ cmt "分词数组"
 mem count int
 cmt "分词数量"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for parser

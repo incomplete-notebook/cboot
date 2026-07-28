@@ -1,6 +1,6 @@
 /*
- * CBoot - C Project Bootstrapping Tool v2.0
- * Command handlers (新规范 v2.0)
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * Command handlers (新规范 v0.3.1)
  *
  * 命令体系:
  *   建立域: mod/struct/type/def <name>

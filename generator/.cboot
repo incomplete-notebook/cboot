@@ -2,7 +2,9 @@
 # 此文件在模块 generator 作用域下执行，不需要 mod generator
 
 cmt "代码生成器 - 将域树转换为C源代码、CMake构建系统和文档"
+mode src
 cmode normal
+im domain
 void generate_project int
 cd generate_project
 mode api
@@ -69,5 +71,8 @@ value "仅在无exe模块时生成默认main.c，包含所有顶层模块头文�
 mem proj struct Project*
 cmt "项目定义"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for generator

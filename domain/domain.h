@@ -1,5 +1,5 @@
 /*
- * CBoot - C Project Bootstrapping Tool v2.0
+ * CBoot - C Project Bootstrapping Tool v0.3.1
  * Domain data model
  */
 

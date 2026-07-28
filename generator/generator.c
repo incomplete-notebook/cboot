@@ -1,6 +1,6 @@
 /*
- * CBoot - C Project Bootstrapping Tool v2.0
- * Code generator (v3.0 - no-src-dir, hierarchical CMake, compiler modes)
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * Code generator (v0.3.1 - no-src-dir, hierarchical CMake, compiler modes)
  *
  * 生成规则:
  *  - 项目根即为源码根目录，不再有 src/ 子目录

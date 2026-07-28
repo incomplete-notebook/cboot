@@ -1,6 +1,6 @@
 /*
- * CBoot - C Project Bootstrapping Tool v2.0
- * .cboot script parser (新规范 v2.0)
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * .cboot script parser (新规范 v0.3.1)
  *
  * 支持 .cboot 文件引用语法:
  *   <dir>/.cboot  — 在当前作用域创建/进入 <dir> 模块，解析 <dir>/.cboot 文件

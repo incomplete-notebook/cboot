@@ -1,5 +1,5 @@
 /*
- * CBoot - Type Checker v2.0
+ * CBoot - Type Checker v0.3.1
  *
  * Validates C types against built-in types and user-defined types
  * in the domain tree. Supports typedef resolution and value validation

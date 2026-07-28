@@ -2,6 +2,7 @@
 # 此文件在模块 domain 作用域下执行，不需要 mod domain
 
 cmt "域数据模型 - 定义所有域类型、域树结构和项目容器"
+mode src
 cmode normal
 type DomainType
 cd DomainType

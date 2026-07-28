@@ -2,7 +2,9 @@
 # 此文件在模块 typecheck 作用域下执行，不需要 mod typecheck
 
 cmt "类型检查器 - 检查域类型一致性和符号冲突"
+mode src
 cmode normal
+im domain
 void typecheck_domain int
 cd typecheck_domain
 mode api
@@ -19,5 +21,8 @@ value "递归遍历所有域，调用typecheck_domain，输出错误列表"
 mem proj struct Project*
 cmt "项目定义"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for typecheck

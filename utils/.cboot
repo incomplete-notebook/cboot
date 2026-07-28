@@ -2,7 +2,9 @@
 # 此文件在模块 utils 作用域下执行，不需要 mod utils
 
 cmt "工具函数 - 通用辅助功能"
+mode src
 cmode normal
+im domain
 void ensure_dir int
 cd ensure_dir
 mode api
@@ -37,5 +39,8 @@ value "原地修改，去除首尾的单引号或双引号"
 mem str char*
 cmt "待处理字符串"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for utils

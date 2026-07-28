@@ -1,6 +1,6 @@
 /*
- * CBoot - C Project Bootstrapping Tool v2.0
- * Documentation generator (新规范 v2.0)
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * Documentation generator (新规范 v0.3.1)
  *
  * 生成三种文档:
  *  - README.md: 模块说明 + 子模块链接 (面向用户)

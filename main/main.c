@@ -1,6 +1,6 @@
 /*
- * CBoot - C Project Bootstrapping Tool v2.0
- * Main entry point (新规范 v2.0)
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * Main entry point (新规范 v0.3.1)
  */
 
 #include "cboot.h"
@@ -650,7 +650,7 @@ static void main_repl_loop(void) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Command dispatcher (新规范 v2.0)                                     */
+/* Command dispatcher (新规范 v0.3.1)                                     */
 /* ------------------------------------------------------------------ */
 
 static int main_dispatch_command(char **tokens, int count) {

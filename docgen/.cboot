@@ -2,7 +2,9 @@
 # 此文件在模块 docgen 作用域下执行，不需要 mod docgen
 
 cmt "文档生成器 - 生成README.md/API.md/DEV.md三种文档"
+mode src
 cmode normal
+im domain
 void generate_docs int
 cd generate_docs
 mode api
@@ -23,5 +25,8 @@ cmt "模块域"
 mem dir char*
 cmt "模块目录路径"
 cd ..
+
+# 子模块引用
+domain/.cboot
 
 # End of .cboot for docgen
