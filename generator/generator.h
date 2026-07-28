@@ -7,6 +7,6 @@
 #include <string.h>
 
 // 生成项目
-int generate_project(Project* proj);
+int generator_generate_project(Project* proj);
 
 #endif /* GENERATOR_H */

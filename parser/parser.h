@@ -7,6 +7,6 @@
 #include <string.h>
 
 // 解析.cboot脚本
-int parse_cboot_script(char* filename);
+int parser_parse_cboot_script(char* filename);
 
 #endif /* PARSER_H */

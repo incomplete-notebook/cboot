@@ -216,78 +216,78 @@ extern int      g_running;
 /* Domain creation functions                                            */
 /* ------------------------------------------------------------------ */
 
-Domain        *domain_new(DomainType type, const char *name, size_t struct_size);
-ModuleDomain  *module_domain_new(const char *name);
-FunctionDomain *function_domain_new(const char *name, const char *return_type);
-StructDomain  *struct_domain_new(const char *name);
-TypeDomain    *type_domain_new(const char *name);
-MacroDomain   *macro_domain_new(const char *name);
-VariableDomain *variable_domain_new(const char *name, const char *type);
-MemberDomain  *member_domain_new(const char *name, const char *type);
+Domain        *domain_domain_new(DomainType type, const char *name, size_t struct_size);
+ModuleDomain  *domain_module_domain_new(const char *name);
+FunctionDomain *domain_function_domain_new(const char *name, const char *return_type);
+StructDomain  *domain_struct_domain_new(const char *name);
+TypeDomain    *domain_type_domain_new(const char *name);
+MacroDomain   *domain_macro_domain_new(const char *name);
+VariableDomain *domain_variable_domain_new(const char *name, const char *type);
+MemberDomain  *domain_member_domain_new(const char *name, const char *type);
 
 /* ------------------------------------------------------------------ */
 /* Domain tree operations                                               */
 /* ------------------------------------------------------------------ */
 
-void    domain_add_child(Domain *parent, Domain *child);
-Domain *domain_find_child(Domain *parent, const char *name);
-Domain *domain_find_child_by_type(Domain *parent, const char *name, DomainType type);
-void    domain_delete(Domain *domain);
-void    domain_remove_child(Domain *parent, Domain *child);
+void    domain_domain_add_child(Domain *parent, Domain *child);
+Domain *domain_domain_find_child(Domain *parent, const char *name);
+Domain *domain_domain_find_child_by_type(Domain *parent, const char *name, DomainType type);
+void    domain_domain_delete(Domain *domain);
+void    domain_domain_remove_child(Domain *parent, Domain *child);
 
 /* ------------------------------------------------------------------ */
 /* Domain search utilities                                              */
 /* ------------------------------------------------------------------ */
 
-Domain *domain_find_nearest_of_type(Domain *from, DomainType type);
-Domain *domain_find_in_tree(Domain *root, DomainType type, const char *name);
-char   *domain_get_path(Domain *domain);
-int     domain_is_api(Domain *domain);
+Domain *domain_domain_find_nearest_of_type(Domain *from, DomainType type);
+Domain *domain_domain_find_in_tree(Domain *root, DomainType type, const char *name);
+char   *domain_domain_get_path(Domain *domain);
+int     domain_domain_is_api(Domain *domain);
 
 /* Find an API-visible item in submodules (recursive).
  * Searches direct children first, then recurses into module children
  * looking for API-mode items of the given name.
  * Used for name conflict detection and type resolution. */
-Domain *domain_find_api_in_submodules(Domain *scope, const char *name);
+Domain *domain_domain_find_api_in_submodules(Domain *scope, const char *name);
 
 /* Check if a name would conflict with any API item from submodules.
  * Returns the conflicting domain if found, NULL otherwise. */
-Domain *domain_check_api_name_conflict(Domain *scope, const char *name);
+Domain *domain_domain_check_api_name_conflict(Domain *scope, const char *name);
 
 /* ------------------------------------------------------------------ */
 /* Comment operations                                                   */
 /* ------------------------------------------------------------------ */
 
-void     domain_set_comment(Domain *domain, const char *text);
-void     domain_set_child_comment(Domain *domain, const char *target, const char *text);
+void     domain_domain_set_comment(Domain *domain, const char *text);
+void     domain_domain_set_child_comment(Domain *domain, const char *target, const char *text);
 Comment *domain_find_child_comment(Domain *domain, const char *target);
 
 /* ------------------------------------------------------------------ */
 /* Value and mode operations                                            */
 /* ------------------------------------------------------------------ */
 
-void domain_set_value(Domain *domain, const char *value);
-void domain_set_mode(Domain *domain, int mode);
+void domain_domain_set_value(Domain *domain, const char *value);
+void domain_domain_set_mode(Domain *domain, int mode);
 
 /* ------------------------------------------------------------------ */
 /* Project operations                                                   */
 /* ------------------------------------------------------------------ */
 
-Project *project_new(const char *name);
-void     project_free(Project *proj);
+Project *domain_project_new(const char *name);
+void     domain_project_free(Project *proj);
 
 /* Add a dependency record (for im command) */
-void     project_add_dependency(Project *proj, const char *importer_path,
+void     domain_project_add_dependency(Project *proj, const char *importer_path,
                                 const char *source_path, const char *cboot_file);
 
 /* Check if a dependency already exists (importer->source) */
-int      project_has_dependency(Project *proj, const char *importer_path,
+int      domain_project_has_dependency(Project *proj, const char *importer_path,
                                 const char *source_path);
 
 /* ------------------------------------------------------------------ */
 /* Type detection                                                       */
 /* ------------------------------------------------------------------ */
 
-int is_builtin_type(const char *type_name);
+int domain_is_builtin_type(const char *type_name);
 
 #endif /* DOMAIN_H */

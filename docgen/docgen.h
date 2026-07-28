@@ -7,9 +7,9 @@
 #include <string.h>
 
 // 生成文档
-int generate_docs(Project* proj, char* output_dir);
+int docgen_generate_docs(Project* proj, char* output_dir);
 
 // 生成模块文档
-void generate_module_docs(Domain* mod, char* dir);
+void docgen_generate_module_docs(Domain* mod, char* dir);
 
 #endif /* DOCGEN_H */

@@ -23,10 +23,10 @@ int      g_running = 1;
 /* Forward declarations                                               */
 /* ------------------------------------------------------------------ */
 
-static void print_usage(const char *prog);
-static void repl_loop(void);
-static int  dispatch_command(char **tokens, int count);
-static int  detect_fine_tune_mode(void);
+static void main_print_usage(const char *prog);
+static void main_repl_loop(void);
+static int  main_dispatch_command(char **tokens, int count);
+static int  main_detect_fine_tune_mode(void);
 
 /* ------------------------------------------------------------------ */
 /* Main                                                               */
@@ -39,22 +39,22 @@ int main(int argc, char **argv) {
 
     /* 解析命令行参数 */
     for (int i = 1; i < argc; i++) {
-        if (str_eq(argv[i], "-f") || str_eq(argv[i], "--force")) {
+        if (utils_str_eq(argv[i], "-f") || utils_str_eq(argv[i], "--force")) {
             g_force = 1;
-        } else if (str_eq(argv[i], "-h") || str_eq(argv[i], "--help")) {
-            print_usage(argv[0]);
+        } else if (utils_str_eq(argv[i], "-h") || utils_str_eq(argv[i], "--help")) {
+            main_print_usage(argv[0]);
             return 0;
-        } else if (str_eq(argv[i], "-v") || str_eq(argv[i], "--version")) {
+        } else if (utils_str_eq(argv[i], "-v") || utils_str_eq(argv[i], "--version")) {
             printf("CBoot V%s\n", CBOOT_VERSION);
             return 0;
-        } else if (str_eq(argv[i], "-to_cboot")) {
+        } else if (utils_str_eq(argv[i], "-to_cboot")) {
             g_mode = MODE_TO_CBOOT;
             if (i + 1 < argc) {
                 to_cboot_dir = argv[++i];
             }
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "cboot: 未知选项 '%s'\n", argv[i]);
-            print_usage(argv[0]);
+            main_print_usage(argv[0]);
             return 1;
         } else {
             /* 判断是 .cboot 脚本文件还是项目名 */
@@ -83,35 +83,35 @@ int main(int argc, char **argv) {
     /* 指定了 .cboot 脚本文件：批处理执行 */
     if (script_file) {
         g_mode = MODE_BATCH;
-        if (!file_exists(script_file)) {
+        if (!utils_file_exists(script_file)) {
             fprintf(stderr, "cboot: 未找到脚本文件 '%s'\n", script_file);
             return 1;
         }
-        g_proj = project_new("cboot_project");
+        g_proj = domain_project_new("cboot_project");
         printf("CBoot V%s - 批处理模式 (%s)\n", CBOOT_VERSION, script_file);
-        if (parse_cboot_script(script_file) != 0) {
+        if (parser_parse_cboot_script(script_file) != 0) {
             fprintf(stderr, "cboot: 脚本执行失败\n");
             return 1;
         }
-        project_free(g_proj);
+        domain_project_free(g_proj);
         return 0;
     }
 
     /* 无参数：有 .cboot 则执行，无则显示帮助 */
     if (!proj_name) {
-        if (file_exists(".cboot")) {
+        if (utils_file_exists(".cboot")) {
             g_mode = MODE_BATCH;
-            g_proj = project_new("cboot_project");
+            g_proj = domain_project_new("cboot_project");
             printf("CBoot V%s - 批处理模式 (.cboot)\n", CBOOT_VERSION);
-            if (parse_cboot_script(".cboot") != 0) {
+            if (parser_parse_cboot_script(".cboot") != 0) {
                 fprintf(stderr, "cboot: 脚本执行失败\n");
                 return 1;
             }
-            project_free(g_proj);
+            domain_project_free(g_proj);
             return 0;
         }
         fprintf(stderr, "cboot: 未指定项目名或 .cboot 脚本\n");
-        print_usage(argv[0]);
+        main_print_usage(argv[0]);
         return 1;
     }
 
@@ -119,52 +119,52 @@ int main(int argc, char **argv) {
     g_mode = MODE_INTERACTIVE;
 
     /* 校验项目名 */
-    if (!is_valid_identifier(proj_name)) {
+    if (!utils_is_valid_identifier(proj_name)) {
         fprintf(stderr, "cboot: 无效的项目名 '%s'（仅允许字母、数字、下划线）\n", proj_name);
         return 1;
     }
 
     /* 处理 -f 强制重建 */
-    if (g_force && file_exists(proj_name)) {
+    if (g_force && utils_file_exists(proj_name)) {
         char cmd[MAX_PATH_LEN];
         snprintf(cmd, sizeof(cmd), "rm -rf %s", proj_name);
         system(cmd);
     }
 
-    if (file_exists(proj_name) && !g_force) {
+    if (utils_file_exists(proj_name) && !g_force) {
         fprintf(stderr, "cboot: 目录 '%s' 已存在。使用 -f 强制重建。\n", proj_name);
         return 1;
     }
 
     /* 创建项目目录 */
-    ensure_dir(proj_name);
+    utils_ensure_dir(proj_name);
     if (chdir(proj_name) != 0) {
         perror("cboot: chdir");
         return 1;
     }
 
     /* 初始化项目 */
-    g_proj = project_new(proj_name);
+    g_proj = domain_project_new(proj_name);
 
     printf("CBoot V%s - 交互模式\n", CBOOT_VERSION);
     printf("项目 '%s' 已创建。输入命令开始构建，输入 help 查看帮助。\n\n", proj_name);
 
     /* 进入 REPL */
-    repl_loop();
+    main_repl_loop();
 
     /* 清理 */
-    project_free(g_proj);
+    domain_project_free(g_proj);
     return 0;
 }
 
 /* ------------------------------------------------------------------ */
-/* detect_fine_tune_mode - check if .cboot project has been generated  */
+/* main_detect_fine_tune_mode - check if .cboot project has been generated  */
 /* ------------------------------------------------------------------ */
 
-static int detect_fine_tune_mode(void) {
+static int main_detect_fine_tune_mode(void) {
     /* 检测是否已生成项目：检查 CMakeLists.txt 和 main.c */
-    if (file_exists("CMakeLists.txt")) {
-        if (file_exists("main.c")) {
+    if (utils_file_exists("CMakeLists.txt")) {
+        if (utils_file_exists("main.c")) {
             return 1;
         }
     }
@@ -175,7 +175,7 @@ static int detect_fine_tune_mode(void) {
 /* Usage                                                              */
 /* ------------------------------------------------------------------ */
 
-static void print_usage(const char *prog) {
+static void main_print_usage(const char *prog) {
     printf("CBoot V%s - C 项目引导工具\n\n", CBOOT_VERSION);
     printf("用法:\n");
     printf("  %s <项目名>            交互模式，创建项目并进入 REPL\n", prog);
@@ -246,10 +246,10 @@ static const char *g_cmode_values[] = {
 };
 
 /*
- * try_complete - given a prefix, find all matching strings.
+ * main_try_complete - given a prefix, find all matching strings.
  * Returns number of matches; fills matches[] with pointers.
  */
-static int try_complete(const char *prefix, const char **candidates, int max_matches,
+static int main_try_complete(const char *prefix, const char **candidates, int max_matches,
                         const char **matches)
 {
     int count = 0;
@@ -263,10 +263,10 @@ static int try_complete(const char *prefix, const char **candidates, int max_mat
 }
 
 /*
- * common_prefix_len - find the length of the longest common prefix
+ * main_common_prefix_len - find the length of the longest common prefix
  * among the given strings.
  */
-static int common_prefix_len(const char **strs, int count)
+static int main_common_prefix_len(const char **strs, int count)
 {
     if (count <= 0) return 0;
     int len = (int)strlen(strs[0]);
@@ -279,10 +279,10 @@ static int common_prefix_len(const char **strs, int count)
 }
 
 /*
- * do_tab_complete - perform tab completion on the current line.
+ * main_do_tab_complete - perform tab completion on the current line.
  * Modifies line and updates pos. Returns 1 if display was refreshed.
  */
-static int do_tab_complete(char *line, int *pos, const char *prompt)
+static int main_do_tab_complete(char *line, int *pos, const char *prompt)
 {
     /* Make a working copy of the line up to cursor */
     char buf[MAX_LINE_LEN];
@@ -299,14 +299,14 @@ static int do_tab_complete(char *line, int *pos, const char *prompt)
     if (tc == 0 || (tc == 1 && buf[*pos - 1] != ' ')) {
         /* Completing first token (command name) */
         const char *prefix = (tc > 0) ? tokens[0] : "";
-        match_count = try_complete(prefix, g_cmd_names, 128, matches);
+        match_count = main_try_complete(prefix, g_cmd_names, 128, matches);
     } else {
         /* Completing second+ token - context-sensitive */
         const char *cmd = tokens[0];
         const char *partial = (tc > 1) ? tokens[tc - 1] : "";
         int is_last_space = (buf[*pos - 1] == ' ');
 
-        if (str_eq(cmd, "cd") || str_eq(cmd, "rm") || str_eq(cmd, "ls")) {
+        if (utils_str_eq(cmd, "cd") || utils_str_eq(cmd, "rm") || utils_str_eq(cmd, "ls")) {
             /* Complete with child domain names */
             int plen = (int)strlen(partial);
             Domain *cur = g_proj->current;
@@ -315,15 +315,15 @@ static int do_tab_complete(char *line, int *pos, const char *prompt)
                     matches[match_count++] = cur->children[i]->name;
                 }
             }
-        } else if (str_eq(cmd, "find") && tc == 2 && !is_last_space) {
+        } else if (utils_str_eq(cmd, "find") && tc == 2 && !is_last_space) {
             /* Complete domain type for find command */
-            match_count = try_complete(partial, g_domain_types, 128, matches);
-        } else if (str_eq(cmd, "mode")) {
+            match_count = main_try_complete(partial, g_domain_types, 128, matches);
+        } else if (utils_str_eq(cmd, "mode")) {
             /* Complete mode values */
-            match_count = try_complete(partial, g_mode_values, 128, matches);
-        } else if (str_eq(cmd, "cmode")) {
+            match_count = main_try_complete(partial, g_mode_values, 128, matches);
+        } else if (utils_str_eq(cmd, "cmode")) {
             /* Complete compiler mode values */
-            match_count = try_complete(partial, g_cmode_values, 128, matches);
+            match_count = main_try_complete(partial, g_cmode_values, 128, matches);
         } else {
             /* Default: complete with child domain names */
             int plen = (int)strlen(partial);
@@ -336,7 +336,7 @@ static int do_tab_complete(char *line, int *pos, const char *prompt)
         }
     }
 
-    free_tokens(tokens, tc);
+    utils_free_tokens(tokens, tc);
 
     if (match_count == 0) {
         /* No match - beep */
@@ -380,7 +380,7 @@ static int do_tab_complete(char *line, int *pos, const char *prompt)
     else
         base_len = 0;
 
-    int cplen = common_prefix_len(matches, match_count);
+    int cplen = main_common_prefix_len(matches, match_count);
     const char *first = matches[0];
     const char *suffix = first + (*pos - base_len);
     int new_cplen = cplen - (*pos - base_len);
@@ -408,7 +408,7 @@ static int do_tab_complete(char *line, int *pos, const char *prompt)
 
 #define CBOOT_HISTORY_MAX 100
 
-static void repl_loop(void) {
+static void main_repl_loop(void) {
     char line[MAX_LINE_LEN];
     char saved_line[MAX_LINE_LEN]; /* saves in-progress line when browsing history */
     char prompt[MAX_PATH_LEN];
@@ -430,7 +430,7 @@ static void repl_loop(void) {
 
     while (g_running) {
         /* 构建提示符 */
-        char *path = domain_get_path(g_proj->current);
+        char *path = domain_domain_get_path(g_proj->current);
         snprintf(prompt, sizeof(prompt), "CBoot%s> ", path);
         free(path);
 
@@ -546,7 +546,7 @@ static void repl_loop(void) {
             /* Tab - command completion */
             if (c == '\t') {
                 if (pos > 0) {
-                    do_tab_complete(line, &pos, prompt);
+                    main_do_tab_complete(line, &pos, prompt);
                 }
                 continue;
             }
@@ -631,12 +631,12 @@ static void repl_loop(void) {
         int token_count = 0;
         char **tokens = tokenize(trimmed, &token_count);
         if (!tokens || token_count == 0) {
-            free_tokens(tokens, token_count);
+            utils_free_tokens(tokens, token_count);
             continue;
         }
 
-        dispatch_command(tokens, token_count);
-        free_tokens(tokens, token_count);
+        main_dispatch_command(tokens, token_count);
+        utils_free_tokens(tokens, token_count);
     }
 
     /* 禁用 bracketed paste mode 并恢复终端 */
@@ -653,55 +653,55 @@ static void repl_loop(void) {
 /* Command dispatcher (新规范 v2.0)                                     */
 /* ------------------------------------------------------------------ */
 
-static int dispatch_command(char **tokens, int count) {
+static int main_dispatch_command(char **tokens, int count) {
     const char *cmd = tokens[0];
 
     /* 帮助 */
-    if (str_eq(cmd, "help") || str_eq(cmd, "?")) {
-        print_usage("cboot");
+    if (utils_str_eq(cmd, "help") || utils_str_eq(cmd, "?")) {
+        main_print_usage("cboot");
         return 0;
     }
 
     /* 建立域: <op> <name> */
-    if (str_eq(cmd, "mod")) {
+    if (utils_str_eq(cmd, "mod")) {
         if (count < 2) { printf("用法: mod <名称>\n"); return -1; }
-        return cmd_mod(tokens[1]);
+        return commands_cmd_mod(tokens[1]);
     }
-    if (str_eq(cmd, "struct")) {
+    if (utils_str_eq(cmd, "struct")) {
         if (count < 2) { printf("用法: struct <名称>\n"); return -1; }
-        return cmd_struct(tokens[1]);
+        return commands_cmd_struct(tokens[1]);
     }
-    if (str_eq(cmd, "type")) {
+    if (utils_str_eq(cmd, "type")) {
         if (count < 2) { printf("用法: type <名称>\n"); return -1; }
-        return cmd_type(tokens[1]);
+        return commands_cmd_type(tokens[1]);
     }
-    if (str_eq(cmd, "def")) {
+    if (utils_str_eq(cmd, "def")) {
         if (count < 2) { printf("用法: def <名称>\n"); return -1; }
-        return cmd_def(tokens[1]);
+        return commands_cmd_def(tokens[1]);
     }
 
     /* 带类型建立域: <op> <name> <type> */
-    if (str_eq(cmd, "void")) {
+    if (utils_str_eq(cmd, "void")) {
         if (count < 3) { printf("用法: void <名称> <返回类型>\n"); return -1; }
-        return cmd_void(tokens[1], tokens[2]);
+        return commands_cmd_void(tokens[1], tokens[2]);
     }
-    if (str_eq(cmd, "var")) {
+    if (utils_str_eq(cmd, "var")) {
         if (count < 3) { printf("用法: var <名称> <类型>\n"); return -1; }
-        return cmd_var(tokens[1], tokens[2]);
+        return commands_cmd_var(tokens[1], tokens[2]);
     }
-    if (str_eq(cmd, "mem")) {
+    if (utils_str_eq(cmd, "mem")) {
         if (count < 3) { printf("用法: mem <名称> <类型>\n"); return -1; }
-        return cmd_mem(tokens[1], tokens[2]);
+        return commands_cmd_mem(tokens[1], tokens[2]);
     }
 
     /* 枚举式def */
-    if (str_eq(cmd, "enum")) {
+    if (utils_str_eq(cmd, "enum")) {
         if (count < 3) { printf("用法: enum <def1>,<def2>,... <start_num>\n"); return -1; }
-        return cmd_enum(tokens[1], tokens[2]);
+        return commands_cmd_enum(tokens[1], tokens[2]);
     }
 
     /* 修改字段 */
-    if (str_eq(cmd, "cmt")) {
+    if (utils_str_eq(cmd, "cmt")) {
         if (count < 2) { printf("用法: cmt \"文本\"\n"); return -1; }
         /* Join rest */
         char cmt_buf[MAX_LINE_LEN] = {0};
@@ -709,97 +709,97 @@ static int dispatch_command(char **tokens, int count) {
             if (i > 1) strcat(cmt_buf, " ");
             strcat(cmt_buf, tokens[i]);
         }
-        strip_quotes(cmt_buf);
-        return cmd_cmt(cmt_buf);
+        utils_strip_quotes(cmt_buf);
+        return commands_cmd_cmt(cmt_buf);
     }
-    if (str_eq(cmd, "value")) {
+    if (utils_str_eq(cmd, "value")) {
         if (count < 2) { printf("用法: value <值>\n"); return -1; }
-        return cmd_value(tokens[1]);
+        return commands_cmd_value(tokens[1]);
     }
-    if (str_eq(cmd, "mode")) {
+    if (utils_str_eq(cmd, "mode")) {
         if (count < 2) { printf("用法: mode <模式>\n"); return -1; }
         char mode_buf[MAX_LINE_LEN] = {0};
         for (int i = 1; i < count; i++) {
             if (i > 1) strcat(mode_buf, " ");
             strcat(mode_buf, tokens[i]);
         }
-        return cmd_mode(mode_buf);
+        return commands_cmd_mode(mode_buf);
     }
-    if (str_eq(cmd, "cmode")) {
+    if (utils_str_eq(cmd, "cmode")) {
         if (count < 2) { printf("用法: cmode <exe|sl|dl|normal>\n"); return -1; }
-        return cmd_cmode(tokens[1]);
+        return commands_cmd_cmode(tokens[1]);
     }
 
     /* 控制 */
-    if (str_eq(cmd, "cd")) {
-        return cmd_cd(count >= 2 ? tokens[1] : NULL);
+    if (utils_str_eq(cmd, "cd")) {
+        return commands_cmd_cd(count >= 2 ? tokens[1] : NULL);
     }
-    if (str_eq(cmd, "rm")) {
+    if (utils_str_eq(cmd, "rm")) {
         int force = 0;
         const char *name = NULL;
         for (int i = 1; i < count; i++) {
-            if (str_eq(tokens[i], "-f")) force = 1;
+            if (utils_str_eq(tokens[i], "-f")) force = 1;
             else name = tokens[i];
         }
         if (!name) { printf("用法: rm <名称> [-f]\n"); return -1; }
-        return cmd_rm(name, force);
+        return commands_cmd_rm(name, force);
     }
 
     /* 查找 */
-    if (str_eq(cmd, "find")) {
+    if (utils_str_eq(cmd, "find")) {
         if (count < 3) {
             printf("用法: find <类型> <字符> [-a|-an]\n");
             return -1;
         }
         int flags = 0;
         for (int i = 3; i < count; i++) {
-            if (str_eq(tokens[i], "-a")) flags = 1;
-            else if (str_startswith(tokens[i], "-a")) flags = atoi(tokens[i] + 2);
+            if (utils_str_eq(tokens[i], "-a")) flags = 1;
+            else if (utils_str_startswith(tokens[i], "-a")) flags = atoi(tokens[i] + 2);
         }
-        return cmd_find(tokens[1], tokens[2], flags);
+        return commands_cmd_find(tokens[1], tokens[2], flags);
     }
 
     /* 查看 */
-    if (str_eq(cmd, "ls")) {
-        return cmd_ls(count >= 2 ? tokens[1] : NULL);
+    if (utils_str_eq(cmd, "ls")) {
+        return commands_cmd_ls(count >= 2 ? tokens[1] : NULL);
     }
 
     /* 移动 */
-    if (str_eq(cmd, "mv")) {
+    if (utils_str_eq(cmd, "mv")) {
         if (count < 3) { printf("用法: mv <src> <target>\n"); return -1; }
-        return cmd_mv(tokens[1], tokens[2]);
+        return commands_cmd_mv(tokens[1], tokens[2]);
     }
 
     /* 退出 */
-    if (str_eq(cmd, "exit")) {
-        return cmd_exit();
+    if (utils_str_eq(cmd, "exit")) {
+        return commands_cmd_exit();
     }
 
     /* 生成 */
-    if (str_eq(cmd, "gen")) {
-        return cmd_gen();
+    if (utils_str_eq(cmd, "gen")) {
+        return commands_cmd_gen();
     }
 
     /* 导入: im - 仅API定义 */
-    if (str_eq(cmd, "im")) {
+    if (utils_str_eq(cmd, "im")) {
         if (count < 2) { printf("用法: im <.cboot 文件>\n"); return -1; }
-        return cmd_im(tokens[1]);
+        return commands_cmd_im(tokens[1]);
     }
 
     /* 导入: in - 完整项目作为子模块 */
-    if (str_eq(cmd, "in")) {
+    if (utils_str_eq(cmd, "in")) {
         if (count < 2) { printf("用法: in <.cboot 文件>\n"); return -1; }
-        return cmd_in(tokens[1]);
+        return commands_cmd_in(tokens[1]);
     }
 
     /* 资源 */
-    if (str_eq(cmd, "res")) {
+    if (utils_str_eq(cmd, "res")) {
         if (count < 2) { printf("用法: res <资源文件>\n"); return -1; }
-        return cmd_res(tokens[1]);
+        return commands_cmd_res(tokens[1]);
     }
 
     /* .cboot 文件引用: <dir>/.cboot 或 .cboot */
-    if (try_cboot_ref(cmd)) {
+    if (parser_try_cboot_ref(cmd)) {
         return 0;
     }
 

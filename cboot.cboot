@@ -6,12 +6,48 @@ cmt "本项目主要代码仓是gitee，另有github和gitcode两个镜像，其
 
 # 顶级模块引用
 domain/.cboot
+
+# 各模块导入 domain API（兄弟模块间不可见，需要 im）
+mod commands
+cd commands
+im domain
+cd ..
 commands/.cboot
+
+mod parser
+cd parser
+im domain
+cd ..
 parser/.cboot
+
+mod generator
+cd generator
+im domain
+cd ..
 generator/.cboot
+
+mod docgen
+cd docgen
+im domain
+cd ..
 docgen/.cboot
+
+mod typecheck
+cd typecheck
+im domain
+cd ..
 typecheck/.cboot
+
+mod utils
+cd utils
+im domain
+cd ..
 utils/.cboot
+
+mod main
+cd main
+im domain
+cd ..
 main/.cboot
 
 gen

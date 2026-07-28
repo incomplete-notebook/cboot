@@ -21,18 +21,18 @@
 /* Forward declarations                                               */
 /* ------------------------------------------------------------------ */
 
-static void generate_mod_readme(Domain *mod, const char *dir);
-static void generate_mod_api(Domain *mod, const char *dir);
-static void generate_mod_dev(Domain *mod, const char *dir);
-static void generate_project_readme(Project *proj, const char *output_dir);
-static void generate_project_dev(Project *proj, const char *output_dir);
-static void generate_dependencies_doc(Project *proj, const char *output_dir);
+static void docgen_generate_mod_readme(Domain *mod, const char *dir);
+static void docgen_generate_mod_api(Domain *mod, const char *dir);
+static void docgen_generate_mod_dev(Domain *mod, const char *dir);
+static void docgen_generate_project_readme(Project *proj, const char *output_dir);
+static void docgen_generate_project_dev(Project *proj, const char *output_dir);
+static void docgen_generate_dependencies_doc(Project *proj, const char *output_dir);
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-static int is_api(Domain *d) {
+static int docgen_is_api(Domain *d) {
     if (!d) return 0;
     switch (d->type) {
         case DOMAIN_FUNCTION:
@@ -49,7 +49,7 @@ static int is_api(Domain *d) {
     }
 }
 
-static const char *domain_type_str(int type) {
+static const char *docgen_domain_type_str(int type) {
     switch (type) {
         case DOMAIN_FUNCTION: return "函数";
         case DOMAIN_STRUCT:   return "结构体";
@@ -62,43 +62,43 @@ static const char *domain_type_str(int type) {
 }
 
 /* ================================================================== */
-/* generate_docs - top-level documentation generator                  */
+/* docgen_generate_docs - top-level documentation generator                  */
 /* ================================================================== */
 
-int generate_docs(Project *proj, const char *output_dir) {
+int docgen_generate_docs(Project *proj, const char *output_dir) {
     if (!proj) return -1;
 
-    ensure_dir(output_dir);
+    utils_ensure_dir(output_dir);
 
-    generate_project_readme(proj, output_dir);
-    generate_project_dev(proj, output_dir);
-    generate_dependencies_doc(proj, output_dir);
+    docgen_generate_project_readme(proj, output_dir);
+    docgen_generate_project_dev(proj, output_dir);
+    docgen_generate_dependencies_doc(proj, output_dir);
 
     return 0;
 }
 
 /* Called from generator after module dir is created */
-void generate_module_docs(Domain *mod, const char *dir) {
+void docgen_generate_module_docs(Domain *mod, const char *dir) {
     if (!mod || mod->type != DOMAIN_MODULE) return;
 
-    generate_mod_readme(mod, dir);
-    generate_mod_api(mod, dir);
-    generate_mod_dev(mod, dir);
+    docgen_generate_mod_readme(mod, dir);
+    docgen_generate_mod_api(mod, dir);
+    docgen_generate_mod_dev(mod, dir);
 
     for (int i = 0; i < mod->child_count; i++) {
         if (mod->children[i]->type == DOMAIN_MODULE) {
             char sub_dir[MAX_PATH_LEN];
             snprintf(sub_dir, sizeof(sub_dir), "%s/%s", dir, mod->children[i]->name);
-            generate_module_docs(mod->children[i], sub_dir);
+            docgen_generate_module_docs(mod->children[i], sub_dir);
         }
     }
 }
 
 /* ================================================================== */
-/* generate_dependencies_doc - DEPENDENCIES.md                        */
+/* docgen_generate_dependencies_doc - DEPENDENCIES.md                        */
 /* ================================================================== */
 
-static void generate_dependencies_doc(Project *proj, const char *output_dir) {
+static void docgen_generate_dependencies_doc(Project *proj, const char *output_dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/DEPENDENCIES.md", output_dir);
 
@@ -170,10 +170,10 @@ static void generate_dependencies_doc(Project *proj, const char *output_dir) {
 }
 
 /* ================================================================== */
-/* generate_project_readme - project-level README.md                  */
+/* docgen_generate_project_readme - project-level README.md                  */
 /* ================================================================== */
 
-static void generate_project_readme(Project *proj, const char *output_dir) {
+static void docgen_generate_project_readme(Project *proj, const char *output_dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/README.md", output_dir);
 
@@ -241,10 +241,10 @@ static void generate_project_readme(Project *proj, const char *output_dir) {
 }
 
 /* ================================================================== */
-/* generate_project_dev - project-level DEV.md                        */
+/* docgen_generate_project_dev - project-level DEV.md                        */
 /* ================================================================== */
 
-static void generate_project_dev(Project *proj, const char *output_dir) {
+static void docgen_generate_project_dev(Project *proj, const char *output_dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/DEV.md", output_dir);
 
@@ -356,10 +356,10 @@ static void generate_project_dev(Project *proj, const char *output_dir) {
 }
 
 /* ================================================================== */
-/* generate_mod_readme - module README.md                              */
+/* docgen_generate_mod_readme - module README.md                              */
 /* ================================================================== */
 
-static void generate_mod_readme(Domain *mod, const char *dir) {
+static void docgen_generate_mod_readme(Domain *mod, const char *dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/README.md", dir);
 
@@ -416,8 +416,8 @@ static void generate_mod_readme(Domain *mod, const char *dir) {
                 }
                 fprintf(f, "| `%s` | %s | %s | %s |\n",
                         c->name,
-                        domain_type_str(c->type),
-                        is_api(c) ? "✓" : "—",
+                        docgen_domain_type_str(c->type),
+                        docgen_is_api(c) ? "✓" : "—",
                         c->comment ? c->comment : "-");
             }
         }
@@ -429,10 +429,10 @@ static void generate_mod_readme(Domain *mod, const char *dir) {
 }
 
 /* ================================================================== */
-/* generate_mod_api - module API.md                                    */
+/* docgen_generate_mod_api - module API.md                                    */
 /* ================================================================== */
 
-static void generate_mod_api(Domain *mod, const char *dir) {
+static void docgen_generate_mod_api(Domain *mod, const char *dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/API.md", dir);
 
@@ -446,7 +446,7 @@ static void generate_mod_api(Domain *mod, const char *dir) {
     int has_any = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-        if (is_api(child)) {
+        if (docgen_is_api(child)) {
             if (!has_any) {
                 fprintf(f, "## 目录\n\n");
                 has_any = 1;
@@ -460,7 +460,7 @@ static void generate_mod_api(Domain *mod, const char *dir) {
     int has_funcs = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-        if (child->type == DOMAIN_FUNCTION && is_api(child)) {
+        if (child->type == DOMAIN_FUNCTION && docgen_is_api(child)) {
             if (!has_funcs) {
                 fprintf(f, "## 函数\n\n");
                 has_funcs = 1;
@@ -512,7 +512,7 @@ static void generate_mod_api(Domain *mod, const char *dir) {
     int has_types = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-        if ((child->type == DOMAIN_STRUCT || child->type == DOMAIN_TYPE) && is_api(child)) {
+        if ((child->type == DOMAIN_STRUCT || child->type == DOMAIN_TYPE) && docgen_is_api(child)) {
             if (!has_types) {
                 fprintf(f, "## 类型\n\n");
                 has_types = 1;
@@ -567,7 +567,7 @@ static void generate_mod_api(Domain *mod, const char *dir) {
     int has_macros = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-        if (child->type == DOMAIN_MACRO && is_api(child)) {
+        if (child->type == DOMAIN_MACRO && docgen_is_api(child)) {
             if (!has_macros) {
                 fprintf(f, "## 宏\n\n");
                 has_macros = 1;
@@ -606,10 +606,10 @@ static void generate_mod_api(Domain *mod, const char *dir) {
 }
 
 /* ================================================================== */
-/* generate_mod_dev - module DEV.md                                    */
+/* docgen_generate_mod_dev - module DEV.md                                    */
 /* ================================================================== */
 
-static void write_dev_functions(Domain *mod, FILE *f) {
+static void docgen_write_dev_functions(Domain *mod, FILE *f) {
     int has_funcs = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
@@ -623,7 +623,7 @@ static void write_dev_functions(Domain *mod, FILE *f) {
             fprintf(f, "### %s %s()\n\n", func->return_type, child->name);
 
             /* API badge */
-            if (is_api(child)) {
+            if (docgen_is_api(child)) {
                 fprintf(f, "> `API` — 公开接口\n\n");
             }
 
@@ -692,7 +692,7 @@ static void write_dev_functions(Domain *mod, FILE *f) {
     }
 }
 
-static void write_dev_types(Domain *mod, FILE *f) {
+static void docgen_write_dev_types(Domain *mod, FILE *f) {
     int has_types = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
@@ -704,7 +704,7 @@ static void write_dev_types(Domain *mod, FILE *f) {
 
             fprintf(f, "### %s\n\n", child->name);
 
-            if (is_api(child)) {
+            if (docgen_is_api(child)) {
                 fprintf(f, "> `API` — 公开类型\n\n");
             }
 
@@ -755,7 +755,7 @@ static void write_dev_types(Domain *mod, FILE *f) {
     }
 }
 
-static void write_dev_macros(Domain *mod, FILE *f) {
+static void docgen_write_dev_macros(Domain *mod, FILE *f) {
     int has_macros = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
@@ -768,7 +768,7 @@ static void write_dev_macros(Domain *mod, FILE *f) {
             MacroDomain *md = (MacroDomain *)child;
             fprintf(f, "### `%s`\n\n", child->name);
 
-            if (is_api(child)) {
+            if (docgen_is_api(child)) {
                 fprintf(f, "> `API` — 公开宏\n\n");
             }
 
@@ -784,7 +784,7 @@ static void write_dev_macros(Domain *mod, FILE *f) {
     if (has_macros) fprintf(f, "\n");
 }
 
-static void generate_mod_dev(Domain *mod, const char *dir) {
+static void docgen_generate_mod_dev(Domain *mod, const char *dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/DEV.md", dir);
 
@@ -802,7 +802,7 @@ static void generate_mod_dev(Domain *mod, const char *dir) {
         Domain *c = mod->children[i];
         if (c->type == DOMAIN_FUNCTION || c->type == DOMAIN_STRUCT ||
             c->type == DOMAIN_TYPE || c->type == DOMAIN_MACRO) {
-            if (is_api(c)) api_count++;
+            if (docgen_is_api(c)) api_count++;
             else private_count++;
         }
     }
@@ -812,9 +812,9 @@ static void generate_mod_dev(Domain *mod, const char *dir) {
         fprintf(f, "- 私有实现: **%d** 项\n\n", private_count);
     }
 
-    write_dev_functions(mod, f);
-    write_dev_types(mod, f);
-    write_dev_macros(mod, f);
+    docgen_write_dev_functions(mod, f);
+    docgen_write_dev_types(mod, f);
+    docgen_write_dev_macros(mod, f);
 
     /* Child module links */
     int has_child_mods = 0;

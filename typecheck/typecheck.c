@@ -79,7 +79,7 @@ static const char *float_types[] = {
 /* Returns a pointer into the provided buffer (which is modified).      */
 /* ================================================================== */
 
-static char *strip_pointer(char *buf, int len)
+static char *typecheck_strip_pointer(char *buf, int len)
 {
     /* Trim trailing whitespace */
     while (len > 0 && isspace((unsigned char)buf[len - 1])) {
@@ -103,7 +103,7 @@ static char *strip_pointer(char *buf, int len)
 /* Returns a pointer into the provided buffer (modified).              */
 /* ================================================================== */
 
-static char *strip_qualifiers(char *buf)
+static char *typecheck_strip_qualifiers(char *buf)
 {
     /* Skip leading whitespace */
     while (*buf && isspace((unsigned char)*buf)) buf++;
@@ -140,10 +140,10 @@ static char *strip_qualifiers(char *buf)
 }
 
 /* ================================================================== */
-/* type_checker_is_builtin                                              */
+/* typecheck_type_checker_is_builtin                                              */
 /* ================================================================== */
 
-int type_checker_is_builtin(const char *type_name)
+int typecheck_type_checker_is_builtin(const char *type_name)
 {
     if (!type_name) return 0;
 
@@ -157,10 +157,10 @@ int type_checker_is_builtin(const char *type_name)
 }
 
 /* ================================================================== */
-/* is_integer_type - check if a type name is an integer built-in        */
+/* typecheck_is_integer_type - check if a type name is an integer built-in        */
 /* ================================================================== */
 
-static int is_integer_type(const char *type_name)
+static int typecheck_is_integer_type(const char *type_name)
 {
     if (!type_name) return 0;
 
@@ -174,10 +174,10 @@ static int is_integer_type(const char *type_name)
 }
 
 /* ================================================================== */
-/* is_float_type - check if a type name is a float built-in             */
+/* typecheck_is_float_type - check if a type name is a float built-in             */
 /* ================================================================== */
 
-static int is_float_type(const char *type_name)
+static int typecheck_is_float_type(const char *type_name)
 {
     if (!type_name) return 0;
 
@@ -191,10 +191,10 @@ static int is_float_type(const char *type_name)
 }
 
 /* ================================================================== */
-/* is_accept_any_value - types that accept any value                    */
+/* typecheck_is_accept_any_value - types that accept any value                    */
 /* ================================================================== */
 
-static int is_accept_any_value(const char *type_name)
+static int typecheck_is_accept_any_value(const char *type_name)
 {
     if (!type_name) return 0;
 
@@ -204,10 +204,10 @@ static int is_accept_any_value(const char *type_name)
 }
 
 /* ================================================================== */
-/* type_checker_init                                                    */
+/* typecheck_type_checker_init                                                    */
 /* ================================================================== */
 
-void type_checker_init(TypeChecker *tc, Domain *scope)
+void typecheck_type_checker_init(TypeChecker *tc, Domain *scope)
 {
     if (!tc) return;
 
@@ -217,11 +217,12 @@ void type_checker_init(TypeChecker *tc, Domain *scope)
 }
 
 /* ================================================================== */
-/* type_checker_find_api_types - find API-mode type/struct items
- * in submodules recursively
+/* typecheck_type_checker_find_api_type_in_submodules - find API-mode type/struct items
+ * in direct child modules only (not recursive)
+ * API 只提升一级，只看直接子模块
  * ================================================================== */
 
-static Domain *type_checker_find_api_type_in_submodules(Domain *scope, const char *name)
+static Domain *typecheck_type_checker_find_api_type_in_submodules(Domain *scope, const char *name)
 {
     if (!scope || !name) return NULL;
 
@@ -236,13 +237,10 @@ static Domain *type_checker_find_api_type_in_submodules(Domain *scope, const cha
                 if (!grandchild) continue;
                 if ((grandchild->type == DOMAIN_STRUCT || grandchild->type == DOMAIN_TYPE) &&
                     grandchild->name && strcmp(grandchild->name, name) == 0 &&
-                    domain_is_api(grandchild)) {
+                    domain_domain_is_api(grandchild)) {
                     return grandchild;
                 }
             }
-            /* Recurse into deeper submodules */
-            Domain *found = type_checker_find_api_type_in_submodules(child, name);
-            if (found) return found;
         }
     }
 
@@ -250,10 +248,10 @@ static Domain *type_checker_find_api_type_in_submodules(Domain *scope, const cha
 }
 
 /* ================================================================== */
-/* type_checker_validate                                                */
+/* typecheck_type_checker_validate                                                */
 /* ================================================================== */
 
-int type_checker_validate(TypeChecker *tc, const char *type_name)
+int typecheck_type_checker_validate(TypeChecker *tc, const char *type_name)
 {
     if (!tc || !type_name) return -1;
 
@@ -264,14 +262,20 @@ int type_checker_validate(TypeChecker *tc, const char *type_name)
     memcpy(buf, type_name, len);
     buf[len] = '\0';
 
-    strip_pointer(buf, len);
+    typecheck_strip_pointer(buf, len);
 
     /* Strip leading qualifiers (struct, const, etc.) */
-    char *base = strip_qualifiers(buf);
+    char *base = typecheck_strip_qualifiers(buf);
 
     /* Check built-in types first */
-    if (type_checker_is_builtin(base)) {
+    if (typecheck_type_checker_is_builtin(base)) {
         return 0;
+    }
+
+    /* Find the starting module (the nearest module ancestor of scope) */
+    Domain *start_module = tc->scope;
+    while (start_module && start_module->type != DOMAIN_MODULE) {
+        start_module = start_module->parent;
     }
 
     /* Walk up the scope tree looking for user-defined types */
@@ -288,9 +292,10 @@ int type_checker_validate(TypeChecker *tc, const char *type_name)
             }
         }
 
-        /* If this scope is a module, also check API types in its submodules */
-        if (scope->type == DOMAIN_MODULE) {
-            if (type_checker_find_api_type_in_submodules(scope, base)) {
+        /* Only check submodule API types in the starting module (API 只提升一级)
+         * 兄弟模块之间不可见，需要 im 导入 */
+        if (scope == start_module && scope->type == DOMAIN_MODULE) {
+            if (typecheck_type_checker_find_api_type_in_submodules(scope, base)) {
                 return 0;
             }
         }
@@ -332,7 +337,7 @@ const char *type_checker_resolve_typedef(TypeChecker *tc, const char *type_name)
 
         /* If this scope is a module, also check API types in submodules */
         if (scope->type == DOMAIN_MODULE) {
-            Domain *found = type_checker_find_api_type_in_submodules(scope, type_name);
+            Domain *found = typecheck_type_checker_find_api_type_in_submodules(scope, type_name);
             if (found && found->type == DOMAIN_TYPE) {
                 TypeDomain *td = (TypeDomain *)found;
                 if (td->mode == TYPE_MODE_API_RENAME) {
@@ -352,10 +357,10 @@ const char *type_checker_resolve_typedef(TypeChecker *tc, const char *type_name)
 }
 
 /* ================================================================== */
-/* type_checker_validate_value                                          */
+/* typecheck_type_checker_validate_value                                          */
 /* ================================================================== */
 
-int type_checker_validate_value(const char *type_name, const char *value)
+int typecheck_type_checker_validate_value(const char *type_name, const char *value)
 {
     if (!type_name || !value) return -1;
 
@@ -365,15 +370,15 @@ int type_checker_validate_value(const char *type_name, const char *value)
     if (len >= 256) len = 255;
     memcpy(buf, type_name, len);
     buf[len] = '\0';
-    strip_pointer(buf, len);
+    typecheck_strip_pointer(buf, len);
 
     /* Types that accept any value */
-    if (is_accept_any_value(buf)) {
+    if (typecheck_is_accept_any_value(buf)) {
         return 0;
     }
 
     /* Integer types - check for valid number format */
-    if (is_integer_type(buf)) {
+    if (typecheck_is_integer_type(buf)) {
         const char *p = value;
 
         /* Skip leading whitespace */
@@ -409,7 +414,7 @@ int type_checker_validate_value(const char *type_name, const char *value)
     }
 
     /* Float types - check for valid float format */
-    if (is_float_type(buf)) {
+    if (typecheck_is_float_type(buf)) {
         const char *p = value;
 
         /* Skip leading whitespace */

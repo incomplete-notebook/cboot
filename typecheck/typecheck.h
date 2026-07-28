@@ -25,10 +25,10 @@ typedef struct TypeChecker {
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
 
-void        type_checker_init(TypeChecker *tc, Domain *scope);
-int         type_checker_validate(TypeChecker *tc, const char *type_name);
-int         type_checker_is_builtin(const char *type_name);
+void        typecheck_type_checker_init(TypeChecker *tc, Domain *scope);
+int         typecheck_type_checker_validate(TypeChecker *tc, const char *type_name);
+int         typecheck_type_checker_is_builtin(const char *type_name);
 const char *type_checker_resolve_typedef(TypeChecker *tc, const char *type_name);
-int         type_checker_validate_value(const char *type_name, const char *value);
+int         typecheck_type_checker_validate_value(const char *type_name, const char *value);
 
 #endif /* TYPECHECK_H */

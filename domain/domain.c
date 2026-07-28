@@ -9,13 +9,13 @@
 /* Domain creation                                                      */
 /* ================================================================== */
 
-Domain *domain_new(DomainType type, const char *name, size_t struct_size)
+Domain *domain_domain_new(DomainType type, const char *name, size_t struct_size)
 {
 	Domain *domain = (Domain *)calloc(1, struct_size);
 	if (!domain) return NULL;
 
 	domain->type = type;
-	domain->name = str_dup(name);
+	domain->name = utils_str_dup(name);
 	domain->parent = NULL;
 	domain->child_count = 0;
 	domain->child_capacity = 8;
@@ -28,9 +28,9 @@ Domain *domain_new(DomainType type, const char *name, size_t struct_size)
 	return domain;
 }
 
-ModuleDomain *module_domain_new(const char *name)
+ModuleDomain *domain_module_domain_new(const char *name)
 {
-	Domain *base = domain_new(DOMAIN_MODULE, name, sizeof(ModuleDomain));
+	Domain *base = domain_domain_new(DOMAIN_MODULE, name, sizeof(ModuleDomain));
 	if (!base) return NULL;
 
 	ModuleDomain *mod = (ModuleDomain *)base;
@@ -47,23 +47,23 @@ ModuleDomain *module_domain_new(const char *name)
 	return mod;
 }
 
-FunctionDomain *function_domain_new(const char *name, const char *return_type)
+FunctionDomain *domain_function_domain_new(const char *name, const char *return_type)
 {
-	Domain *base = domain_new(DOMAIN_FUNCTION, name, sizeof(FunctionDomain));
+	Domain *base = domain_domain_new(DOMAIN_FUNCTION, name, sizeof(FunctionDomain));
 	if (!base) return NULL;
 
 	FunctionDomain *func = (FunctionDomain *)base;
 	func->mode = API_MODE_NORMAL;
-	func->return_type = str_dup(return_type ? return_type : "void");
-	func->code = str_dup("//请在这里输入代码");
+	func->return_type = utils_str_dup(return_type ? return_type : "void");
+	func->code = utils_str_dup("//请在这里输入代码");
 	func->value = NULL;
 
 	return func;
 }
 
-StructDomain *struct_domain_new(const char *name)
+StructDomain *domain_struct_domain_new(const char *name)
 {
-	Domain *base = domain_new(DOMAIN_STRUCT, name, sizeof(StructDomain));
+	Domain *base = domain_domain_new(DOMAIN_STRUCT, name, sizeof(StructDomain));
 	if (!base) return NULL;
 
 	StructDomain *s = (StructDomain *)base;
@@ -72,9 +72,9 @@ StructDomain *struct_domain_new(const char *name)
 	return s;
 }
 
-TypeDomain *type_domain_new(const char *name)
+TypeDomain *domain_type_domain_new(const char *name)
 {
-	Domain *base = domain_new(DOMAIN_TYPE, name, sizeof(TypeDomain));
+	Domain *base = domain_domain_new(DOMAIN_TYPE, name, sizeof(TypeDomain));
 	if (!base) return NULL;
 
 	TypeDomain *t = (TypeDomain *)base;
@@ -84,9 +84,9 @@ TypeDomain *type_domain_new(const char *name)
 	return t;
 }
 
-MacroDomain *macro_domain_new(const char *name)
+MacroDomain *domain_macro_domain_new(const char *name)
 {
-	Domain *base = domain_new(DOMAIN_MACRO, name, sizeof(MacroDomain));
+	Domain *base = domain_domain_new(DOMAIN_MACRO, name, sizeof(MacroDomain));
 	if (!base) return NULL;
 
 	MacroDomain *m = (MacroDomain *)base;
@@ -96,26 +96,26 @@ MacroDomain *macro_domain_new(const char *name)
 	return m;
 }
 
-VariableDomain *variable_domain_new(const char *name, const char *type)
+VariableDomain *domain_variable_domain_new(const char *name, const char *type)
 {
-	Domain *base = domain_new(DOMAIN_VARIABLE, name, sizeof(VariableDomain));
+	Domain *base = domain_domain_new(DOMAIN_VARIABLE, name, sizeof(VariableDomain));
 	if (!base) return NULL;
 
 	VariableDomain *v = (VariableDomain *)base;
 	v->mode = VAR_MODE_NORMAL;
-	v->type = str_dup(type ? type : "int");
+	v->type = utils_str_dup(type ? type : "int");
 	v->value = NULL;
 
 	return v;
 }
 
-MemberDomain *member_domain_new(const char *name, const char *type)
+MemberDomain *domain_member_domain_new(const char *name, const char *type)
 {
-	Domain *base = domain_new(DOMAIN_MEMBER, name, sizeof(MemberDomain));
+	Domain *base = domain_domain_new(DOMAIN_MEMBER, name, sizeof(MemberDomain));
 	if (!base) return NULL;
 
 	MemberDomain *m = (MemberDomain *)base;
-	m->type = str_dup(type ? type : "int");
+	m->type = utils_str_dup(type ? type : "int");
 
 	return m;
 }
@@ -124,7 +124,7 @@ MemberDomain *member_domain_new(const char *name, const char *type)
 /* Domain tree operations                                               */
 /* ================================================================== */
 
-void domain_add_child(Domain *parent, Domain *child)
+void domain_domain_add_child(Domain *parent, Domain *child)
 {
 	if (!parent || !child) return;
 
@@ -139,12 +139,12 @@ void domain_add_child(Domain *parent, Domain *child)
 	child->parent = parent;
 }
 
-Domain *domain_find_child(Domain *parent, const char *name)
+Domain *domain_domain_find_child(Domain *parent, const char *name)
 {
 	if (!parent || !name) return NULL;
 
 	for (int i = 0; i < parent->child_count; i++) {
-		if (parent->children[i] && str_eq(parent->children[i]->name, name)) {
+		if (parent->children[i] && utils_str_eq(parent->children[i]->name, name)) {
 			return parent->children[i];
 		}
 	}
@@ -152,13 +152,13 @@ Domain *domain_find_child(Domain *parent, const char *name)
 	return NULL;
 }
 
-Domain *domain_find_child_by_type(Domain *parent, const char *name, DomainType type)
+Domain *domain_domain_find_child_by_type(Domain *parent, const char *name, DomainType type)
 {
 	if (!parent || !name) return NULL;
 
 	for (int i = 0; i < parent->child_count; i++) {
 		Domain *child = parent->children[i];
-		if (child && child->type == type && str_eq(child->name, name)) {
+		if (child && child->type == type && utils_str_eq(child->name, name)) {
 			return child;
 		}
 	}
@@ -166,7 +166,7 @@ Domain *domain_find_child_by_type(Domain *parent, const char *name, DomainType t
 	return NULL;
 }
 
-void domain_delete(Domain *domain)
+void domain_domain_delete(Domain *domain)
 {
 	if (!domain) return;
 
@@ -216,7 +216,7 @@ void domain_delete(Domain *domain)
 
 	/* Recursively delete children */
 	for (int i = 0; i < domain->child_count; i++) {
-		domain_delete(domain->children[i]);
+		domain_domain_delete(domain->children[i]);
 	}
 	free(domain->children);
 
@@ -233,7 +233,7 @@ void domain_delete(Domain *domain)
 	free(domain);
 }
 
-void domain_remove_child(Domain *parent, Domain *child)
+void domain_domain_remove_child(Domain *parent, Domain *child)
 {
 	if (!parent || !child) return;
 
@@ -253,7 +253,7 @@ void domain_remove_child(Domain *parent, Domain *child)
 /* Domain search utilities                                              */
 /* ================================================================== */
 
-Domain *domain_find_nearest_of_type(Domain *from, DomainType type)
+Domain *domain_domain_find_nearest_of_type(Domain *from, DomainType type)
 {
 	if (!from) return NULL;
 
@@ -268,25 +268,25 @@ Domain *domain_find_nearest_of_type(Domain *from, DomainType type)
 	return NULL;
 }
 
-Domain *domain_find_in_tree(Domain *root, DomainType type, const char *name)
+Domain *domain_domain_find_in_tree(Domain *root, DomainType type, const char *name)
 {
 	if (!root) return NULL;
 
 	/* Check current node */
-	if (root->type == type && str_eq(root->name, name)) {
+	if (root->type == type && utils_str_eq(root->name, name)) {
 		return root;
 	}
 
 	/* Recursively search children */
 	for (int i = 0; i < root->child_count; i++) {
-		Domain *found = domain_find_in_tree(root->children[i], type, name);
+		Domain *found = domain_domain_find_in_tree(root->children[i], type, name);
 		if (found) return found;
 	}
 
 	return NULL;
 }
 
-char *domain_get_path(Domain *domain)
+char *domain_domain_get_path(Domain *domain)
 {
 	if (!domain) return NULL;
 
@@ -344,7 +344,7 @@ char *domain_get_path(Domain *domain)
 	return path;
 }
 
-int domain_is_api(Domain *domain)
+int domain_domain_is_api(Domain *domain)
 {
 	if (!domain) return 0;
 
@@ -368,60 +368,57 @@ int domain_is_api(Domain *domain)
 /* API submodule search (name bubbling)                                */
 /* ================================================================== */
 
-Domain *domain_find_api_in_submodules(Domain *scope, const char *name)
+Domain *domain_domain_find_api_in_submodules(Domain *scope, const char *name)
 {
 	if (!scope || !name) return NULL;
 
-	/* Recursively look in all child modules for API items with matching name */
+	/* Look in direct child modules only (API 只提升一级) */
 	for (int i = 0; i < scope->child_count; i++) {
 		Domain *child = scope->children[i];
 		if (!child) continue;
 
 		if (child->type == DOMAIN_MODULE) {
-			/* First check if this module has an API item with the name */
+			/* Check if this module has an API item with the name */
 			for (int j = 0; j < child->child_count; j++) {
 				Domain *grandchild = child->children[j];
 				if (!grandchild) continue;
 				if (grandchild->name && strcmp(grandchild->name, name) == 0 &&
-				    domain_is_api(grandchild)) {
+				    domain_domain_is_api(grandchild)) {
 					return grandchild;
 				}
 			}
-			/* Then recurse into submodules */
-			Domain *found = domain_find_api_in_submodules(child, name);
-			if (found) return found;
 		}
 	}
 
 	return NULL;
 }
 
-Domain *domain_check_api_name_conflict(Domain *scope, const char *name)
+Domain *domain_domain_check_api_name_conflict(Domain *scope, const char *name)
 {
-	return domain_find_api_in_submodules(scope, name);
+	return domain_domain_find_api_in_submodules(scope, name);
 }
 
 /* ================================================================== */
 /* Comment operations                                                  */
 /* ================================================================== */
 
-void domain_set_comment(Domain *domain, const char *text)
+void domain_domain_set_comment(Domain *domain, const char *text)
 {
 	if (!domain) return;
 
 	free(domain->comment);
-	domain->comment = str_dup(text);
+	domain->comment = utils_str_dup(text);
 }
 
-void domain_set_child_comment(Domain *domain, const char *target, const char *text)
+void domain_domain_set_child_comment(Domain *domain, const char *target, const char *text)
 {
 	if (!domain || !target) return;
 
 	/* Find existing comment with matching target */
 	for (int i = 0; i < domain->comment_count; i++) {
-		if (str_eq(domain->comments[i].target, target)) {
+		if (utils_str_eq(domain->comments[i].target, target)) {
 			free(domain->comments[i].text);
-			domain->comments[i].text = str_dup(text);
+			domain->comments[i].text = utils_str_dup(text);
 			return;
 		}
 	}
@@ -433,8 +430,8 @@ void domain_set_child_comment(Domain *domain, const char *target, const char *te
 		                                      sizeof(Comment) * domain->comment_capacity);
 	}
 
-	domain->comments[domain->comment_count].target = str_dup(target);
-	domain->comments[domain->comment_count].text = str_dup(text);
+	domain->comments[domain->comment_count].target = utils_str_dup(target);
+	domain->comments[domain->comment_count].text = utils_str_dup(text);
 	domain->comment_count++;
 }
 
@@ -443,7 +440,7 @@ Comment *domain_find_child_comment(Domain *domain, const char *target)
 	if (!domain || !target) return NULL;
 
 	for (int i = 0; i < domain->comment_count; i++) {
-		if (str_eq(domain->comments[i].target, target)) {
+		if (utils_str_eq(domain->comments[i].target, target)) {
 			return &domain->comments[i];
 		}
 	}
@@ -455,7 +452,7 @@ Comment *domain_find_child_comment(Domain *domain, const char *target)
 /* Value and mode operations                                            */
 /* ================================================================== */
 
-void domain_set_value(Domain *domain, const char *value)
+void domain_domain_set_value(Domain *domain, const char *value)
 {
 	if (!domain) return;
 
@@ -463,31 +460,31 @@ void domain_set_value(Domain *domain, const char *value)
 	case DOMAIN_MODULE: {
 		ModuleDomain *mod = (ModuleDomain *)domain;
 		free(mod->value);
-		mod->value = str_dup(value);
+		mod->value = utils_str_dup(value);
 		break;
 	}
 	case DOMAIN_FUNCTION: {
 		FunctionDomain *func = (FunctionDomain *)domain;
 		free(func->value);
-		func->value = str_dup(value);
+		func->value = utils_str_dup(value);
 		break;
 	}
 	case DOMAIN_TYPE: {
 		TypeDomain *t = (TypeDomain *)domain;
 		free(t->value);
-		t->value = str_dup(value);
+		t->value = utils_str_dup(value);
 		break;
 	}
 	case DOMAIN_MACRO: {
 		MacroDomain *m = (MacroDomain *)domain;
 		free(m->value);
-		m->value = str_dup(value);
+		m->value = utils_str_dup(value);
 		break;
 	}
 	case DOMAIN_VARIABLE: {
 		VariableDomain *v = (VariableDomain *)domain;
 		free(v->value);
-		v->value = str_dup(value);
+		v->value = utils_str_dup(value);
 		break;
 	}
 	case DOMAIN_STRUCT:
@@ -497,7 +494,7 @@ void domain_set_value(Domain *domain, const char *value)
 	}
 }
 
-void domain_set_mode(Domain *domain, int mode)
+void domain_domain_set_mode(Domain *domain, int mode)
 {
 	if (!domain) return;
 
@@ -530,13 +527,13 @@ void domain_set_mode(Domain *domain, int mode)
 /* Project operations                                                  */
 /* ================================================================== */
 
-Project *project_new(const char *name)
+Project *domain_project_new(const char *name)
 {
 	Project *proj = (Project *)calloc(1, sizeof(Project));
 	if (!proj) return NULL;
 
-	proj->name = str_dup(name);
-	proj->root = (Domain *)module_domain_new(name);
+	proj->name = utils_str_dup(name);
+	proj->root = (Domain *)domain_module_domain_new(name);
 	proj->current = proj->root;
 	proj->has_generated = 0;
 	proj->cboot_file = NULL;
@@ -555,7 +552,7 @@ Project *project_new(const char *name)
 	return proj;
 }
 
-void project_free(Project *proj)
+void domain_project_free(Project *proj)
 {
 	if (!proj) return;
 
@@ -575,7 +572,7 @@ void project_free(Project *proj)
 	free(proj->dependencies);
 
 	free(proj->cboot_file);
-	domain_delete(proj->root);
+	domain_domain_delete(proj->root);
 	free(proj->name);
 	free(proj);
 }
@@ -584,7 +581,7 @@ void project_free(Project *proj)
 /* Dependency operations (for im command)                              */
 /* ================================================================== */
 
-void project_add_dependency(Project *proj, const char *importer_path,
+void domain_project_add_dependency(Project *proj, const char *importer_path,
                             const char *source_path, const char *cboot_file)
 {
 	if (!proj || !importer_path || !source_path) return;
@@ -595,20 +592,20 @@ void project_add_dependency(Project *proj, const char *importer_path,
 		                                            sizeof(Dependency) * proj->dep_capacity);
 	}
 
-	proj->dependencies[proj->dep_count].importer = str_dup(importer_path);
-	proj->dependencies[proj->dep_count].source = str_dup(source_path);
-	proj->dependencies[proj->dep_count].cboot_file = cboot_file ? str_dup(cboot_file) : NULL;
+	proj->dependencies[proj->dep_count].importer = utils_str_dup(importer_path);
+	proj->dependencies[proj->dep_count].source = utils_str_dup(source_path);
+	proj->dependencies[proj->dep_count].cboot_file = cboot_file ? utils_str_dup(cboot_file) : NULL;
 	proj->dep_count++;
 }
 
-int project_has_dependency(Project *proj, const char *importer_path,
+int domain_project_has_dependency(Project *proj, const char *importer_path,
                            const char *source_path)
 {
 	if (!proj || !importer_path || !source_path) return 0;
 
 	for (int i = 0; i < proj->dep_count; i++) {
-		if (str_eq(proj->dependencies[i].importer, importer_path) &&
-		    str_eq(proj->dependencies[i].source, source_path)) {
+		if (utils_str_eq(proj->dependencies[i].importer, importer_path) &&
+		    utils_str_eq(proj->dependencies[i].source, source_path)) {
 			return 1;
 		}
 	}
@@ -619,7 +616,7 @@ int project_has_dependency(Project *proj, const char *importer_path,
 /* Type detection                                                      */
 /* ================================================================== */
 
-int is_builtin_type(const char *type_name)
+int domain_is_builtin_type(const char *type_name)
 {
 	if (!type_name) return 0;
 

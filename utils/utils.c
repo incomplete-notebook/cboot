@@ -60,7 +60,7 @@ char **tokenize(const char *line, int *count)
     return tokens;
 }
 
-void free_tokens(char **tokens, int count)
+void utils_free_tokens(char **tokens, int count)
 {
     if (!tokens) return;
     for (int i = 0; i < count; i++) {
@@ -90,7 +90,7 @@ char *trim(char *str)
     return str;
 }
 
-char *str_dup(const char *str)
+char *utils_str_dup(const char *str)
 {
     if (!str) return NULL;
 
@@ -102,14 +102,14 @@ char *str_dup(const char *str)
     return dup;
 }
 
-int str_eq(const char *a, const char *b)
+int utils_str_eq(const char *a, const char *b)
 {
     if (a == b) return 1;
     if (!a || !b) return 0;
     return strcmp(a, b) == 0;
 }
 
-int str_startswith(const char *str, const char *prefix)
+int utils_str_startswith(const char *str, const char *prefix)
 {
     if (!str || !prefix) return 0;
 
@@ -131,7 +131,7 @@ int str_startswith(const char *str, const char *prefix)
  * When type and name are combined (no space), e.g. "int***a", this
  * correctly splits at the name boundary: type="int***", name="a".
  */
-int parse_c_decl(const char *decl, char *type_out, int type_size,
+int utils_parse_c_decl(const char *decl, char *type_out, int type_size,
                  char *name_out, int name_size)
 {
     const char *p = decl;
@@ -220,7 +220,7 @@ char *extract_type_from_decl(const char *decl)
 
     if (!decl) return NULL;
 
-    if (parse_c_decl(decl, buf, MAX_NAME_LEN, name_buf, MAX_NAME_LEN) == 0)
+    if (utils_parse_c_decl(decl, buf, MAX_NAME_LEN, name_buf, MAX_NAME_LEN) == 0)
         return buf;
 
     /* Fallback: split on last space for backward compatibility */
@@ -251,7 +251,7 @@ char *extract_name_from_decl(const char *decl)
 
     if (!decl) return NULL;
 
-    if (parse_c_decl(decl, type_buf, MAX_NAME_LEN, buf, MAX_NAME_LEN) == 0)
+    if (utils_parse_c_decl(decl, type_buf, MAX_NAME_LEN, buf, MAX_NAME_LEN) == 0)
         return buf;
 
     /* Fallback: split on last space for backward compatibility */
@@ -278,7 +278,7 @@ char *extract_name_from_decl(const char *decl)
 /* Identifier validation                                               */
 /* ================================================================== */
 
-int is_valid_identifier(const char *name)
+int utils_is_valid_identifier(const char *name)
 {
     if (!name || *name == '\0') return 0;
 
@@ -297,7 +297,7 @@ int is_valid_identifier(const char *name)
 /* Filesystem utilities                                                */
 /* ================================================================== */
 
-void ensure_dir(const char *path)
+void utils_ensure_dir(const char *path)
 {
     if (!path) return;
 
@@ -316,7 +316,7 @@ void ensure_dir(const char *path)
     mkdir(tmp, 0755);
 }
 
-int file_exists(const char *path)
+int utils_file_exists(const char *path)
 {
     if (!path) return 0;
     return access(path, F_OK) == 0;
@@ -326,7 +326,7 @@ int file_exists(const char *path)
 /* Quote handling                                                      */
 /* ================================================================== */
 
-void strip_quotes(char *str)
+void utils_strip_quotes(char *str)
 {
     if (!str) return;
 
