@@ -4,6 +4,753 @@
 cmt "域数据模型 - 定义所有域类型、域树结构和项目容器"
 mode src
 cmode normal
+code <<EOF
+/*
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * Domain tree operations
+ */
+
+#include "cboot.h"
+
+/* ================================================================== */
+/* Domain creation                                                      */
+/* ================================================================== */
+
+Domain *domain_domain_new(DomainType type, const char *name, size_t struct_size)
+{
+	Domain *domain = (Domain *)calloc(1, struct_size);
+	if (!domain) return NULL;
+
+	domain->type = type;
+	domain->name = utils_str_dup(name);
+	domain->parent = NULL;
+	domain->child_count = 0;
+	domain->child_capacity = 8;
+	domain->children = (Domain **)malloc(sizeof(Domain *) * domain->child_capacity);
+	domain->comment = NULL;
+	domain->comments = (Comment *)malloc(sizeof(Comment) * 4);
+	domain->comment_count = 0;
+	domain->comment_capacity = 4;
+
+	return domain;
+}
+
+ModuleDomain *domain_module_domain_new(const char *name)
+{
+	Domain *base = domain_domain_new(DOMAIN_MODULE, name, sizeof(ModuleDomain));
+	if (!base) return NULL;
+
+	ModuleDomain *mod = (ModuleDomain *)base;
+	mod->mode = MOD_MODE_SRC;
+	mod->compiler = COMPILER_NORMAL;
+	mod->value = NULL;
+	mod->code = NULL;
+	mod->include_capacity = 4;
+	mod->includes = (char **)malloc(sizeof(char *) * mod->include_capacity);
+	mod->include_count = 0;
+	mod->dep_capacity = 4;
+	mod->dependencies = (char **)malloc(sizeof(char *) * mod->dep_capacity);
+	mod->dep_count = 0;
+
+	return mod;
+}
+
+FunctionDomain *domain_function_domain_new(const char *name, const char *return_type)
+{
+	Domain *base = domain_domain_new(DOMAIN_FUNCTION, name, sizeof(FunctionDomain));
+	if (!base) return NULL;
+
+	FunctionDomain *func = (FunctionDomain *)base;
+	func->mode = API_MODE_NORMAL;
+	func->return_type = utils_str_dup(return_type ? return_type : "void");
+	func->call = NULL;
+	func->code = utils_str_dup("//请在这里输入代码");
+	func->value = NULL;
+
+	return func;
+}
+
+StructDomain *domain_struct_domain_new(const char *name)
+{
+	Domain *base = domain_domain_new(DOMAIN_STRUCT, name, sizeof(StructDomain));
+	if (!base) return NULL;
+
+	StructDomain *s = (StructDomain *)base;
+	s->mode = API_MODE_NORMAL;
+
+	return s;
+}
+
+TypeDomain *domain_type_domain_new(const char *name)
+{
+	Domain *base = domain_domain_new(DOMAIN_TYPE, name, sizeof(TypeDomain));
+	if (!base) return NULL;
+
+	TypeDomain *t = (TypeDomain *)base;
+	t->mode = TYPE_MODE_STRUCT;
+	t->value = NULL;
+
+	return t;
+}
+
+MacroDomain *domain_macro_domain_new(const char *name)
+{
+	Domain *base = domain_domain_new(DOMAIN_MACRO, name, sizeof(MacroDomain));
+	if (!base) return NULL;
+
+	MacroDomain *m = (MacroDomain *)base;
+	m->mode = API_MODE_NORMAL;
+	m->value = NULL;
+
+	return m;
+}
+
+VariableDomain *domain_variable_domain_new(const char *name, const char *type)
+{
+	Domain *base = domain_domain_new(DOMAIN_VARIABLE, name, sizeof(VariableDomain));
+	if (!base) return NULL;
+
+	VariableDomain *v = (VariableDomain *)base;
+	v->mode = VAR_MODE_NORMAL;
+	v->type = utils_str_dup(type ? type : "int");
+	v->value = NULL;
+
+	return v;
+}
+
+MemberDomain *domain_member_domain_new(const char *name, const char *type)
+{
+	Domain *base = domain_domain_new(DOMAIN_MEMBER, name, sizeof(MemberDomain));
+	if (!base) return NULL;
+
+	MemberDomain *m = (MemberDomain *)base;
+	m->type = utils_str_dup(type ? type : "int");
+
+	return m;
+}
+
+/* ================================================================== */
+/* Domain tree operations                                               */
+/* ================================================================== */
+
+void domain_domain_add_child(Domain *parent, Domain *child)
+{
+	if (!parent || !child) return;
+
+	if (parent->child_count >= parent->child_capacity) {
+		parent->child_capacity *= 2;
+		parent->children = (Domain **)realloc(parent->children,
+		                                      sizeof(Domain *) * parent->child_capacity);
+	}
+
+	parent->children[parent->child_count] = child;
+	parent->child_count++;
+	child->parent = parent;
+}
+
+Domain *domain_domain_find_child(Domain *parent, const char *name)
+{
+	if (!parent || !name) return NULL;
+
+	for (int i = 0; i < parent->child_count; i++) {
+		if (parent->children[i] && utils_str_eq(parent->children[i]->name, name)) {
+			return parent->children[i];
+		}
+	}
+
+	return NULL;
+}
+
+Domain *domain_domain_find_child_by_type(Domain *parent, const char *name, DomainType type)
+{
+	if (!parent || !name) return NULL;
+
+	for (int i = 0; i < parent->child_count; i++) {
+		Domain *child = parent->children[i];
+		if (child && child->type == type && utils_str_eq(child->name, name)) {
+			return child;
+		}
+	}
+
+	return NULL;
+}
+
+void domain_domain_delete(Domain *domain)
+{
+	if (!domain) return;
+
+	/* Free type-specific data */
+	switch (domain->type) {
+	case DOMAIN_MODULE: {
+		ModuleDomain *mod = (ModuleDomain *)domain;
+		free(mod->value);
+		free(mod->code);
+		for (int i = 0; i < mod->include_count; i++) free(mod->includes[i]);
+		free(mod->includes);
+		for (int i = 0; i < mod->dep_count; i++) free(mod->dependencies[i]);
+		free(mod->dependencies);
+		break;
+	}
+	case DOMAIN_FUNCTION: {
+		FunctionDomain *func = (FunctionDomain *)domain;
+		free(func->return_type);
+		free(func->code);
+		free(func->value);
+		break;
+	}
+	case DOMAIN_STRUCT:
+		/* StructDomain has no allocated fields beyond the base */
+		break;
+	case DOMAIN_TYPE: {
+		TypeDomain *t = (TypeDomain *)domain;
+		free(t->value);
+		break;
+	}
+	case DOMAIN_MACRO: {
+		MacroDomain *m = (MacroDomain *)domain;
+		free(m->value);
+		break;
+	}
+	case DOMAIN_VARIABLE: {
+		VariableDomain *v = (VariableDomain *)domain;
+		free(v->type);
+		free(v->value);
+		break;
+	}
+	case DOMAIN_MEMBER: {
+		MemberDomain *m = (MemberDomain *)domain;
+		free(m->type);
+		break;
+	}
+	}
+
+	/* Recursively delete children */
+	for (int i = 0; i < domain->child_count; i++) {
+		domain_domain_delete(domain->children[i]);
+	}
+	free(domain->children);
+
+	/* Free comments */
+	for (int i = 0; i < domain->comment_count; i++) {
+		free(domain->comments[i].target);
+		free(domain->comments[i].text);
+	}
+	free(domain->comments);
+
+	/* Free name and comment */
+	free(domain->comment);
+	free(domain->name);
+	free(domain);
+}
+
+void domain_domain_remove_child(Domain *parent, Domain *child)
+{
+	if (!parent || !child) return;
+
+	for (int i = 0; i < parent->child_count; i++) {
+		if (parent->children[i] == child) {
+			/* Shift remaining elements */
+			for (int j = i; j < parent->child_count - 1; j++) {
+				parent->children[j] = parent->children[j + 1];
+			}
+			parent->child_count--;
+			return;
+		}
+	}
+}
+
+/* ================================================================== */
+/* Domain search utilities                                              */
+/* ================================================================== */
+
+Domain *domain_domain_find_nearest_of_type(Domain *from, DomainType type)
+{
+	if (!from) return NULL;
+
+	Domain *d = from;
+	while (d != NULL) {
+		if (d->type == type) {
+			return d;
+		}
+		d = d->parent;
+	}
+
+	return NULL;
+}
+
+Domain *domain_domain_find_in_tree(Domain *root, DomainType type, const char *name)
+{
+	if (!root) return NULL;
+
+	/* Check current node */
+	if (root->type == type && utils_str_eq(root->name, name)) {
+		return root;
+	}
+
+	/* Recursively search children */
+	for (int i = 0; i < root->child_count; i++) {
+		Domain *found = domain_domain_find_in_tree(root->children[i], type, name);
+		if (found) return found;
+	}
+
+	return NULL;
+}
+
+char *domain_domain_get_path(Domain *domain)
+{
+	if (!domain) return NULL;
+
+	/* If domain is root (no parent), return "/" */
+	if (domain->parent == NULL) {
+		char *path = (char *)malloc(2);
+		if (path) {
+			path[0] = '/';
+			path[1] = '\0';
+		}
+		return path;
+	}
+
+	/* Walk up to root, collecting names */
+	int depth = 0;
+	Domain *temp = domain;
+	while (temp != NULL) {
+		depth++;
+		temp = temp->parent;
+	}
+
+	/* Allocate an array of domain pointers */
+	Domain **chain = (Domain **)malloc(sizeof(Domain *) * depth);
+	if (!chain) return NULL;
+	temp = domain;
+	for (int i = depth - 1; i >= 0; i--) {
+		chain[i] = temp;
+		temp = temp->parent;
+	}
+
+	/* Calculate total path length */
+	int total_len = 0;
+	for (int i = 0; i < depth; i++) {
+		total_len += (int)strlen(chain[i]->name) + 1; /* +1 for '/' */
+	}
+	total_len++; /* null terminator */
+
+	char *path = (char *)malloc(total_len);
+	if (!path) {
+		free(chain);
+		return NULL;
+	}
+
+	/* Build path, skip the root node (chain[0] is root) */
+	path[0] = '\0';
+	for (int i = 1; i < depth; i++) {
+		strcat(path, "/");
+		strcat(path, chain[i]->name);
+	}
+	if (path[0] == '\0') {
+		strcat(path, "/");
+	}
+
+	free(chain);
+	return path;
+}
+
+int domain_domain_is_api(Domain *domain)
+{
+	if (!domain) return 0;
+
+	switch (domain->type) {
+	case DOMAIN_FUNCTION:
+		return ((FunctionDomain *)domain)->mode == API_MODE_API;
+	case DOMAIN_STRUCT:
+		return ((StructDomain *)domain)->mode == API_MODE_API;
+	case DOMAIN_MACRO:
+		return ((MacroDomain *)domain)->mode == API_MODE_API;
+	case DOMAIN_TYPE: {
+		TypeMode m = ((TypeDomain *)domain)->mode;
+		return (m == TYPE_MODE_API_RENAME || m == TYPE_MODE_API_STRUCT);
+	}
+	default:
+		return 0;
+	}
+}
+
+/* ================================================================== */
+/* API submodule search (name bubbling)                                */
+/* ================================================================== */
+
+Domain *domain_domain_find_api_in_submodules(Domain *scope, const char *name)
+{
+	if (!scope || !name) return NULL;
+
+	/* Look in direct child modules only (API 只提升一级) */
+	for (int i = 0; i < scope->child_count; i++) {
+		Domain *child = scope->children[i];
+		if (!child) continue;
+
+		if (child->type == DOMAIN_MODULE) {
+			/* Check if this module has an API item with the name */
+			for (int j = 0; j < child->child_count; j++) {
+				Domain *grandchild = child->children[j];
+				if (!grandchild) continue;
+				if (grandchild->name && strcmp(grandchild->name, name) == 0 &&
+				    domain_domain_is_api(grandchild)) {
+					return grandchild;
+				}
+			}
+		}
+	}
+
+	return NULL;
+}
+
+Domain *domain_domain_check_api_name_conflict(Domain *scope, const char *name)
+{
+	return domain_domain_find_api_in_submodules(scope, name);
+}
+
+/* ================================================================== */
+/* Comment operations                                                  */
+/* ================================================================== */
+
+void domain_domain_set_comment(Domain *domain, const char *text)
+{
+	if (!domain) return;
+
+	free(domain->comment);
+	domain->comment = utils_str_dup(text);
+}
+
+void domain_domain_set_child_comment(Domain *domain, const char *target, const char *text)
+{
+	if (!domain || !target) return;
+
+	/* Find existing comment with matching target */
+	for (int i = 0; i < domain->comment_count; i++) {
+		if (utils_str_eq(domain->comments[i].target, target)) {
+			free(domain->comments[i].text);
+			domain->comments[i].text = utils_str_dup(text);
+			return;
+		}
+	}
+
+	/* Not found, add new */
+	if (domain->comment_count >= domain->comment_capacity) {
+		domain->comment_capacity *= 2;
+		domain->comments = (Comment *)realloc(domain->comments,
+		                                      sizeof(Comment) * domain->comment_capacity);
+	}
+
+	domain->comments[domain->comment_count].target = utils_str_dup(target);
+	domain->comments[domain->comment_count].text = utils_str_dup(text);
+	domain->comment_count++;
+}
+
+Comment *domain_find_child_comment(Domain *domain, const char *target)
+{
+	if (!domain || !target) return NULL;
+
+	for (int i = 0; i < domain->comment_count; i++) {
+		if (utils_str_eq(domain->comments[i].target, target)) {
+			return &domain->comments[i];
+		}
+	}
+
+	return NULL;
+}
+
+/* ================================================================== */
+/* Value and mode operations                                            */
+/* ================================================================== */
+
+void domain_domain_set_value(Domain *domain, const char *value)
+{
+	if (!domain) return;
+
+	switch (domain->type) {
+	case DOMAIN_MODULE: {
+		ModuleDomain *mod = (ModuleDomain *)domain;
+		free(mod->value);
+		mod->value = utils_str_dup(value);
+		break;
+	}
+	case DOMAIN_FUNCTION: {
+		FunctionDomain *func = (FunctionDomain *)domain;
+		free(func->value);
+		func->value = utils_str_dup(value);
+		break;
+	}
+	case DOMAIN_TYPE: {
+		TypeDomain *t = (TypeDomain *)domain;
+		free(t->value);
+		t->value = utils_str_dup(value);
+		break;
+	}
+	case DOMAIN_MACRO: {
+		MacroDomain *m = (MacroDomain *)domain;
+		free(m->value);
+		m->value = utils_str_dup(value);
+		break;
+	}
+	case DOMAIN_VARIABLE: {
+		VariableDomain *v = (VariableDomain *)domain;
+		free(v->value);
+		v->value = utils_str_dup(value);
+		break;
+	}
+	case DOMAIN_STRUCT:
+	case DOMAIN_MEMBER:
+		/* No value field to set */
+		break;
+	}
+}
+
+void domain_domain_set_code(Domain *domain, const char *code)
+{
+	if (!domain) return;
+
+	switch (domain->type) {
+	case DOMAIN_MODULE: {
+		ModuleDomain *mod = (ModuleDomain *)domain;
+		free(mod->code);
+		mod->code = code ? utils_str_dup(code) : NULL;
+		break;
+	}
+	case DOMAIN_FUNCTION: {
+		FunctionDomain *func = (FunctionDomain *)domain;
+		free(func->code);
+		func->code = code ? utils_str_dup(code) : utils_str_dup("//请在这里输入代码");
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Set function calling convention                                     */
+/* ------------------------------------------------------------------ */
+
+void domain_domain_set_call(Domain *domain, const char *call)
+{
+    if (!domain) {
+        fprintf(stderr, "DEBUG domain_domain_set_call: domain is NULL\n");
+        return;
+    }
+    if (domain->type != DOMAIN_FUNCTION) {
+        fprintf(stderr, "DEBUG domain_domain_set_call: type=%d != DOMAIN_FUNCTION\n", domain->type);
+        return;
+    }
+
+    FunctionDomain *func = (FunctionDomain *)domain;
+    free(func->call);
+    func->call = call ? utils_str_dup(call) : NULL;
+    fprintf(stderr, "DEBUG domain_domain_set_call: call='%s'\n", func->call ? func->call : "<null>");
+}
+
+const char *domain_domain_get_call(Domain *domain)
+{
+	if (!domain || domain->type != DOMAIN_FUNCTION) return NULL;
+	FunctionDomain *func = (FunctionDomain *)domain;
+	return func->call;
+}
+
+void domain_domain_set_mode(Domain *domain, int mode)
+{
+	if (!domain) return;
+
+	switch (domain->type) {
+	case DOMAIN_MODULE:
+		((ModuleDomain *)domain)->mode = (ModMode)mode;
+		break;
+	case DOMAIN_FUNCTION:
+		((FunctionDomain *)domain)->mode = (ApiMode)mode;
+		break;
+	case DOMAIN_STRUCT:
+		((StructDomain *)domain)->mode = (ApiMode)mode;
+		break;
+	case DOMAIN_TYPE:
+		((TypeDomain *)domain)->mode = (TypeMode)mode;
+		break;
+	case DOMAIN_MACRO:
+		((MacroDomain *)domain)->mode = (ApiMode)mode;
+		break;
+	case DOMAIN_VARIABLE:
+		((VariableDomain *)domain)->mode = (VarMode)mode;
+		break;
+	case DOMAIN_MEMBER:
+		/* No mode field to set */
+		break;
+	}
+}
+
+/* ================================================================== */
+/* Project operations                                                  */
+/* ================================================================== */
+
+Project *domain_project_new(const char *name)
+{
+	Project *proj = (Project *)calloc(1, sizeof(Project));
+	if (!proj) return NULL;
+
+	proj->name = utils_str_dup(name);
+	proj->root = (Domain *)domain_module_domain_new(name);
+	proj->current = proj->root;
+	proj->has_generated = 0;
+	proj->cboot_file = NULL;
+	proj->fine_tune_mode = 0;
+
+	proj->imported_projects = NULL;
+	proj->import_count = 0;
+	proj->import_capacity = 0;
+	proj->imported_libs = NULL;
+	proj->lib_count = 0;
+	proj->lib_capacity = 0;
+	proj->dependencies = NULL;
+	proj->dep_count = 0;
+	proj->dep_capacity = 0;
+
+	return proj;
+}
+
+void domain_project_free(Project *proj)
+{
+	if (!proj) return;
+
+	for (int i = 0; i < proj->import_count; i++)
+		free(proj->imported_projects[i]);
+	free(proj->imported_projects);
+
+	for (int i = 0; i < proj->lib_count; i++)
+		free(proj->imported_libs[i]);
+	free(proj->imported_libs);
+
+	for (int i = 0; i < proj->dep_count; i++) {
+		free(proj->dependencies[i].importer);
+		free(proj->dependencies[i].source);
+		free(proj->dependencies[i].cboot_file);
+	}
+	free(proj->dependencies);
+
+	free(proj->cboot_file);
+	domain_domain_delete(proj->root);
+	free(proj->name);
+	free(proj);
+}
+
+/* ================================================================== */
+/* Dependency operations (for im command)                              */
+/* ================================================================== */
+
+void domain_project_add_dependency(Project *proj, const char *importer_path,
+                            const char *source_path, const char *cboot_file)
+{
+	if (!proj || !importer_path || !source_path) return;
+
+	if (proj->dep_count >= proj->dep_capacity) {
+		proj->dep_capacity = (proj->dep_capacity == 0) ? 8 : proj->dep_capacity * 2;
+		proj->dependencies = (Dependency *)realloc(proj->dependencies,
+		                                            sizeof(Dependency) * proj->dep_capacity);
+	}
+
+	proj->dependencies[proj->dep_count].importer = utils_str_dup(importer_path);
+	proj->dependencies[proj->dep_count].source = utils_str_dup(source_path);
+	proj->dependencies[proj->dep_count].cboot_file = cboot_file ? utils_str_dup(cboot_file) : NULL;
+	proj->dep_count++;
+}
+
+int domain_project_has_dependency(Project *proj, const char *importer_path,
+                           const char *source_path)
+{
+	if (!proj || !importer_path || !source_path) return 0;
+
+	for (int i = 0; i < proj->dep_count; i++) {
+		if (utils_str_eq(proj->dependencies[i].importer, importer_path) &&
+		    utils_str_eq(proj->dependencies[i].source, source_path)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* ================================================================== */
+/* Type detection                                                      */
+/* ================================================================== */
+
+int domain_is_builtin_type(const char *type_name)
+{
+	if (!type_name) return 0;
+
+	/* Strip trailing whitespace and asterisks for pointer checking */
+	char buf[256];
+	int len = (int)strlen(type_name);
+	if (len >= 256) len = 255;
+	memcpy(buf, type_name, len);
+	buf[len] = '\0';
+
+	/* Trim trailing whitespace */
+	while (len > 0 && isspace((unsigned char)buf[len - 1])) {
+		buf[--len] = '\0';
+	}
+
+	/* Check if it ends with * (pointer type) */
+	int is_ptr = 0;
+	char base_type[256];
+	if (len > 0 && buf[len - 1] == '*') {
+		is_ptr = 1;
+		int i = len - 1;
+		while (i > 0 && (buf[i] == '*' || isspace((unsigned char)buf[i]))) {
+			i--;
+		}
+		while (i > 0 && isspace((unsigned char)buf[i])) {
+			i--;
+		}
+		int blen = i + 1;
+		if (blen >= 256) blen = 255;
+		memcpy(base_type, buf, blen);
+		base_type[blen] = '\0';
+		while (blen > 0 && isspace((unsigned char)base_type[blen - 1])) {
+			base_type[--blen] = '\0';
+		}
+	} else {
+		strcpy(base_type, buf);
+	}
+
+	const char *check = is_ptr ? base_type : buf;
+
+	/* Check against builtin types */
+	const char *builtins[] = {
+		"void", "char", "short", "int", "long", "float", "double",
+		"signed", "unsigned", "size_t", "ssize_t",
+		"int8_t", "int16_t", "int32_t", "int64_t",
+		"uint8_t", "uint16_t", "uint32_t", "uint64_t",
+		"bool", "FILE",
+		NULL
+	};
+
+	for (int i = 0; builtins[i] != NULL; i++) {
+		if (strcmp(check, builtins[i]) == 0) {
+			return 1;
+		}
+	}
+
+	/* Also check compound types */
+	const char *compound[] = {
+		"unsigned int", "unsigned short", "unsigned long", "unsigned char",
+		"signed int", "signed char",
+		"long int", "long long", "short int",
+		"long double", "long unsigned int",
+		NULL
+	};
+
+	for (int i = 0; compound[i] != NULL; i++) {
+		if (strcmp(check, compound[i]) == 0) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+EOF
 type DomainType
 cd DomainType
 mode api rename
@@ -40,319 +787,330 @@ mode api rename
 cmt "变量模式: static/normal"
 value "int"
 cd ..
+struct Comment
+cd Comment
+mode api
+cmt "子域注释记录(参数/成员注释)"
+mem target char*
+mem text char*
+cd ..
 struct Domain
 cd Domain
 mode api
-cmt "域树基础节点，所有域类型的基类"
-mem name char*
-cmt "域名称"
-mem type int
-cmt "域类型(DomainType枚举)"
-mem comment char*
-cmt "域注释文本"
-mem parent struct Domain*
-cmt "父域指针"
-mem children struct Domain**
-cmt "子域数组"
-mem child_count int
-cmt "子域数量"
-mem child_capacity int
 cmt "子域数组容量"
+mem name char*
+mem type int
+mem comment char*
+mem parent struct Domain*
+mem children struct Domain**
+mem child_count int
+mem child_capacity int
 cd ..
 struct ModuleDomain
 cd ModuleDomain
 mode api
-cmt "模块域 - 项目中的一个模块节点，含编译模式和依赖管理"
-mem base struct Domain
-cmt "基础域"
-mem mode int
-cmt "模块模式(ModMode枚举)"
-mem compiler int
-cmt "编译模式(CompilerMode枚举): exe/sl/dl/normal"
-mem value char*
-cmt "模块值"
-mem includes char**
-cmt "头文件包含列表"
-mem include_count int
-cmt "包含数量"
-mem dependencies char**
-cmt "依赖模块名称列表"
-mem dep_count int
 cmt "依赖数量"
+mem base struct Domain
+mem mode int
+mem compiler int
+mem value char*
+mem includes char**
+mem include_count int
+mem dependencies char**
+mem dep_count int
 cd ..
 struct FunctionDomain
 cd FunctionDomain
 mode api
-cmt "函数域 - 项目中的函数定义"
-mem base struct Domain
-cmt "基础域"
-mem mode int
-cmt "API模式(ApiMode枚举)"
-mem return_type char*
-cmt "返回类型"
-mem code char*
-cmt "函数实现代码"
-mem value char*
 cmt "业务逻辑描述"
+mem base struct Domain
+mem mode int
+mem return_type char*
+mem code char*
+mem value char*
 cd ..
 struct StructDomain
 cd StructDomain
 mode api
-cmt "结构体域 - 项目中的结构体类型定义"
-mem base struct Domain
-cmt "基础域"
-mem mode int
 cmt "API模式(ApiMode枚举)"
+mem base struct Domain
+mem mode int
 cd ..
 struct TypeDomain
 cd TypeDomain
 mode api
-cmt "类型域 - typedef定义"
-mem base struct Domain
-cmt "基础域"
-mem mode int
-cmt "类型模式(TypeMode枚举)"
-mem value char*
 cmt "底层类型(rename模式)或值"
+mem base struct Domain
+mem mode int
+mem value char*
 cd ..
 struct MacroDomain
 cd MacroDomain
 mode api
-cmt "宏域 - #define定义"
-mem base struct Domain
-cmt "基础域"
-mem mode int
-cmt "API模式(ApiMode枚举)"
-mem value char*
 cmt "宏值"
+mem base struct Domain
+mem mode int
+mem value char*
 cd ..
 struct VariableDomain
 cd VariableDomain
 mode api
-cmt "变量域 - 变量定义"
-mem base struct Domain
-cmt "基础域"
-mem mode int
-cmt "变量模式(VarMode枚举)"
-mem type char*
-cmt "变量类型"
-mem value char*
 cmt "变量初始值"
+mem base struct Domain
+mem mode int
+mem type char*
+mem value char*
 cd ..
 struct MemberDomain
 cd MemberDomain
 mode api
-cmt "成员域 - 结构体成员或函数参数"
-mem base struct Domain
-cmt "基础域"
-mem type char*
 cmt "成员类型"
+mem base struct Domain
+mem type char*
 cd ..
 struct Dependency
 cd Dependency
 mode api
-cmt "依赖记录 - im命令建立的API依赖关系"
-mem importer char*
-cmt "导入方模块路径"
-mem source char*
-cmt "源模块路径"
-mem cboot_file char*
 cmt "源.cboot文件路径"
+mem importer char*
+mem source char*
+mem cboot_file char*
 cd ..
 struct Project
 cd Project
 mode api
-cmt "项目容器 - 整个项目的根节点和全局状态"
-mem name char*
-cmt "项目名称"
-mem root struct Domain*
-cmt "根域(包含所有模块)"
-mem current struct Domain*
-cmt "当前作用域指针"
-mem has_generated int
-cmt "是否已生成代码"
-mem cboot_file char*
-cmt ".cboot文件路径"
-mem dependencies struct Dependency*
-cmt "API依赖数组"
-mem dep_count int
 cmt "依赖数量"
+mem name char*
+mem root struct Domain*
+mem current struct Domain*
+mem has_generated int
+mem cboot_file char*
+mem dependencies struct Dependency*
+mem dep_count int
 cd ..
-void domain_new struct Domain*
+void domain_new Domain*
 cd domain_new
 mode api
-cmt "创建新域节点，分配内存并初始化所有字段"
-value "分配内存，设置类型和名称，初始化子域数组，返回新指针"
-mem type int
-cmt "域类型(DomainType枚举)"
-mem name char*
-cmt "域名称"
-mem size size_t
 cmt "结构体大小"
+value "分配内存，设置类型和名称，初始化子域数组，返回新指针"
+mem type DomainType
+mem name const char*
+mem struct_size size_t
 cd ..
-void module_domain_new struct ModuleDomain*
+void module_domain_new ModuleDomain*
 cd module_domain_new
 mode api
-cmt "创建新模块域"
-value "调用domain_new，设置默认模式为INTERNAL，默认编译模式为NORMAL"
-mem name char*
 cmt "模块名称"
+value "调用domain_new，设置默认模式为INTERNAL，默认编译模式为NORMAL"
+mem name const char*
 cd ..
-void function_domain_new struct FunctionDomain*
+void function_domain_new FunctionDomain*
 cd function_domain_new
 mode api
-cmt "创建新函数域"
-value "调用domain_new，设置返回类型，默认API模式为NORMAL"
-mem name char*
-cmt "函数名称"
-mem return_type char*
 cmt "返回类型"
+value "调用domain_new，设置返回类型，默认API模式为NORMAL"
+mem name const char*
+mem return_type const char*
 cd ..
-void struct_domain_new struct StructDomain*
+void struct_domain_new StructDomain*
 cd struct_domain_new
 mode api
-cmt "创建新结构体域"
-value "调用domain_new，默认API模式为NORMAL"
-mem name char*
 cmt "结构体名称"
+value "调用domain_new，默认API模式为NORMAL"
+mem name const char*
 cd ..
-void type_domain_new struct TypeDomain*
+void type_domain_new TypeDomain*
 cd type_domain_new
 mode api
-cmt "创建新类型域"
-value "调用domain_new，默认类型模式为RENAME"
-mem name char*
 cmt "类型名称"
+value "调用domain_new，默认类型模式为RENAME"
+mem name const char*
 cd ..
-void macro_domain_new struct MacroDomain*
+void macro_domain_new MacroDomain*
 cd macro_domain_new
 mode api
-cmt "创建新宏域"
-value "调用domain_new，默认API模式为NORMAL"
-mem name char*
 cmt "宏名称"
+value "调用domain_new，默认API模式为NORMAL"
+mem name const char*
 cd ..
-void variable_domain_new struct VariableDomain*
+void variable_domain_new VariableDomain*
 cd variable_domain_new
 mode api
-cmt "创建新变量域"
-value "调用domain_new，设置类型，默认变量模式为NORMAL"
-mem name char*
-cmt "变量名称"
-mem type char*
 cmt "变量类型"
+value "调用domain_new，设置类型，默认变量模式为NORMAL"
+mem name const char*
+mem type const char*
 cd ..
-void member_domain_new struct MemberDomain*
+void member_domain_new MemberDomain*
 cd member_domain_new
 mode api
-cmt "创建新成员域(结构体成员或函数参数)"
-value "调用domain_new，设置类型"
-mem name char*
-cmt "成员名称"
-mem type char*
 cmt "成员类型"
+value "调用domain_new，设置类型"
+mem name const char*
+mem type const char*
 cd ..
 void domain_add_child void
 cd domain_add_child
 mode api
-cmt "添加子域到父域，自动设置parent指针"
-value "检查容量，扩容数组，添加子域，设置parent"
-mem parent struct Domain*
-cmt "父域指针"
-mem child struct Domain*
 cmt "子域指针"
+value "检查容量，扩容数组，添加子域，设置parent"
+mem parent Domain*
+mem child Domain*
 cd ..
-void domain_find_child struct Domain*
+void domain_find_child Domain*
 cd domain_find_child
 mode api
-cmt "按名称查找直接子域"
-value "遍历子域数组，返回匹配名称的子域指针，未找到返回NULL"
-mem parent struct Domain*
-cmt "父域指针"
-mem name char*
 cmt "目标名称"
+value "遍历子域数组，返回匹配名称的子域指针，未找到返回NULL"
+mem parent Domain*
+mem name const char*
 cd ..
-void domain_find_api_in_submodules struct Domain*
+void domain_find_api_in_submodules Domain*
 cd domain_find_api_in_submodules
 mode api
-cmt "在子模块中递归查找API项，用于名称冲突检测和类型解析"
-value "先在直接子域中查找，再递归进入子模块查找API模式项"
-mem scope struct Domain*
-cmt "搜索起始域"
-mem name char*
 cmt "目标名称"
+value "先在直接子域中查找，再递归进入子模块查找API模式项"
+mem scope Domain*
+mem name const char*
 cd ..
-void domain_check_api_name_conflict struct Domain*
+void domain_check_api_name_conflict Domain*
 cd domain_check_api_name_conflict
 mode api
-cmt "检查名称是否与子模块API项冲突"
-value "调用domain_find_api_in_submodules，返回冲突域或NULL"
-mem scope struct Domain*
-cmt "检查起始域"
-mem name char*
 cmt "目标名称"
+value "调用domain_find_api_in_submodules，返回冲突域或NULL"
+mem scope Domain*
+mem name const char*
 cd ..
 void domain_get_path char*
 cd domain_get_path
 mode api
-cmt "获取域的完整路径字符串(如 /module/submodule)"
-value "从当前域向上遍历到根，拼接路径字符串"
-mem domain struct Domain*
 cmt "目标域"
+value "从当前域向上遍历到根，拼接路径字符串"
+mem domain Domain*
 cd ..
 void domain_set_comment void
 cd domain_set_comment
 mode api
-cmt "设置域的注释文本"
-value "复制文本并设置到域的comment字段"
-mem domain struct Domain*
-cmt "目标域"
-mem text char*
 cmt "注释文本"
+value "复制文本并设置到域的comment字段"
+mem domain Domain*
+mem text const char*
 cd ..
 void domain_set_mode void
 cd domain_set_mode
 mode api
-cmt "设置域的模式字段"
-value "根据域类型设置对应的模式字段"
-mem domain struct Domain*
-cmt "目标域"
-mem mode int
 cmt "模式值"
+value "根据域类型设置对应的模式字段"
+mem domain Domain*
+mem mode int
 cd ..
-void project_new struct Project*
+void project_new Project*
 cd project_new
 mode api
-cmt "创建新项目"
-value "创建根模块域，初始化项目状态和依赖数组"
-mem name char*
 cmt "项目名称"
+value "创建根模块域，初始化项目状态和依赖数组"
+mem name const char*
 cd ..
 void project_add_dependency void
 cd project_add_dependency
 mode api
-cmt "添加依赖记录(im命令使用)"
-value "检查容量，扩容数组，添加新依赖记录"
-mem proj struct Project*
-cmt "项目指针"
-mem importer_path char*
-cmt "导入方路径"
-mem source_path char*
-cmt "源模块路径"
-mem cboot_file char*
 cmt "源.cboot文件路径"
+value "检查容量，扩容数组，添加新依赖记录"
+mem proj Project*
+mem importer_path const char*
+mem source_path const char*
+mem cboot_file const char*
 cd ..
 void project_has_dependency int
 cd project_has_dependency
 mode api
-cmt "检查依赖是否已存在"
-value "遍历依赖数组，返回1(存在)或0(不存在)"
-mem proj struct Project*
-cmt "项目指针"
-mem importer_path char*
-cmt "导入方路径"
-mem source_path char*
 cmt "源模块路径"
+value "遍历依赖数组，返回1(存在)或0(不存在)"
+mem proj Project*
+mem importer_path const char*
+mem source_path const char*
+cd ..
+void domain_find_child_by_type Domain*
+cd domain_find_child_by_type
+mode api
+mem parent Domain*
+mem name const char*
+mem type DomainType
+cd ..
+void domain_delete void
+cd domain_delete
+mode api
+mem domain Domain*
+cd ..
+void domain_remove_child void
+cd domain_remove_child
+mode api
+mem parent Domain*
+mem child Domain*
+cd ..
+void domain_find_nearest_of_type Domain*
+cd domain_find_nearest_of_type
+mode api
+mem from Domain*
+mem type DomainType
+cd ..
+void domain_find_in_tree Domain*
+cd domain_find_in_tree
+mode api
+mem root Domain*
+mem type DomainType
+mem name const char*
+cd ..
+void domain_is_api int
+cd domain_is_api
+mode api
+mem domain Domain*
+cd ..
+void domain_set_child_comment void
+cd domain_set_child_comment
+mode api
+mem domain Domain*
+mem target const char*
+mem text const char*
+cd ..
+void find_child_comment Comment*
+cd find_child_comment
+mode api
+mem domain Domain*
+mem target const char*
+cd ..
+void domain_set_value void
+cd domain_set_value
+mode api
+mem domain Domain*
+mem value const char*
+cd ..
+void domain_set_code void
+cd domain_set_code
+mode api
+mem domain Domain*
+mem code const char*
+cd ..
+void domain_set_call void
+cd domain_set_call
+mode api
+mem domain Domain*
+mem call const char*
+cd ..
+void domain_get_call const char*
+cd domain_get_call
+mode api
+mem domain Domain*
+cd ..
+void project_free void
+cd project_free
+mode api
+mem proj Project*
+cd ..
+void is_builtin_type int
+cd is_builtin_type
+mode api
+mem type_name const char*
 cd ..
 
 # End of .cboot for domain

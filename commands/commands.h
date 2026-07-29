@@ -6,64 +6,72 @@
 #include <stdlib.h>
 #include <string.h>
 
-// 创建模块
-int commands_cmd_mod(char* name);
+// 模块名称
+int commands_cmd_mod(const char* name);
 
-// 创建结构体
-int commands_cmd_struct(char* name);
+// 结构体名称
+int commands_cmd_struct(const char* name);
 
-// 创建类型
-int commands_cmd_type(char* name);
+// 类型名称
+int commands_cmd_type(const char* name);
 
-// 创建宏
-int commands_cmd_def(char* name);
+// 宏名称
+int commands_cmd_def(const char* name);
 
-// 创建函数
-int commands_cmd_void(char* name, char* return_type);
+// 返回类型
+int commands_cmd_void(const char* name, const char* return_type);
 
-// 创建变量
-int commands_cmd_var(char* name, char* type);
+// 变量类型
+int commands_cmd_var(const char* name, const char* type);
 
-// 创建成员/参数
-int commands_cmd_mem(char* name, char* type);
+// 类型
+int commands_cmd_mem(const char* name, const char* type);
 
-// 枚举创建宏
-int commands_cmd_enum(char* defs, char* start_num);
+// 注释文本
+int commands_cmd_cmt(const char* text);
 
-// 设置注释
-int commands_cmd_cmt(char* text);
+// 模式值(api/normal/internal/external/static/rename/struct等)
+int commands_cmd_mode(const char* text);
 
-// 设置值
-int commands_cmd_value(char* text);
+// 编译器模式值(exe/sl/dl/normal)
+int commands_cmd_cmode(const char* text);
 
-// 设置模式
-int commands_cmd_mode(char* text);
+// 目标路径(支持..和/前缀)
+int commands_cmd_cd(const char* path);
 
-// 导航域树
-int commands_cmd_cd(char* path);
-
-// 删除子域
-int commands_cmd_rm(char* name, int force);
-
-// 搜索域
-int commands_cmd_find(char* type_filter, char* pattern, int flags);
-
-// 查看域
-int commands_cmd_ls(char* name);
-
-// 移动域
-int commands_cmd_mv(char* src, char* target);
-
-// 退出
-int commands_cmd_exit();
-
-// 生成代码
+// 生成项目代码命令
 int commands_cmd_gen();
 
-// 导入脚本
-int commands_cmd_im(char* path);
+// 源.cboot文件路径
+int commands_cmd_im(const char* path);
 
-// 添加资源
-int commands_cmd_res(char* file_path);
+// 源.cboot文件路径
+int commands_cmd_in(const char* path);
+
+// 帮助命令
+int commands_cmd_help();
+
+// 退出命令
+int commands_cmd_quit();
+
+int commands_cmd_enum(const char* defs, const char* start_num_str);
+
+int commands_cmd_value(const char* text);
+
+int commands_cmd_call(const char* call_conv);
+
+int commands_cmd_rm(const char* name, int force);
+
+int commands_cmd_find(const char* type_filter, const char* pattern, int flags);
+
+int commands_cmd_ls(const char* name);
+
+int commands_cmd_mv(const char* src, const char* target);
+
+int commands_cmd_exit();
+
+int commands_cmd_update();
+
+int commands_cmd_res(const char* file_path);
 
 #endif /* COMMANDS_H */

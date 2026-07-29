@@ -20,6 +20,16 @@
 - [cmd_in](#cmd_in)
 - [cmd_help](#cmd_help)
 - [cmd_quit](#cmd_quit)
+- [cmd_enum](#cmd_enum)
+- [cmd_value](#cmd_value)
+- [cmd_call](#cmd_call)
+- [cmd_rm](#cmd_rm)
+- [cmd_find](#cmd_find)
+- [cmd_ls](#cmd_ls)
+- [cmd_mv](#cmd_mv)
+- [cmd_exit](#cmd_exit)
+- [cmd_update](#cmd_update)
+- [cmd_res](#cmd_res)
 
 ---
 
@@ -27,160 +37,160 @@
 
 ### int cmd_mod()
 
-创建新模块命令
+模块名称
 
 ```c
-int cmd_mod(char* name)
+int cmd_mod(const char* name)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 模块名称 |
+| `name` | `const char*` | - |
 
 ### int cmd_struct()
 
-创建新结构体命令
+结构体名称
 
 ```c
-int cmd_struct(char* name)
+int cmd_struct(const char* name)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 结构体名称 |
+| `name` | `const char*` | - |
 
 ### int cmd_type()
 
-创建新类型(typedef)命令
+类型名称
 
 ```c
-int cmd_type(char* name)
+int cmd_type(const char* name)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 类型名称 |
+| `name` | `const char*` | - |
 
 ### int cmd_def()
 
-创建新宏(#define)命令
+宏名称
 
 ```c
-int cmd_def(char* name)
+int cmd_def(const char* name)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 宏名称 |
+| `name` | `const char*` | - |
 
 ### int cmd_void()
 
-创建新函数命令
+返回类型
 
 ```c
-int cmd_void(char* name, char* return_type)
+int cmd_void(const char* name, const char* return_type)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 函数名称 |
-| `return_type` | `char*` | 返回类型 |
+| `name` | `const char*` | - |
+| `return_type` | `const char*` | - |
 
 ### int cmd_var()
 
-创建新变量命令
+变量类型
 
 ```c
-int cmd_var(char* name, char* type)
+int cmd_var(const char* name, const char* type)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 变量名称 |
-| `type` | `char*` | 变量类型 |
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
 
 ### int cmd_mem()
 
-添加成员/参数命令
+类型
 
 ```c
-int cmd_mem(char* name, char* type)
+int cmd_mem(const char* name, const char* type)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 成员/参数名称 |
-| `type` | `char*` | 类型 |
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
 
 ### int cmd_cmt()
 
-设置注释命令
+注释文本
 
 ```c
-int cmd_cmt(char* text)
+int cmd_cmt(const char* text)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `text` | `char*` | 注释文本 |
+| `text` | `const char*` | - |
 
 ### int cmd_mode()
 
-设置模式命令
+模式值(api/normal/internal/external/static/rename/struct等)
 
 ```c
-int cmd_mode(char* text)
+int cmd_mode(const char* text)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `text` | `char*` | 模式值(api/normal/internal/external/static/rename/struct等) |
+| `text` | `const char*` | - |
 
 ### int cmd_cmode()
 
-设置编译器模式命令
+编译器模式值(exe/sl/dl/normal)
 
 ```c
-int cmd_cmode(char* text)
+int cmd_cmode(const char* text)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `text` | `char*` | 编译器模式值(exe/sl/dl/normal) |
+| `text` | `const char*` | - |
 
 ### int cmd_cd()
 
-导航命令 - 进入子域或返回父域
+目标路径(支持..和/前缀)
 
 ```c
-int cmd_cd(char* path)
+int cmd_cd(const char* path)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `path` | `char*` | 目标路径(支持..和/前缀) |
+| `path` | `const char*` | - |
 
 ### int cmd_gen()
 
@@ -192,31 +202,31 @@ int cmd_gen()
 
 ### int cmd_im()
 
-API导入命令 - 从.cboot文件仅导入API项
+源.cboot文件路径
 
 ```c
-int cmd_im(char* filename)
+int cmd_im(const char* path)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `filename` | `char*` | 源.cboot文件路径 |
+| `path` | `const char*` | - |
 
 ### int cmd_in()
 
-完整项目导入命令
+源.cboot文件路径
 
 ```c
-int cmd_in(char* filename)
+int cmd_in(const char* path)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `filename` | `char*` | 源.cboot文件路径 |
+| `path` | `const char*` | - |
 
 ### int cmd_help()
 
@@ -234,8 +244,122 @@ int cmd_help()
 int cmd_quit()
 ```
 
+### int cmd_enum()
+
+```c
+int cmd_enum(const char* defs, const char* start_num_str)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `defs` | `const char*` | - |
+| `start_num_str` | `const char*` | - |
+
+### int cmd_value()
+
+```c
+int cmd_value(const char* text)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `text` | `const char*` | - |
+
+### int cmd_call()
+
+```c
+int cmd_call(const char* call_conv)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `call_conv` | `const char*` | - |
+
+### int cmd_rm()
+
+```c
+int cmd_rm(const char* name, int force)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+| `force` | `int` | - |
+
+### int cmd_find()
+
+```c
+int cmd_find(const char* type_filter, const char* pattern, int flags)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_filter` | `const char*` | - |
+| `pattern` | `const char*` | - |
+| `flags` | `int` | - |
+
+### int cmd_ls()
+
+```c
+int cmd_ls(const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+
+### int cmd_mv()
+
+```c
+int cmd_mv(const char* src, const char* target)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `src` | `const char*` | - |
+| `target` | `const char*` | - |
+
+### int cmd_exit()
+
+```c
+int cmd_exit()
+```
+
+### int cmd_update()
+
+```c
+int cmd_update()
+```
+
+### int cmd_res()
+
+```c
+int cmd_res(const char* file_path)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `file_path` | `const char*` | - |
+
 ## 子模块
 
 - [domain API](domain/API.md)
+- [cupdate API](cupdate/API.md)
 
 *Generated by CBoot v0.3.1*

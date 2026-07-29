@@ -1,3 +1,6 @@
+/* generator.c - CBoot generated (compiler: normal) */
+/* Module: generator */
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Code generator (v0.3.1 - no-src-dir, hierarchical CMake, compiler modes)
@@ -81,8 +84,9 @@ static const char *generator_compiler_mode_str(CompilerMode c) {
 static void generator_get_module_prefix(Domain *mod, char *buf, size_t size) {
     ModuleDomain *md = (ModuleDomain *)mod;
 
-    /* dynamic 模式：使用空前缀，函数名保持原样 */
-    if (md->mode == MOD_MODE_DYNAMIC) {
+    /* dynamic/static 预编译库模式：使用空前缀，函数名保持原样
+     *（预编译库中的符号已经是原始名，调用方直接使用原始名） */
+    if (md->mode == MOD_MODE_DYNAMIC || md->mode == MOD_MODE_STATIC) {
         buf[0] = '\0';
         return;
     }
@@ -365,7 +369,12 @@ static void generator_write_c_functions(Domain *mod, FILE *f) {
         char abs_name[MAX_NAME_LEN * 5];
         generator_make_abs_name(prefix, child->name, abs_name, sizeof(abs_name));
 
-        fprintf(f, "%s %s(", func->return_type, abs_name);
+        /* Generate function signature with optional calling convention */
+        if (func->call) {
+            fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
+        } else {
+            fprintf(f, "%s %s(", func->return_type, abs_name);
+        }
 
         int first = 1;
         for (int j = 0; j < child->child_count; j++) {
@@ -622,9 +631,17 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
 
             if (child->comment) fprintf(f, "// %s\n", child->comment);
             if (md->compiler == COMPILER_DL) {
-                fprintf(f, "%s_API %s %s(", mod->name, func->return_type, abs_name);
+                if (func->call) {
+                    fprintf(f, "%s_API %s %s %s(", mod->name, func->return_type, func->call, abs_name);
+                } else {
+                    fprintf(f, "%s_API %s %s(", mod->name, func->return_type, abs_name);
+                }
             } else {
-                fprintf(f, "%s %s(", func->return_type, abs_name);
+                if (func->call) {
+                    fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
+                } else {
+                    fprintf(f, "%s %s(", func->return_type, abs_name);
+                }
             }
             int first = 1;
             for (int j = 0; j < child->child_count; j++) {
@@ -672,7 +689,7 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
 
         fprintf(f, "# 预编译%s库：value 字段指定库文件路径\n",
                 md->mode == MOD_MODE_STATIC ? "静态" : "动态");
-        fprintf(f, "add_library(%s %s IMPORTED)\n", mod->name, lib_type);
+        fprintf(f, "add_library(%s %s IMPORTED GLOBAL)\n", mod->name, lib_type);
         fprintf(f, "set_target_properties(%s PROPERTIES\n", mod->name);
         fprintf(f, "    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/%s\n", lib_path);
         fprintf(f, "    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}\n");
@@ -863,6 +880,7 @@ static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
                 fprintf(f, "void %s %s\n", child->name, func->return_type);
                 fprintf(f, "cd %s\n", child->name);
                 if (func->mode == API_MODE_API) fprintf(f, "mode api\n");
+                if (func->call) fprintf(f, "call %s\n", func->call);
                 if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
                 if (func->value) fprintf(f, "value \"%s\"\n", func->value);
                 for (int j = 0; j < child->child_count; j++) {
@@ -1168,8 +1186,10 @@ static void generator_generate_project_cboot(Project *proj) {
 
     /* 顶级模块通过 <mod>/.cboot 引用，不在此重复定义 */
     fprintf(f, "# 顶级模块引用\n");
+    fprintf(stderr, "DEBUG generator_generate_project_cboot: root->child_count=%d\n", proj->root->child_count);
     for (int i = 0; i < proj->root->child_count; i++) {
         Domain *child = proj->root->children[i];
+        fprintf(stderr, "  child[%d]: name='%s' type=%d\n", i, child->name ? child->name : "<null>", child->type);
         if (child->type == DOMAIN_MODULE) {
             fprintf(f, "%s/.cboot\n", child->name);
         }
@@ -1178,4 +1198,5 @@ static void generator_generate_project_cboot(Project *proj) {
     fprintf(f, "\ngen\n");
     fclose(f);
 }
+
 

@@ -1,3 +1,6 @@
+/* commands.c - CBoot generated (compiler: normal) */
+/* Module: commands */
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Command handlers (新规范 v0.3.1)
@@ -149,11 +152,6 @@ int commands_cmd_mod(const char *name) {
         return -1;
     }
 
-    /* 顶级模块（项目根的直接子模块）默认 exe 模式，其他默认 normal */
-    if (g_proj->current == g_proj->root) {
-        mod->compiler = COMPILER_EXE;
-    }
-
     domain_domain_add_child(g_proj->current, (Domain *)mod);
 
     printf("模块 %s 已创建。\n", name);
@@ -274,16 +272,18 @@ int commands_cmd_void(const char *name, const char *return_type) {
     return 0;
 }
 
-/* commands_cmd_var - 创建变量 (var <name> <type>) */
+/* commands_cmd_var - 创建变量 (var <name> <type>)
+ * 可在模块作用域（全局变量）或函数作用域（局部变量）中创建 */
 int commands_cmd_var(const char *name, const char *type) {
     if (!name || !type) {
         printf("用法: var <名称> <类型>\n");
         return -1;
     }
 
-    /* Variable must be inside a function */
-    if (!commands_is_in_domain_type(DOMAIN_FUNCTION)) {
-        printf("错误: var 命令仅在函数作用域中可用\n");
+    /* 变量可在模块作用域（全局变量）或函数作用域（局部变量）中创建 */
+    DomainType cur_type = g_proj->current->type;
+    if (cur_type != DOMAIN_FUNCTION && cur_type != DOMAIN_MODULE) {
+        printf("错误: var 命令仅在模块或函数作用域中可用\n");
         return -1;
     }
 
@@ -329,7 +329,7 @@ int commands_cmd_mem(const char *name, const char *type) {
         }
 
         domain_domain_add_child(g_proj->current, (Domain *)m);
-        g_proj->current = (Domain *)m;
+        /* 不改变 current 作用域，便于连续添加多个参数 */
         printf("参数 %s %s 已添加。\n", type, name);
         return 0;
     }
@@ -348,7 +348,7 @@ int commands_cmd_mem(const char *name, const char *type) {
         }
 
         domain_domain_add_child(g_proj->current, (Domain *)m);
-        g_proj->current = (Domain *)m;
+        /* 不改变 current 作用域，便于连续添加多个成员 */
         printf("成员 %s %s 已添加。\n", type, name);
         return 0;
     }
@@ -369,7 +369,7 @@ int commands_cmd_mem(const char *name, const char *type) {
             }
 
             domain_domain_add_child(g_proj->current, (Domain *)m);
-            g_proj->current = (Domain *)m;
+            /* 不改变 current 作用域，便于连续添加多个成员 */
             printf("成员 %s %s 已添加。\n", type, name);
             return 0;
         }
@@ -463,13 +463,6 @@ int commands_cmd_cmt(const char *text) {
     }
 
     domain_domain_set_comment(g_proj->current, text);
-
-    /* If we just commented a member/parameter, restore current to parent
-       so the next mem command works at the correct scope */
-    if (g_proj->current->type == DOMAIN_MEMBER && g_proj->current->parent) {
-        g_proj->current = g_proj->current->parent;
-    }
-
     printf("注释已设置。\n");
     return 0;
 }
@@ -520,6 +513,54 @@ int commands_cmd_value(const char *text) {
 
     domain_domain_set_value(g_proj->current, text);
     printf("value 已设置。\n");
+    return 0;
+}
+
+/* commands_cmd_call - 设置函数调用约定 */
+int commands_cmd_call(const char *call_conv) {
+    if (!call_conv) {
+        printf("用法: call <调用约定>\n");
+        printf("支持: __cdecl, __stdcall, __fastcall, __thiscall, __nakedcall, __pascal 等\n");
+        return -1;
+    }
+
+    Domain *cur = g_proj->current;
+    fprintf(stderr, "DEBUG commands_cmd_call: call_conv='%s' cur->type=%d\n",
+            call_conv ? call_conv : "<null>", cur ? cur->type : -1);
+    if (cur->type != DOMAIN_FUNCTION) {
+        fprintf(stderr, "DEBUG commands_cmd_call: ERROR - not in function domain\n");
+        printf("错误: call 命令只能在函数域中使用\n");
+        return -1;
+    }
+
+    /* Validate calling convention */
+    const char *valid_conventions[] = {
+        "__cdecl", "__stdcall", "__fastcall", "__thiscall",
+        "__nakedcall", "__pascal", "WINAPI", "APIENTRY",
+        NULL
+    };
+
+    int valid = 0;
+    for (int i = 0; valid_conventions[i]; i++) {
+        if (utils_str_eq(call_conv, valid_conventions[i])) {
+            valid = 1;
+            break;
+        }
+    }
+
+    /* Allow empty string to clear the field */
+    if (call_conv[0] == '\0') {
+        domain_domain_set_call(cur, NULL);
+        printf("调用约定已清除。\n");
+        return 0;
+    }
+
+    if (!valid) {
+        printf("警告: 未知的调用约定 '%s'，仍将设置该值。\n", call_conv);
+    }
+
+    domain_domain_set_call(cur, call_conv);
+    printf("调用约定已设置为: %s\n", call_conv);
     return 0;
 }
 
@@ -1087,6 +1128,44 @@ int commands_cmd_gen(void) {
 }
 
 /* ================================================================== */
+/* 更新: update - 扫描源码同步 .cboot                                   */
+/* ================================================================== */
+
+int commands_cmd_update(void) {
+    if (!g_proj || !g_proj->root) {
+        printf("错误: 无活动项目\n");
+        return -1;
+    }
+
+    /* 如果项目没有子模块，尝试从根目录的 .cboot 文件加载项目定义 */
+    if (g_proj->root->child_count == 0 && utils_file_exists(".cboot")) {
+        printf("update: 项目为空，正在从 .cboot 文件加载...\n");
+        /* 重置项目状态 */
+        domain_project_free(g_proj);
+        g_proj = domain_project_new("cboot_project");
+        if (parser_parse_cboot_script(".cboot") != 0) {
+            printf("错误: 无法加载 .cboot 文件\n");
+            return -1;
+        }
+    }
+
+    if (!g_proj->has_generated) {
+        /* 检测是否已生成（main.c 或 CMakeLists.txt 存在） */
+        if (utils_file_exists("CMakeLists.txt") || utils_file_exists("main.c")) {
+            g_proj->has_generated = 1;
+        } else {
+            printf("错误: 项目尚未生成代码，请先执行 gen\n");
+            return -1;
+        }
+    }
+    int err_cnt = 0, warn_cnt = 0;
+    int rc = cupdate_run_project(g_proj, &err_cnt, &warn_cnt);
+    g_proj->has_generated = 1;
+    (void)warn_cnt;
+    return rc;
+}
+
+/* ================================================================== */
 /* 导入: im <.cboot file>  - 仅导入API定义，记录依赖链（项目内）         */
 /* ================================================================== */
 
@@ -1486,3 +1565,4 @@ int commands_cmd_res(const char *file_path) {
     printf("资源 %s 已添加。\n", basename);
     return 0;
 }
+

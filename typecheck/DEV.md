@@ -4,8 +4,8 @@
 
 ## 统计
 
-- 公开 API: **2** 项
-- 私有实现: **0** 项
+- 公开 API: **7** 项
+- 私有实现: **6** 项
 
 ## 函数
 
@@ -15,7 +15,7 @@
 
 **业务逻辑**: 检查类型引用是否有效、API名称是否与子模块冲突
 
-**说明**: 检查单个域的类型一致性
+**说明**: 待检查域
 
 ```c
 int typecheck_domain(struct Domain* domain)
@@ -25,7 +25,7 @@ int typecheck_domain(struct Domain* domain)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `struct Domain*` | 待检查域 |
+| `domain` | `struct Domain*` | - |
 
 ---
 
@@ -35,7 +35,7 @@ int typecheck_domain(struct Domain* domain)
 
 **业务逻辑**: 递归遍历所有域，调用typecheck_domain，输出错误列表
 
-**说明**: 检查整个项目的类型一致性
+**说明**: 项目定义
 
 ```c
 int typecheck_project(struct Project* proj)
@@ -45,7 +45,177 @@ int typecheck_project(struct Project* proj)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `proj` | `struct Project*` | 项目定义 |
+| `proj` | `struct Project*` | - |
+
+---
+
+### char* strip_pointer()
+
+```c
+char* strip_pointer(char* buf, int len)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `buf` | `char*` | - |
+| `len` | `int` | - |
+
+---
+
+### char* strip_qualifiers()
+
+```c
+char* strip_qualifiers(char* buf)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `buf` | `char*` | - |
+
+---
+
+### int type_checker_is_builtin()
+
+> `API` — 公开接口
+
+```c
+int type_checker_is_builtin(const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+
+---
+
+### int is_integer_type()
+
+```c
+int is_integer_type(const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+
+---
+
+### int is_float_type()
+
+```c
+int is_float_type(const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+
+---
+
+### int is_accept_any_value()
+
+```c
+int is_accept_any_value(const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+
+---
+
+### void type_checker_init()
+
+> `API` — 公开接口
+
+```c
+void type_checker_init(TypeChecker* tc, Domain* scope)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tc` | `TypeChecker*` | - |
+| `scope` | `Domain*` | - |
+
+---
+
+### Domain* type_checker_find_api_type_in_submodules()
+
+```c
+Domain* type_checker_find_api_type_in_submodules(Domain* scope, const char* name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `scope` | `Domain*` | - |
+| `name` | `const char*` | - |
+
+---
+
+### int type_checker_validate()
+
+> `API` — 公开接口
+
+```c
+int type_checker_validate(TypeChecker* tc, const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tc` | `TypeChecker*` | - |
+| `type_name` | `const char*` | - |
+
+---
+
+### const char* type_checker_resolve_typedef()
+
+> `API` — 公开接口
+
+```c
+const char* type_checker_resolve_typedef(TypeChecker* tc, const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tc` | `TypeChecker*` | - |
+| `type_name` | `const char*` | - |
+
+---
+
+### int type_checker_validate_value()
+
+> `API` — 公开接口
+
+```c
+int type_checker_validate_value(const char* type_name, const char* value)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+| `value` | `const char*` | - |
 
 ---
 

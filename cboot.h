@@ -29,6 +29,7 @@
 
 #include "domain/domain.h"
 #include "typecheck/typecheck.h"
+#include "cupdate/cupdate.h"
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -93,6 +94,7 @@ int commands_cmd_enum(const char *defs, const char *start_num);
 /* 修改字段: <op> <value> */
 int commands_cmd_cmt(const char *text);
 int commands_cmd_value(const char *text);
+int commands_cmd_call(const char *call_conv);
 int commands_cmd_mode(const char *text);
 int commands_cmd_cmode(const char *text);  /* 设置编译器模式: exe/sl/dl/normal */
 
@@ -114,6 +116,9 @@ int commands_cmd_exit(void);
 
 /* 生成: gen */
 int commands_cmd_gen(void);
+
+/* 更新: update - 扫描源码同步 .cboot */
+int commands_cmd_update(void);
 
 /* 导入: im <.cboot file> - 仅导入API定义，记录依赖链（项目内） */
 int commands_cmd_im(const char *path);

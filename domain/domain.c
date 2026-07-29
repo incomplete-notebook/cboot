@@ -1,3 +1,6 @@
+/* domain.c - CBoot generated (compiler: normal) */
+/* Module: domain */
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Domain tree operations
@@ -56,6 +59,7 @@ FunctionDomain *domain_function_domain_new(const char *name, const char *return_
 	FunctionDomain *func = (FunctionDomain *)base;
 	func->mode = API_MODE_NORMAL;
 	func->return_type = utils_str_dup(return_type ? return_type : "void");
+	func->call = NULL;
 	func->code = utils_str_dup("//请在这里输入代码");
 	func->value = NULL;
 
@@ -518,6 +522,34 @@ void domain_domain_set_code(Domain *domain, const char *code)
 	}
 }
 
+/* ------------------------------------------------------------------ */
+/* Set function calling convention                                     */
+/* ------------------------------------------------------------------ */
+
+void domain_domain_set_call(Domain *domain, const char *call)
+{
+    if (!domain) {
+        fprintf(stderr, "DEBUG domain_domain_set_call: domain is NULL\n");
+        return;
+    }
+    if (domain->type != DOMAIN_FUNCTION) {
+        fprintf(stderr, "DEBUG domain_domain_set_call: type=%d != DOMAIN_FUNCTION\n", domain->type);
+        return;
+    }
+
+    FunctionDomain *func = (FunctionDomain *)domain;
+    free(func->call);
+    func->call = call ? utils_str_dup(call) : NULL;
+    fprintf(stderr, "DEBUG domain_domain_set_call: call='%s'\n", func->call ? func->call : "<null>");
+}
+
+const char *domain_domain_get_call(Domain *domain)
+{
+	if (!domain || domain->type != DOMAIN_FUNCTION) return NULL;
+	FunctionDomain *func = (FunctionDomain *)domain;
+	return func->call;
+}
+
 void domain_domain_set_mode(Domain *domain, int mode)
 {
 	if (!domain) return;
@@ -714,3 +746,4 @@ int domain_is_builtin_type(const char *type_name)
 
 	return 0;
 }
+

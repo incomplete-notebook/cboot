@@ -6,10 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-// 生成文档
-int docgen_generate_docs(Project* proj, char* output_dir);
+// 输出目录
+int docgen_generate_docs(Project* proj, const char* output_dir);
 
-// 生成模块文档
-void docgen_generate_module_docs(Domain* mod, char* dir);
+// 模块目录路径
+void docgen_generate_module_docs(Domain* mod, const char* dir);
 
 #endif /* DOCGEN_H */

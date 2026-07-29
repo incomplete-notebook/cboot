@@ -1,3 +1,6 @@
+/* main.c - CBoot generated (compiler: exe) */
+/* Module: main */
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Main entry point (新规范 v0.3.1)
@@ -208,6 +211,7 @@ static void main_print_usage(const char *prog) {
     printf("    ls [名称]              查看域内容\n");
     printf("  其他:\n");
     printf("    gen                    生成代码\n");
+    printf("    update                 扫描源码同步 .cboot（更新 code 和 API 定义）\n");
     printf("    im <.cboot 文件>       导入脚本\n");
     printf("    res <文件>             添加资源\n");
     printf("    exit                   退出\n");
@@ -222,7 +226,7 @@ static const char *g_cmd_names[] = {
     "mod", "struct", "type", "def", "void", "var", "mem", "enum",
     "cmt", "value", "mode", "cmode", "code",
     "cd", "rm", "mv", "find", "ls",
-    "gen", "im", "in", "res", "exit", "help", "?",
+    "gen", "update", "im", "in", "res", "exit", "help", "?",
     NULL
 };
 
@@ -716,6 +720,15 @@ static int main_dispatch_command(char **tokens, int count) {
         if (count < 2) { printf("用法: value <值>\n"); return -1; }
         return commands_cmd_value(tokens[1]);
     }
+    if (utils_str_eq(cmd, "call")) {
+        if (count < 2) { printf("用法: call <调用约定>\n"); return -1; }
+        char call_buf[MAX_LINE_LEN] = {0};
+        for (int i = 1; i < count; i++) {
+            if (i > 1) strcat(call_buf, " ");
+            strcat(call_buf, tokens[i]);
+        }
+        return commands_cmd_call(call_buf);
+    }
     if (utils_str_eq(cmd, "mode")) {
         if (count < 2) { printf("用法: mode <模式>\n"); return -1; }
         char mode_buf[MAX_LINE_LEN] = {0};
@@ -813,6 +826,11 @@ static int main_dispatch_command(char **tokens, int count) {
         return commands_cmd_gen();
     }
 
+    /* 更新：扫描源码同步 .cboot */
+    if (utils_str_eq(cmd, "update")) {
+        return commands_cmd_update();
+    }
+
     /* 导入: im - 仅API定义 */
     if (utils_str_eq(cmd, "im")) {
         if (count < 2) { printf("用法: im <.cboot 文件>\n"); return -1; }
@@ -839,3 +857,4 @@ static int main_dispatch_command(char **tokens, int count) {
     printf("未知命令: %s (输入 help 查看帮助)\n", cmd);
     return -1;
 }
+

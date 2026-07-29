@@ -10,6 +10,7 @@
 ## 模块
 
 - [domain](domain/README.md): 域数据模型 - 定义所有域类型、域树结构和项目容器
+- [cupdate](cupdate/README.md): 代码更新模块 - 解析C源码并同步.cboot描述文件
 - [commands](commands/README.md): 命令处理器 - 实现交互式和批处理模式的所有命令
 - [parser](parser/README.md): 脚本解析器 - 解析.cboot脚本文件为项目定义
 - [generator](generator/README.md): 代码生成器 - 将域树转换为C源代码、CMake构建系统和文档
@@ -29,6 +30,14 @@ cboot/
 ├── domain/
 │   ├── domain.c
 │   ├── domain.h
+│   ├── .cboot
+│   ├── README.md
+│   ├── API.md
+│   ├── DEV.md
+│   └── CMakeLists.txt
+├── cupdate/
+│   ├── cupdate.c
+│   ├── cupdate.h
 │   ├── .cboot
 │   ├── README.md
 │   ├── API.md

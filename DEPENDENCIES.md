@@ -10,36 +10,45 @@
 
 | 依赖方 | 被依赖方 | 来源文件 |
 |--------|----------|----------|
+| `/cupdate` | `/domain` | domain |
 | `/commands` | `/domain` | domain |
+| `/commands` | `/cupdate` | cupdate |
 | `/parser` | `/domain` | domain |
 | `/generator` | `/domain` | domain |
 | `/docgen` | `/domain` | domain |
 | `/typecheck` | `/domain` | domain |
 | `/utils` | `/domain` | domain |
 | `/main` | `/domain` | domain |
+| `/main` | `/cupdate` | cupdate |
 
 ### 被依赖视图
 
 | 被依赖方 | 依赖方 | 来源文件 |
 |----------|--------|----------|
+| `/domain` | `/cupdate` | domain |
 | `/domain` | `/commands` | domain |
+| `/cupdate` | `/commands` | cupdate |
 | `/domain` | `/parser` | domain |
 | `/domain` | `/generator` | domain |
 | `/domain` | `/docgen` | domain |
 | `/domain` | `/typecheck` | domain |
 | `/domain` | `/utils` | domain |
 | `/domain` | `/main` | domain |
+| `/cupdate` | `/main` | cupdate |
 
 ### 依赖链
 
 ```
+/cupdate --> /domain  (domain)
 /commands --> /domain  (domain)
+/commands --> /cupdate  (cupdate)
 /parser --> /domain  (domain)
 /generator --> /domain  (domain)
 /docgen --> /domain  (domain)
 /typecheck --> /domain  (domain)
 /utils --> /domain  (domain)
 /main --> /domain  (domain)
+/main --> /cupdate  (cupdate)
 ```
 
 ## 完整项目导入 (in 导入)

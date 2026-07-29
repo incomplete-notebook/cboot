@@ -13,33 +13,33 @@
 
 ### int generate_docs()
 
-生成项目级文档
+输出目录
 
 ```c
-int generate_docs(struct Project* proj, char* output_dir)
+int generate_docs(Project* proj, const char* output_dir)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `proj` | `struct Project*` | 项目定义 |
-| `output_dir` | `char*` | 输出目录 |
+| `proj` | `Project*` | - |
+| `output_dir` | `const char*` | - |
 
 ### void generate_module_docs()
 
-为单个模块生成文档
+模块目录路径
 
 ```c
-void generate_module_docs(struct Domain* mod, char* dir)
+void generate_module_docs(Domain* mod, const char* dir)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `mod` | `struct Domain*` | 模块域 |
-| `dir` | `char*` | 模块目录路径 |
+| `mod` | `Domain*` | - |
+| `dir` | `const char*` | - |
 
 ## 子模块
 

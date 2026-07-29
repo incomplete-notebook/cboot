@@ -8,57 +8,67 @@
 - [str_eq](#str_eq)
 - [str_dup](#str_dup)
 - [strip_quotes](#strip_quotes)
+- [tokenize](#tokenize)
+- [free_tokens](#free_tokens)
+- [trim](#trim)
+- [str_startswith](#str_startswith)
+- [parse_c_decl](#parse_c_decl)
+- [extract_base_type](#extract_base_type)
+- [extract_type_from_decl](#extract_type_from_decl)
+- [extract_name_from_decl](#extract_name_from_decl)
+- [is_valid_identifier](#is_valid_identifier)
+- [file_exists](#file_exists)
 
 ---
 
 ## 函数
 
-### int ensure_dir()
+### void ensure_dir()
 
-确保目录存在，不存在则创建
+目录路径
 
 ```c
-int ensure_dir(char* path)
+void ensure_dir(const char* path)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `path` | `char*` | 目录路径 |
+| `path` | `const char*` | - |
 
 ### int str_eq()
 
-字符串相等比较
+字符串B
 
 ```c
-int str_eq(char* a, char* b)
+int str_eq(const char* a, const char* b)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `a` | `char*` | 字符串A |
-| `b` | `char*` | 字符串B |
+| `a` | `const char*` | - |
+| `b` | `const char*` | - |
 
 ### char* str_dup()
 
-字符串复制
+源字符串
 
 ```c
-char* str_dup(char* src)
+char* str_dup(const char* str)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `src` | `char*` | 源字符串 |
+| `str` | `const char*` | - |
 
 ### void strip_quotes()
 
-去除字符串首尾的引号
+待处理字符串
 
 ```c
 void strip_quotes(char* str)
@@ -68,7 +78,134 @@ void strip_quotes(char* str)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `str` | `char*` | 待处理字符串 |
+| `str` | `char*` | - |
+
+### char** tokenize()
+
+```c
+char** tokenize(const char* line, int* count)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `line` | `const char*` | - |
+| `count` | `int*` | - |
+
+### void free_tokens()
+
+```c
+void free_tokens(char** tokens, int count)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tokens` | `char**` | - |
+| `count` | `int` | - |
+
+### char* trim()
+
+```c
+char* trim(char* str)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `str` | `char*` | - |
+
+### int str_startswith()
+
+```c
+int str_startswith(const char* str, const char* prefix)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `str` | `const char*` | - |
+| `prefix` | `const char*` | - |
+
+### int parse_c_decl()
+
+```c
+int parse_c_decl(const char* decl, char* type_out, int type_size, char* name_out, int name_size)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `decl` | `const char*` | - |
+| `type_out` | `char*` | - |
+| `type_size` | `int` | - |
+| `name_out` | `char*` | - |
+| `name_size` | `int` | - |
+
+### char* extract_base_type()
+
+```c
+char* extract_base_type(const char* type_decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_decl` | `const char*` | - |
+
+### char* extract_type_from_decl()
+
+```c
+char* extract_type_from_decl(const char* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `decl` | `const char*` | - |
+
+### char* extract_name_from_decl()
+
+```c
+char* extract_name_from_decl(const char* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `decl` | `const char*` | - |
+
+### int is_valid_identifier()
+
+```c
+int is_valid_identifier(const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+
+### int file_exists()
+
+```c
+int file_exists(const char* path)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `path` | `const char*` | - |
 
 ## 子模块
 

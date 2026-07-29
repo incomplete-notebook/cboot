@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// 生成项目
+// 输出目录(项目根即为源码根)
 int generator_generate_project(Project* proj);
 
 #endif /* GENERATOR_H */

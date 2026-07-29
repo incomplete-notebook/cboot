@@ -121,6 +121,7 @@ typedef struct FunctionDomain {
 	Domain  base;
 	ApiMode mode;
 	char   *return_type;
+	char   *call;      /* calling convention: __cdecl, __stdcall, __fastcall, etc. */
 	char   *code;
 	char   *value;
 } FunctionDomain;
@@ -272,6 +273,8 @@ Comment *domain_find_child_comment(Domain *domain, const char *target);
 void domain_domain_set_value(Domain *domain, const char *value);
 void domain_domain_set_mode(Domain *domain, int mode);
 void domain_domain_set_code(Domain *domain, const char *code);
+void domain_domain_set_call(Domain *domain, const char *call);
+const char *domain_domain_get_call(Domain *domain);
 
 /* ------------------------------------------------------------------ */
 /* Project operations                                                   */

@@ -4,8 +4,8 @@
 
 ## 统计
 
-- 公开 API: **16** 项
-- 私有实现: **0** 项
+- 公开 API: **26** 项
+- 私有实现: **9** 项
 
 ## 函数
 
@@ -15,17 +15,17 @@
 
 **业务逻辑**: 验证名称唯一性，创建ModuleDomain并添加到当前作用域
 
-**说明**: 创建新模块命令
+**说明**: 模块名称
 
 ```c
-int cmd_mod(char* name)
+int cmd_mod(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 模块名称 |
+| `name` | `const char*` | - |
 
 ---
 
@@ -35,17 +35,17 @@ int cmd_mod(char* name)
 
 **业务逻辑**: 在当前模块作用域中创建StructDomain
 
-**说明**: 创建新结构体命令
+**说明**: 结构体名称
 
 ```c
-int cmd_struct(char* name)
+int cmd_struct(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 结构体名称 |
+| `name` | `const char*` | - |
 
 ---
 
@@ -55,17 +55,17 @@ int cmd_struct(char* name)
 
 **业务逻辑**: 在当前模块作用域中创建TypeDomain
 
-**说明**: 创建新类型(typedef)命令
+**说明**: 类型名称
 
 ```c
-int cmd_type(char* name)
+int cmd_type(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 类型名称 |
+| `name` | `const char*` | - |
 
 ---
 
@@ -75,17 +75,17 @@ int cmd_type(char* name)
 
 **业务逻辑**: 在当前模块作用域中创建MacroDomain
 
-**说明**: 创建新宏(#define)命令
+**说明**: 宏名称
 
 ```c
-int cmd_def(char* name)
+int cmd_def(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 宏名称 |
+| `name` | `const char*` | - |
 
 ---
 
@@ -95,18 +95,18 @@ int cmd_def(char* name)
 
 **业务逻辑**: 验证名称唯一性，创建FunctionDomain并设为当前
 
-**说明**: 创建新函数命令
+**说明**: 返回类型
 
 ```c
-int cmd_void(char* name, char* return_type)
+int cmd_void(const char* name, const char* return_type)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 函数名称 |
-| `return_type` | `char*` | 返回类型 |
+| `name` | `const char*` | - |
+| `return_type` | `const char*` | - |
 
 ---
 
@@ -116,18 +116,18 @@ int cmd_void(char* name, char* return_type)
 
 **业务逻辑**: 在当前作用域创建VariableDomain
 
-**说明**: 创建新变量命令
+**说明**: 变量类型
 
 ```c
-int cmd_var(char* name, char* type)
+int cmd_var(const char* name, const char* type)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 变量名称 |
-| `type` | `char*` | 变量类型 |
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
 
 ---
 
@@ -137,18 +137,18 @@ int cmd_var(char* name, char* type)
 
 **业务逻辑**: 根据当前作用域(函数/结构体/类型)创建MemberDomain，设为当前
 
-**说明**: 添加成员/参数命令
+**说明**: 类型
 
 ```c
-int cmd_mem(char* name, char* type)
+int cmd_mem(const char* name, const char* type)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 成员/参数名称 |
-| `type` | `char*` | 类型 |
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
 
 ---
 
@@ -158,17 +158,17 @@ int cmd_mem(char* name, char* type)
 
 **业务逻辑**: 设置当前域的注释；若当前是成员/参数，设置后恢复到父作用域
 
-**说明**: 设置注释命令
+**说明**: 注释文本
 
 ```c
-int cmd_cmt(char* text)
+int cmd_cmt(const char* text)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `text` | `char*` | 注释文本 |
+| `text` | `const char*` | - |
 
 ---
 
@@ -178,17 +178,17 @@ int cmd_cmt(char* text)
 
 **业务逻辑**: 根据当前域类型设置对应模式；模块支持internal/external，函数/结构体/宏支持api/normal
 
-**说明**: 设置模式命令
+**说明**: 模式值(api/normal/internal/external/static/rename/struct等)
 
 ```c
-int cmd_mode(char* text)
+int cmd_mode(const char* text)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `text` | `char*` | 模式值(api/normal/internal/external/static/rename/struct等) |
+| `text` | `const char*` | - |
 
 ---
 
@@ -198,17 +198,17 @@ int cmd_mode(char* text)
 
 **业务逻辑**: 仅对模块有效：exe生成可执行文件(代码放main.c)，sl静态库，dl动态库，normal普通.o
 
-**说明**: 设置编译器模式命令
+**说明**: 编译器模式值(exe/sl/dl/normal)
 
 ```c
-int cmd_cmode(char* text)
+int cmd_cmode(const char* text)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `text` | `char*` | 编译器模式值(exe/sl/dl/normal) |
+| `text` | `const char*` | - |
 
 ---
 
@@ -218,17 +218,17 @@ int cmd_cmode(char* text)
 
 **业务逻辑**: 解析路径段，逐级在域树中导航
 
-**说明**: 导航命令 - 进入子域或返回父域
+**说明**: 目标路径(支持..和/前缀)
 
 ```c
-int cmd_cd(char* path)
+int cmd_cd(const char* path)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `path` | `char*` | 目标路径(支持..和/前缀) |
+| `path` | `const char*` | - |
 
 ---
 
@@ -252,17 +252,17 @@ int cmd_gen()
 
 **业务逻辑**: 解析源文件，提取API模式项，创建external模块，记录依赖链
 
-**说明**: API导入命令 - 从.cboot文件仅导入API项
+**说明**: 源.cboot文件路径
 
 ```c
-int cmd_im(char* filename)
+int cmd_im(const char* path)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `filename` | `char*` | 源.cboot文件路径 |
+| `path` | `const char*` | - |
 
 ---
 
@@ -272,17 +272,17 @@ int cmd_im(char* filename)
 
 **业务逻辑**: 完整导入源项目作为子模块，包括所有非API项
 
-**说明**: 完整项目导入命令
+**说明**: 源.cboot文件路径
 
 ```c
-int cmd_in(char* filename)
+int cmd_in(const char* path)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `filename` | `char*` | 源.cboot文件路径 |
+| `path` | `const char*` | - |
 
 ---
 
@@ -314,8 +314,290 @@ int cmd_quit()
 
 ---
 
+### ModuleDomain* get_current_module()
+
+```c
+ModuleDomain* get_current_module()
+```
+
+---
+
+### int is_in_domain_type()
+
+```c
+int is_in_domain_type(DomainType type)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type` | `DomainType` | - |
+
+---
+
+### const char* domain_type_name()
+
+```c
+const char* domain_type_name(DomainType type)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type` | `DomainType` | - |
+
+---
+
+### int check_type()
+
+```c
+int check_type(const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+
+---
+
+### int check_name_dup()
+
+```c
+int check_name_dup(const char* name, Domain* scope)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+| `scope` | `Domain*` | - |
+
+---
+
+### const char* mode_str()
+
+```c
+const char* mode_str(Domain* d)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `d` | `Domain*` | - |
+
+---
+
+### int cmd_enum()
+
+> `API` — 公开接口
+
+```c
+int cmd_enum(const char* defs, const char* start_num_str)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `defs` | `const char*` | - |
+| `start_num_str` | `const char*` | - |
+
+---
+
+### int cmd_value()
+
+> `API` — 公开接口
+
+```c
+int cmd_value(const char* text)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `text` | `const char*` | - |
+
+---
+
+### int cmd_call()
+
+> `API` — 公开接口
+
+```c
+int cmd_call(const char* call_conv)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `call_conv` | `const char*` | - |
+
+---
+
+### int cmd_rm()
+
+> `API` — 公开接口
+
+```c
+int cmd_rm(const char* name, int force)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+| `force` | `int` | - |
+
+---
+
+### void find_recursive()
+
+```c
+void find_recursive(Domain* root, DomainType type_filter, const char* pattern, int max_depth, int cur_depth, int* found_count)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `root` | `Domain*` | - |
+| `type_filter` | `DomainType` | - |
+| `pattern` | `const char*` | - |
+| `max_depth` | `int` | - |
+| `cur_depth` | `int` | - |
+| `found_count` | `int*` | - |
+
+---
+
+### int cmd_find()
+
+> `API` — 公开接口
+
+```c
+int cmd_find(const char* type_filter, const char* pattern, int flags)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_filter` | `const char*` | - |
+| `pattern` | `const char*` | - |
+| `flags` | `int` | - |
+
+---
+
+### int cmd_ls()
+
+> `API` — 公开接口
+
+```c
+int cmd_ls(const char* name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+
+---
+
+### int cmd_mv()
+
+> `API` — 公开接口
+
+```c
+int cmd_mv(const char* src, const char* target)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `src` | `const char*` | - |
+| `target` | `const char*` | - |
+
+---
+
+### int cmd_exit()
+
+> `API` — 公开接口
+
+```c
+int cmd_exit()
+```
+
+---
+
+### int cmd_update()
+
+> `API` — 公开接口
+
+```c
+int cmd_update()
+```
+
+---
+
+### void copy_api_items()
+
+```c
+void copy_api_items(Domain* src_mod, Domain* dst_mod)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `src_mod` | `Domain*` | - |
+| `dst_mod` | `Domain*` | - |
+
+---
+
+### void copy_api_items_recursive()
+
+```c
+void copy_api_items_recursive(Domain* src_mod, Domain* dst_mod)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `src_mod` | `Domain*` | - |
+| `dst_mod` | `Domain*` | - |
+
+---
+
+### int cmd_res()
+
+> `API` — 公开接口
+
+```c
+int cmd_res(const char* file_path)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `file_path` | `const char*` | - |
+
+---
+
 ## 子模块
 
 - [domain](domain/DEV.md): [API 引用] 从项目内模块 domain 导入
+- [cupdate](cupdate/DEV.md): [API 引用] 从项目内模块 cupdate 导入
 
 *Generated by CBoot v0.3.1*

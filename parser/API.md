@@ -5,7 +5,8 @@
 ## 目录
 
 - [parse_cboot](#parse_cboot)
-- [dispatch_script_line](#dispatch_script_line)
+- [try_cboot_ref](#try_cboot_ref)
+- [parse_cboot_script](#parse_cboot_script)
 
 ---
 
@@ -13,7 +14,7 @@
 
 ### int parse_cboot()
 
-解析.cboot脚本文件
+输出项目
 
 ```c
 int parse_cboot(char* filepath, struct Project* proj)
@@ -23,23 +24,32 @@ int parse_cboot(char* filepath, struct Project* proj)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `filepath` | `char*` | 文件路径 |
-| `proj` | `struct Project*` | 输出项目 |
+| `filepath` | `char*` | - |
+| `proj` | `struct Project*` | - |
 
-### int dispatch_script_line()
-
-分派单行脚本命令
+### int try_cboot_ref()
 
 ```c
-int dispatch_script_line(char** tokens, int count)
+int try_cboot_ref(const char* token)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `tokens` | `char**` | 分词数组 |
-| `count` | `int` | 分词数量 |
+| `token` | `const char*` | - |
+
+### int parse_cboot_script()
+
+```c
+int parse_cboot_script(const char* filename)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `filename` | `const char*` | - |
 
 ## 子模块
 

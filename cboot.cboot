@@ -4,50 +4,35 @@
 project cboot
 cmt "本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。"
 
-# 顶级模块引用
+# ---- 第一步：先用纯创建模式创建所有顶级模块（确保它们在项目中存在） ----
+# 这样后续模块的 im 命令能找到兄弟模块
+mod domain
+mod cupdate
+mod commands
+mod parser
+mod generator
+mod docgen
+mod typecheck
+mod utils
+mod main
+
+# ---- 第二步：domain 是最底层模块，先处理它 ----
+# 注意：不 cd domain，直接通过引用语法 domain/.cboot 处理
+# （因为 im 必须在模块作用域中执行寻找兄弟模块）
 domain/.cboot
 
-# 各模块导入 domain API（兄弟模块间不可见，需要 im）
-mod commands
-cd commands
-im domain
-cd ..
+# ---- 第三步：cupdate 是下一个被依赖的模块，处理它 ----
+cupdate/.cboot
+
+# ---- 第四步：处理依赖 domain 和 cupdate 的模块 ----
 commands/.cboot
-
-mod parser
-cd parser
-im domain
-cd ..
 parser/.cboot
-
-mod generator
-cd generator
-im domain
-cd ..
 generator/.cboot
-
-mod docgen
-cd docgen
-im domain
-cd ..
 docgen/.cboot
-
-mod typecheck
-cd typecheck
-im domain
-cd ..
 typecheck/.cboot
-
-mod utils
-cd utils
-im domain
-cd ..
 utils/.cboot
 
-mod main
-cd main
-im domain
-cd ..
+# ---- 第五步：main 依赖最广，最后处理 ----
 main/.cboot
 
 gen

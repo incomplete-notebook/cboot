@@ -4,8 +4,8 @@
 
 ## 统计
 
-- 公开 API: **2** 项
-- 私有实现: **0** 项
+- 公开 API: **3** 项
+- 私有实现: **3** 项
 
 ## 函数
 
@@ -15,7 +15,7 @@
 
 **业务逻辑**: 逐行读取脚本，分派命令到对应处理函数，支持#注释
 
-**说明**: 解析.cboot脚本文件
+**说明**: 输出项目
 
 ```c
 int parse_cboot(char* filepath, struct Project* proj)
@@ -25,18 +25,16 @@ int parse_cboot(char* filepath, struct Project* proj)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `filepath` | `char*` | 文件路径 |
-| `proj` | `struct Project*` | 输出项目 |
+| `filepath` | `char*` | - |
+| `proj` | `struct Project*` | - |
 
 ---
 
 ### int dispatch_script_line()
 
-> `API` — 公开接口
-
 **业务逻辑**: 根据首个分词(命令名)调用对应cmd_函数
 
-**说明**: 分派单行脚本命令
+**说明**: 分词数量
 
 ```c
 int dispatch_script_line(char** tokens, int count)
@@ -46,8 +44,68 @@ int dispatch_script_line(char** tokens, int count)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `tokens` | `char**` | 分词数组 |
-| `count` | `int` | 分词数量 |
+| `tokens` | `char**` | - |
+| `count` | `int` | - |
+
+---
+
+### int is_cboot_ref()
+
+```c
+int is_cboot_ref(const char* token)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `token` | `const char*` | - |
+
+---
+
+### int exec_cboot_ref()
+
+```c
+int exec_cboot_ref(const char* ref)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `ref` | `const char*` | - |
+
+---
+
+### int try_cboot_ref()
+
+> `API` — 公开接口
+
+```c
+int try_cboot_ref(const char* token)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `token` | `const char*` | - |
+
+---
+
+### int parse_cboot_script()
+
+> `API` — 公开接口
+
+```c
+int parse_cboot_script(const char* filename)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `filename` | `const char*` | - |
 
 ---
 

@@ -4,173 +4,173 @@
 
 ## 统计
 
-- 公开 API: **34** 项
+- 公开 API: **48** 项
 - 私有实现: **0** 项
 
 ## 函数
 
-### struct Domain* domain_new()
+### Domain* domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 分配内存，设置类型和名称，初始化子域数组，返回新指针
 
-**说明**: 创建新域节点，分配内存并初始化所有字段
+**说明**: 结构体大小
 
 ```c
-struct Domain* domain_new(int type, char* name, size_t size)
+Domain* domain_new(DomainType type, const char* name, size_t struct_size)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `type` | `int` | 域类型(DomainType枚举) |
-| `name` | `char*` | 域名称 |
-| `size` | `size_t` | 结构体大小 |
+| `type` | `DomainType` | - |
+| `name` | `const char*` | - |
+| `struct_size` | `size_t` | - |
 
 ---
 
-### struct ModuleDomain* module_domain_new()
+### ModuleDomain* module_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，设置默认模式为INTERNAL，默认编译模式为NORMAL
 
-**说明**: 创建新模块域
+**说明**: 模块名称
 
 ```c
-struct ModuleDomain* module_domain_new(char* name)
+ModuleDomain* module_domain_new(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 模块名称 |
+| `name` | `const char*` | - |
 
 ---
 
-### struct FunctionDomain* function_domain_new()
+### FunctionDomain* function_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，设置返回类型，默认API模式为NORMAL
 
-**说明**: 创建新函数域
+**说明**: 返回类型
 
 ```c
-struct FunctionDomain* function_domain_new(char* name, char* return_type)
+FunctionDomain* function_domain_new(const char* name, const char* return_type)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 函数名称 |
-| `return_type` | `char*` | 返回类型 |
+| `name` | `const char*` | - |
+| `return_type` | `const char*` | - |
 
 ---
 
-### struct StructDomain* struct_domain_new()
+### StructDomain* struct_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，默认API模式为NORMAL
 
-**说明**: 创建新结构体域
+**说明**: 结构体名称
 
 ```c
-struct StructDomain* struct_domain_new(char* name)
+StructDomain* struct_domain_new(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 结构体名称 |
+| `name` | `const char*` | - |
 
 ---
 
-### struct TypeDomain* type_domain_new()
+### TypeDomain* type_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，默认类型模式为RENAME
 
-**说明**: 创建新类型域
+**说明**: 类型名称
 
 ```c
-struct TypeDomain* type_domain_new(char* name)
+TypeDomain* type_domain_new(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 类型名称 |
+| `name` | `const char*` | - |
 
 ---
 
-### struct MacroDomain* macro_domain_new()
+### MacroDomain* macro_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，默认API模式为NORMAL
 
-**说明**: 创建新宏域
+**说明**: 宏名称
 
 ```c
-struct MacroDomain* macro_domain_new(char* name)
+MacroDomain* macro_domain_new(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 宏名称 |
+| `name` | `const char*` | - |
 
 ---
 
-### struct VariableDomain* variable_domain_new()
+### VariableDomain* variable_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，设置类型，默认变量模式为NORMAL
 
-**说明**: 创建新变量域
+**说明**: 变量类型
 
 ```c
-struct VariableDomain* variable_domain_new(char* name, char* type)
+VariableDomain* variable_domain_new(const char* name, const char* type)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 变量名称 |
-| `type` | `char*` | 变量类型 |
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
 
 ---
 
-### struct MemberDomain* member_domain_new()
+### MemberDomain* member_domain_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_new，设置类型
 
-**说明**: 创建新成员域(结构体成员或函数参数)
+**说明**: 成员类型
 
 ```c
-struct MemberDomain* member_domain_new(char* name, char* type)
+MemberDomain* member_domain_new(const char* name, const char* type)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 成员名称 |
-| `type` | `char*` | 成员类型 |
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
 
 ---
 
@@ -180,81 +180,81 @@ struct MemberDomain* member_domain_new(char* name, char* type)
 
 **业务逻辑**: 检查容量，扩容数组，添加子域，设置parent
 
-**说明**: 添加子域到父域，自动设置parent指针
+**说明**: 子域指针
 
 ```c
-void domain_add_child(struct Domain* parent, struct Domain* child)
+void domain_add_child(Domain* parent, Domain* child)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `parent` | `struct Domain*` | 父域指针 |
-| `child` | `struct Domain*` | 子域指针 |
+| `parent` | `Domain*` | - |
+| `child` | `Domain*` | - |
 
 ---
 
-### struct Domain* domain_find_child()
+### Domain* domain_find_child()
 
 > `API` — 公开接口
 
 **业务逻辑**: 遍历子域数组，返回匹配名称的子域指针，未找到返回NULL
 
-**说明**: 按名称查找直接子域
+**说明**: 目标名称
 
 ```c
-struct Domain* domain_find_child(struct Domain* parent, char* name)
+Domain* domain_find_child(Domain* parent, const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `parent` | `struct Domain*` | 父域指针 |
-| `name` | `char*` | 目标名称 |
+| `parent` | `Domain*` | - |
+| `name` | `const char*` | - |
 
 ---
 
-### struct Domain* domain_find_api_in_submodules()
+### Domain* domain_find_api_in_submodules()
 
 > `API` — 公开接口
 
 **业务逻辑**: 先在直接子域中查找，再递归进入子模块查找API模式项
 
-**说明**: 在子模块中递归查找API项，用于名称冲突检测和类型解析
+**说明**: 目标名称
 
 ```c
-struct Domain* domain_find_api_in_submodules(struct Domain* scope, char* name)
+Domain* domain_find_api_in_submodules(Domain* scope, const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `scope` | `struct Domain*` | 搜索起始域 |
-| `name` | `char*` | 目标名称 |
+| `scope` | `Domain*` | - |
+| `name` | `const char*` | - |
 
 ---
 
-### struct Domain* domain_check_api_name_conflict()
+### Domain* domain_check_api_name_conflict()
 
 > `API` — 公开接口
 
 **业务逻辑**: 调用domain_find_api_in_submodules，返回冲突域或NULL
 
-**说明**: 检查名称是否与子模块API项冲突
+**说明**: 目标名称
 
 ```c
-struct Domain* domain_check_api_name_conflict(struct Domain* scope, char* name)
+Domain* domain_check_api_name_conflict(Domain* scope, const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `scope` | `struct Domain*` | 检查起始域 |
-| `name` | `char*` | 目标名称 |
+| `scope` | `Domain*` | - |
+| `name` | `const char*` | - |
 
 ---
 
@@ -264,17 +264,17 @@ struct Domain* domain_check_api_name_conflict(struct Domain* scope, char* name)
 
 **业务逻辑**: 从当前域向上遍历到根，拼接路径字符串
 
-**说明**: 获取域的完整路径字符串(如 /module/submodule)
+**说明**: 目标域
 
 ```c
-char* domain_get_path(struct Domain* domain)
+char* domain_get_path(Domain* domain)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `struct Domain*` | 目标域 |
+| `domain` | `Domain*` | - |
 
 ---
 
@@ -284,18 +284,18 @@ char* domain_get_path(struct Domain* domain)
 
 **业务逻辑**: 复制文本并设置到域的comment字段
 
-**说明**: 设置域的注释文本
+**说明**: 注释文本
 
 ```c
-void domain_set_comment(struct Domain* domain, char* text)
+void domain_set_comment(Domain* domain, const char* text)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `struct Domain*` | 目标域 |
-| `text` | `char*` | 注释文本 |
+| `domain` | `Domain*` | - |
+| `text` | `const char*` | - |
 
 ---
 
@@ -305,38 +305,38 @@ void domain_set_comment(struct Domain* domain, char* text)
 
 **业务逻辑**: 根据域类型设置对应的模式字段
 
-**说明**: 设置域的模式字段
+**说明**: 模式值
 
 ```c
-void domain_set_mode(struct Domain* domain, int mode)
+void domain_set_mode(Domain* domain, int mode)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `struct Domain*` | 目标域 |
-| `mode` | `int` | 模式值 |
+| `domain` | `Domain*` | - |
+| `mode` | `int` | - |
 
 ---
 
-### struct Project* project_new()
+### Project* project_new()
 
 > `API` — 公开接口
 
 **业务逻辑**: 创建根模块域，初始化项目状态和依赖数组
 
-**说明**: 创建新项目
+**说明**: 项目名称
 
 ```c
-struct Project* project_new(char* name)
+Project* project_new(const char* name)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 项目名称 |
+| `name` | `const char*` | - |
 
 ---
 
@@ -346,20 +346,20 @@ struct Project* project_new(char* name)
 
 **业务逻辑**: 检查容量，扩容数组，添加新依赖记录
 
-**说明**: 添加依赖记录(im命令使用)
+**说明**: 源.cboot文件路径
 
 ```c
-void project_add_dependency(struct Project* proj, char* importer_path, char* source_path, char* cboot_file)
+void project_add_dependency(Project* proj, const char* importer_path, const char* source_path, const char* cboot_file)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `proj` | `struct Project*` | 项目指针 |
-| `importer_path` | `char*` | 导入方路径 |
-| `source_path` | `char*` | 源模块路径 |
-| `cboot_file` | `char*` | 源.cboot文件路径 |
+| `proj` | `Project*` | - |
+| `importer_path` | `const char*` | - |
+| `source_path` | `const char*` | - |
+| `cboot_file` | `const char*` | - |
 
 ---
 
@@ -369,19 +369,255 @@ void project_add_dependency(struct Project* proj, char* importer_path, char* sou
 
 **业务逻辑**: 遍历依赖数组，返回1(存在)或0(不存在)
 
-**说明**: 检查依赖是否已存在
+**说明**: 源模块路径
 
 ```c
-int project_has_dependency(struct Project* proj, char* importer_path, char* source_path)
+int project_has_dependency(Project* proj, const char* importer_path, const char* source_path)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `proj` | `struct Project*` | 项目指针 |
-| `importer_path` | `char*` | 导入方路径 |
-| `source_path` | `char*` | 源模块路径 |
+| `proj` | `Project*` | - |
+| `importer_path` | `const char*` | - |
+| `source_path` | `const char*` | - |
+
+---
+
+### Domain* domain_find_child_by_type()
+
+> `API` — 公开接口
+
+```c
+Domain* domain_find_child_by_type(Domain* parent, const char* name, DomainType type)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `parent` | `Domain*` | - |
+| `name` | `const char*` | - |
+| `type` | `DomainType` | - |
+
+---
+
+### void domain_delete()
+
+> `API` — 公开接口
+
+```c
+void domain_delete(Domain* domain)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+
+---
+
+### void domain_remove_child()
+
+> `API` — 公开接口
+
+```c
+void domain_remove_child(Domain* parent, Domain* child)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `parent` | `Domain*` | - |
+| `child` | `Domain*` | - |
+
+---
+
+### Domain* domain_find_nearest_of_type()
+
+> `API` — 公开接口
+
+```c
+Domain* domain_find_nearest_of_type(Domain* from, DomainType type)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `from` | `Domain*` | - |
+| `type` | `DomainType` | - |
+
+---
+
+### Domain* domain_find_in_tree()
+
+> `API` — 公开接口
+
+```c
+Domain* domain_find_in_tree(Domain* root, DomainType type, const char* name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `root` | `Domain*` | - |
+| `type` | `DomainType` | - |
+| `name` | `const char*` | - |
+
+---
+
+### int domain_is_api()
+
+> `API` — 公开接口
+
+```c
+int domain_is_api(Domain* domain)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+
+---
+
+### void domain_set_child_comment()
+
+> `API` — 公开接口
+
+```c
+void domain_set_child_comment(Domain* domain, const char* target, const char* text)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `target` | `const char*` | - |
+| `text` | `const char*` | - |
+
+---
+
+### Comment* find_child_comment()
+
+> `API` — 公开接口
+
+```c
+Comment* find_child_comment(Domain* domain, const char* target)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `target` | `const char*` | - |
+
+---
+
+### void domain_set_value()
+
+> `API` — 公开接口
+
+```c
+void domain_set_value(Domain* domain, const char* value)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `value` | `const char*` | - |
+
+---
+
+### void domain_set_code()
+
+> `API` — 公开接口
+
+```c
+void domain_set_code(Domain* domain, const char* code)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `code` | `const char*` | - |
+
+---
+
+### void domain_set_call()
+
+> `API` — 公开接口
+
+```c
+void domain_set_call(Domain* domain, const char* call)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `call` | `const char*` | - |
+
+---
+
+### const char* domain_get_call()
+
+> `API` — 公开接口
+
+```c
+const char* domain_get_call(Domain* domain)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+
+---
+
+### void project_free()
+
+> `API` — 公开接口
+
+```c
+void project_free(Project* proj)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `Project*` | - |
+
+---
+
+### int is_builtin_type()
+
+> `API` — 公开接口
+
+```c
+int is_builtin_type(const char* type_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
 
 ---
 
@@ -463,7 +699,7 @@ typedef int VarMode;
 
 > `API` — 公开类型
 
-**说明**: 域树基础节点，所有域类型的基类
+**说明**: 子域数组容量
 
 ```c
 typedef struct Domain {
@@ -481,13 +717,13 @@ typedef struct Domain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 域名称 |
-| `type` | `int` | 域类型(DomainType枚举) |
-| `comment` | `char*` | 域注释文本 |
-| `parent` | `struct Domain*` | 父域指针 |
-| `children` | `struct Domain**` | 子域数组 |
-| `child_count` | `int` | 子域数量 |
-| `child_capacity` | `int` | 子域数组容量 |
+| `name` | `char*` | - |
+| `type` | `int` | - |
+| `comment` | `char*` | - |
+| `parent` | `struct Domain*` | - |
+| `children` | `struct Domain**` | - |
+| `child_count` | `int` | - |
+| `child_capacity` | `int` | - |
 
 ---
 
@@ -495,7 +731,7 @@ typedef struct Domain {
 
 > `API` — 公开类型
 
-**说明**: 模块域 - 项目中的一个模块节点，含编译模式和依赖管理
+**说明**: 依赖数量
 
 ```c
 typedef struct ModuleDomain {
@@ -514,14 +750,14 @@ typedef struct ModuleDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `mode` | `int` | 模块模式(ModMode枚举) |
-| `compiler` | `int` | 编译模式(CompilerMode枚举): exe/sl/dl/normal |
-| `value` | `char*` | 模块值 |
-| `includes` | `char**` | 头文件包含列表 |
-| `include_count` | `int` | 包含数量 |
-| `dependencies` | `char**` | 依赖模块名称列表 |
-| `dep_count` | `int` | 依赖数量 |
+| `base` | `struct Domain` | - |
+| `mode` | `int` | - |
+| `compiler` | `int` | - |
+| `value` | `char*` | - |
+| `includes` | `char**` | - |
+| `include_count` | `int` | - |
+| `dependencies` | `char**` | - |
+| `dep_count` | `int` | - |
 
 ---
 
@@ -529,7 +765,7 @@ typedef struct ModuleDomain {
 
 > `API` — 公开类型
 
-**说明**: 函数域 - 项目中的函数定义
+**说明**: 业务逻辑描述
 
 ```c
 typedef struct FunctionDomain {
@@ -545,11 +781,11 @@ typedef struct FunctionDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `mode` | `int` | API模式(ApiMode枚举) |
-| `return_type` | `char*` | 返回类型 |
-| `code` | `char*` | 函数实现代码 |
-| `value` | `char*` | 业务逻辑描述 |
+| `base` | `struct Domain` | - |
+| `mode` | `int` | - |
+| `return_type` | `char*` | - |
+| `code` | `char*` | - |
+| `value` | `char*` | - |
 
 ---
 
@@ -557,7 +793,7 @@ typedef struct FunctionDomain {
 
 > `API` — 公开类型
 
-**说明**: 结构体域 - 项目中的结构体类型定义
+**说明**: API模式(ApiMode枚举)
 
 ```c
 typedef struct StructDomain {
@@ -570,8 +806,8 @@ typedef struct StructDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `mode` | `int` | API模式(ApiMode枚举) |
+| `base` | `struct Domain` | - |
+| `mode` | `int` | - |
 
 ---
 
@@ -579,7 +815,7 @@ typedef struct StructDomain {
 
 > `API` — 公开类型
 
-**说明**: 类型域 - typedef定义
+**说明**: 底层类型(rename模式)或值
 
 ```c
 typedef struct TypeDomain {
@@ -593,9 +829,9 @@ typedef struct TypeDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `mode` | `int` | 类型模式(TypeMode枚举) |
-| `value` | `char*` | 底层类型(rename模式)或值 |
+| `base` | `struct Domain` | - |
+| `mode` | `int` | - |
+| `value` | `char*` | - |
 
 ---
 
@@ -603,7 +839,7 @@ typedef struct TypeDomain {
 
 > `API` — 公开类型
 
-**说明**: 宏域 - #define定义
+**说明**: 宏值
 
 ```c
 typedef struct MacroDomain {
@@ -617,9 +853,9 @@ typedef struct MacroDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `mode` | `int` | API模式(ApiMode枚举) |
-| `value` | `char*` | 宏值 |
+| `base` | `struct Domain` | - |
+| `mode` | `int` | - |
+| `value` | `char*` | - |
 
 ---
 
@@ -627,7 +863,7 @@ typedef struct MacroDomain {
 
 > `API` — 公开类型
 
-**说明**: 变量域 - 变量定义
+**说明**: 变量初始值
 
 ```c
 typedef struct VariableDomain {
@@ -642,10 +878,10 @@ typedef struct VariableDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `mode` | `int` | 变量模式(VarMode枚举) |
-| `type` | `char*` | 变量类型 |
-| `value` | `char*` | 变量初始值 |
+| `base` | `struct Domain` | - |
+| `mode` | `int` | - |
+| `type` | `char*` | - |
+| `value` | `char*` | - |
 
 ---
 
@@ -653,7 +889,7 @@ typedef struct VariableDomain {
 
 > `API` — 公开类型
 
-**说明**: 成员域 - 结构体成员或函数参数
+**说明**: 成员类型
 
 ```c
 typedef struct MemberDomain {
@@ -666,8 +902,8 @@ typedef struct MemberDomain {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `base` | `struct Domain` | 基础域 |
-| `type` | `char*` | 成员类型 |
+| `base` | `struct Domain` | - |
+| `type` | `char*` | - |
 
 ---
 
@@ -675,7 +911,7 @@ typedef struct MemberDomain {
 
 > `API` — 公开类型
 
-**说明**: 依赖记录 - im命令建立的API依赖关系
+**说明**: 源.cboot文件路径
 
 ```c
 typedef struct Dependency {
@@ -689,9 +925,9 @@ typedef struct Dependency {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `importer` | `char*` | 导入方模块路径 |
-| `source` | `char*` | 源模块路径 |
-| `cboot_file` | `char*` | 源.cboot文件路径 |
+| `importer` | `char*` | - |
+| `source` | `char*` | - |
+| `cboot_file` | `char*` | - |
 
 ---
 
@@ -699,7 +935,7 @@ typedef struct Dependency {
 
 > `API` — 公开类型
 
-**说明**: 项目容器 - 整个项目的根节点和全局状态
+**说明**: 依赖数量
 
 ```c
 typedef struct Project {
@@ -717,13 +953,13 @@ typedef struct Project {
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `name` | `char*` | 项目名称 |
-| `root` | `struct Domain*` | 根域(包含所有模块) |
-| `current` | `struct Domain*` | 当前作用域指针 |
-| `has_generated` | `int` | 是否已生成代码 |
-| `cboot_file` | `char*` | .cboot文件路径 |
-| `dependencies` | `struct Dependency*` | API依赖数组 |
-| `dep_count` | `int` | 依赖数量 |
+| `name` | `char*` | - |
+| `root` | `struct Domain*` | - |
+| `current` | `struct Domain*` | - |
+| `has_generated` | `int` | - |
+| `cboot_file` | `char*` | - |
+| `dependencies` | `struct Dependency*` | - |
+| `dep_count` | `int` | - |
 
 ---
 

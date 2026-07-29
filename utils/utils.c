@@ -1,3 +1,6 @@
+/* utils.c - CBoot generated (compiler: normal) */
+/* Module: utils */
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Utility functions
@@ -336,3 +339,4 @@ void utils_strip_quotes(char *str)
         str[len - 2] = '\0';
     }
 }
+

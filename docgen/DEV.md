@@ -5,7 +5,7 @@
 ## 统计
 
 - 公开 API: **2** 项
-- 私有实现: **0** 项
+- 私有实现: **11** 项
 
 ## 函数
 
@@ -15,18 +15,18 @@
 
 **业务逻辑**: 生成README.md、DEV.md和DEPENDENCIES.md
 
-**说明**: 生成项目级文档
+**说明**: 输出目录
 
 ```c
-int generate_docs(struct Project* proj, char* output_dir)
+int generate_docs(Project* proj, const char* output_dir)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `proj` | `struct Project*` | 项目定义 |
-| `output_dir` | `char*` | 输出目录 |
+| `proj` | `Project*` | - |
+| `output_dir` | `const char*` | - |
 
 ---
 
@@ -36,18 +36,181 @@ int generate_docs(struct Project* proj, char* output_dir)
 
 **业务逻辑**: 生成README.md(模块说明+子模块链接)、API.md(仅API项)、DEV.md(所有项+业务逻辑)
 
-**说明**: 为单个模块生成文档
+**说明**: 模块目录路径
 
 ```c
-void generate_module_docs(struct Domain* mod, char* dir)
+void generate_module_docs(Domain* mod, const char* dir)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `mod` | `struct Domain*` | 模块域 |
-| `dir` | `char*` | 模块目录路径 |
+| `mod` | `Domain*` | - |
+| `dir` | `const char*` | - |
+
+---
+
+### void generate_mod_readme()
+
+```c
+void generate_mod_readme(Domain* mod, const char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `dir` | `const char*` | - |
+
+---
+
+### void generate_mod_api()
+
+```c
+void generate_mod_api(Domain* mod, const char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `dir` | `const char*` | - |
+
+---
+
+### void generate_mod_dev()
+
+```c
+void generate_mod_dev(Domain* mod, const char* dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `dir` | `const char*` | - |
+
+---
+
+### void generate_project_readme()
+
+```c
+void generate_project_readme(Project* proj, const char* output_dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `Project*` | - |
+| `output_dir` | `const char*` | - |
+
+---
+
+### void generate_project_dev()
+
+```c
+void generate_project_dev(Project* proj, const char* output_dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `Project*` | - |
+| `output_dir` | `const char*` | - |
+
+---
+
+### void generate_dependencies_doc()
+
+```c
+void generate_dependencies_doc(Project* proj, const char* output_dir)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `proj` | `Project*` | - |
+| `output_dir` | `const char*` | - |
+
+---
+
+### int is_api()
+
+```c
+int is_api(Domain* d)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `d` | `Domain*` | - |
+
+---
+
+### const char* domain_type_str()
+
+```c
+const char* domain_type_str(int type)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type` | `int` | - |
+
+---
+
+### void write_dev_functions()
+
+```c
+void write_dev_functions(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void write_dev_types()
+
+```c
+void write_dev_types(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void write_dev_macros()
+
+```c
+void write_dev_macros(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
 
 ---
 

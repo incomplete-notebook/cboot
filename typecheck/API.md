@@ -6,6 +6,11 @@
 
 - [typecheck_domain](#typecheck_domain)
 - [typecheck_project](#typecheck_project)
+- [type_checker_is_builtin](#type_checker_is_builtin)
+- [type_checker_init](#type_checker_init)
+- [type_checker_validate](#type_checker_validate)
+- [type_checker_resolve_typedef](#type_checker_resolve_typedef)
+- [type_checker_validate_value](#type_checker_validate_value)
 
 ---
 
@@ -13,7 +18,7 @@
 
 ### int typecheck_domain()
 
-检查单个域的类型一致性
+待检查域
 
 ```c
 int typecheck_domain(struct Domain* domain)
@@ -23,11 +28,11 @@ int typecheck_domain(struct Domain* domain)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `struct Domain*` | 待检查域 |
+| `domain` | `struct Domain*` | - |
 
 ### int typecheck_project()
 
-检查整个项目的类型一致性
+项目定义
 
 ```c
 int typecheck_project(struct Project* proj)
@@ -37,7 +42,71 @@ int typecheck_project(struct Project* proj)
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `proj` | `struct Project*` | 项目定义 |
+| `proj` | `struct Project*` | - |
+
+### int type_checker_is_builtin()
+
+```c
+int type_checker_is_builtin(const char* type_name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+
+### void type_checker_init()
+
+```c
+void type_checker_init(TypeChecker* tc, Domain* scope)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tc` | `TypeChecker*` | - |
+| `scope` | `Domain*` | - |
+
+### int type_checker_validate()
+
+```c
+int type_checker_validate(TypeChecker* tc, const char* type_name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tc` | `TypeChecker*` | - |
+| `type_name` | `const char*` | - |
+
+### const char* type_checker_resolve_typedef()
+
+```c
+const char* type_checker_resolve_typedef(TypeChecker* tc, const char* type_name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `tc` | `TypeChecker*` | - |
+| `type_name` | `const char*` | - |
+
+### int type_checker_validate_value()
+
+```c
+int type_checker_validate_value(const char* type_name, const char* value)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_name` | `const char*` | - |
+| `value` | `const char*` | - |
 
 ## 子模块
 

@@ -1,3 +1,6 @@
+/* typecheck.c - CBoot generated (compiler: normal) */
+/* Module: typecheck */
+
 /*
  * CBoot - Type Checker Implementation v0.3.1
  *
@@ -262,6 +265,21 @@ int typecheck_type_checker_validate(TypeChecker *tc, const char *type_name)
     memcpy(buf, type_name, len);
     buf[len] = '\0';
 
+    /* Strip trailing array dimensions: [N] or [MACRO] */
+    while (len > 0 && buf[len - 1] == ']') {
+        /* Find matching '[' */
+        int bracket = len - 2;
+        while (bracket >= 0 && buf[bracket] != '[') bracket--;
+        if (bracket < 0) break;
+        len = bracket;
+        buf[len] = '\0';
+        /* Also strip whitespace before '[' */
+        while (len > 0 && isspace((unsigned char)buf[len - 1])) {
+            len--;
+            buf[len] = '\0';
+        }
+    }
+
     typecheck_strip_pointer(buf, len);
 
     /* Strip leading qualifiers (struct, const, etc.) */
@@ -461,3 +479,4 @@ int typecheck_type_checker_validate_value(const char *type_name, const char *val
     /* For user-defined types (structs, typedefs, etc.), accept any value */
     return 0;
 }
+

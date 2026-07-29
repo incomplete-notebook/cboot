@@ -1,3 +1,6 @@
+/* parser.c - CBoot generated (compiler: normal) */
+/* Module: parser */
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * .cboot script parser (新规范 v0.3.1)
@@ -46,6 +49,8 @@ int parser_try_cboot_ref(const char *token) {
 static int parser_exec_cboot_ref(const char *ref) {
     if (!ref) return -1;
 
+    fprintf(stderr, "DEBUG parser_exec_cboot_ref: ref='%s'\n", ref);
+
     /* Extract directory part and file part */
     char buf[MAX_PATH_LEN];
     strncpy(buf, ref, MAX_PATH_LEN - 1);
@@ -57,6 +62,7 @@ static int parser_exec_cboot_ref(const char *ref) {
         /* No directory — just parse the file in current scope */
         char full_path[MAX_PATH_LEN];
         snprintf(full_path, sizeof(full_path), "%s/%s", g_script_dir, ref);
+        fprintf(stderr, "DEBUG parser_exec_cboot_ref: no dir, full_path='%s'\n", full_path);
         return parser_parse_cboot_script(full_path);
     }
 
@@ -68,6 +74,8 @@ static int parser_exec_cboot_ref(const char *ref) {
     /* Resolve the full file path relative to current script dir */
     char full_path[MAX_PATH_LEN];
     snprintf(full_path, sizeof(full_path), "%s/%s/%s", g_script_dir, dir_part, file_part);
+    fprintf(stderr, "DEBUG parser_exec_cboot_ref: dir_part='%s' file_part='%s' full_path='%s'\n",
+            dir_part, file_part, full_path);
 
     /* Navigate into modules: split dir_part by '/' */
     int depth_entered = 0;
@@ -245,6 +253,21 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return commands_cmd_value(tokens[1]);
     }
 
+    /* 修改字段: call <text> - 设置函数调用约定 */
+    if (utils_str_eq(cmd, "call")) {
+        if (count < 2) {
+            fprintf(stderr, "parser: 用法: call <调用约定>\n");
+            return -1;
+        }
+        char call_buf[MAX_LINE_LEN];
+        call_buf[0] = '\0';
+        for (int i = 1; i < count; i++) {
+            if (i > 1) strcat(call_buf, " ");
+            strcat(call_buf, tokens[i]);
+        }
+        return commands_cmd_call(call_buf);
+    }
+
     /* 修改字段: mode <text> */
     if (utils_str_eq(cmd, "mode")) {
         if (count < 2) {
@@ -351,6 +374,16 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return commands_cmd_gen();
     }
 
+    /* 更新: update - 扫描源码同步 .cboot
+     * update 会重新生成 .cboot 文件，导致当前正在执行的脚本失效。
+     * 返回 2 表示"脚本已失效"，parser 应停止读取后续行。 */
+    if (utils_str_eq(cmd, "update")) {
+        int rc = commands_cmd_update();
+        /* 无论成功失败，脚本都已失效（文件可能被覆盖） */
+        (void)rc;
+        return 2;
+    }
+
     /* 导入: im <path> - 仅API定义 */
     if (utils_str_eq(cmd, "im")) {
         if (count < 2) {
@@ -442,6 +475,8 @@ int parser_parse_cboot_script(const char *filename) {
 
         /* Dispatch */
         int ret = parser_dispatch_script_line(tokens, token_count);
+        fprintf(stderr, "DEBUG parser_parse_cboot_script: line %d cmd='%s' ret=%d\n",
+                line_no, tokens[0] ? tokens[0] : "<null>", ret);
         utils_free_tokens(tokens, token_count);
 
         if (ret == 1) {
@@ -486,6 +521,13 @@ int parser_parse_cboot_script(const char *filename) {
             continue;
         }
 
+        if (ret == 2) {
+            /* update 命令：脚本已失效（.cboot 文件被重新生成），停止读取 */
+            fclose(f);
+            strcpy(g_script_dir, saved_script_dir);
+            return 0;
+        }
+
         if (ret != 0) {
             fprintf(stderr, "parser: 第 %d 行执行失败\n", line_no);
             fclose(f);
@@ -498,3 +540,4 @@ int parser_parse_cboot_script(const char *filename) {
     strcpy(g_script_dir, saved_script_dir);
     return 0;
 }
+
