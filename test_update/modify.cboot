@@ -1,0 +1,20 @@
+# modify.cboot - 修改后的验证脚本
+# 在修改 calc.c 源码后运行此脚本，通过 update 命令将源码变更同步到 .cboot
+#
+# 使用方法:
+#   1. 先运行 create.cboot 创建项目
+#   2. 修改生成的 calc/calc.c（新增函数、修改宏值、修改结构体、删除函数等）
+#   3. 将此脚本复制到项目根目录，执行: cboot modify.cboot
+#
+# 注意: 此脚本不包含 gen 命令，因为 update 会重新生成所有文件。
+#       update 命令返回后会停止脚本执行（.cboot 文件已被重新生成）。
+#       calc/.cboot 引用不包含 gen，因此不会在 update 前覆盖用户对 .c 的修改。
+
+project calc_project
+cmt "测试项目 - 验证 cboot update 和 adjust 功能"
+
+# 加载 calc 模块定义（不含 gen，避免覆盖用户修改的 .c 文件）
+calc/.cboot
+
+# 执行 update：扫描 calc.c 源码，同步 .cboot 中的 API 定义和 code 字段
+update

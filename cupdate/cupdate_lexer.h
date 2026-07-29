@@ -115,6 +115,7 @@ typedef struct CuToken {
     int   is_float;    /* NUM: 1=浮点 */
     int   line;        /* 行号 */
     int   col;         /* 列号 */
+    size_t start_pos;  /* token 在源码中的起始字节偏移 */
 } CuToken;
 
 /* ------------------------------------------------------------------ */

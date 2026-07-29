@@ -570,39 +570,38 @@ static char *cup_build_full_type(SB *type_sb, const char *suffix)
 /* 函数体 / 初始化列表 跳过                                            */
 /* ------------------------------------------------------------------ */
 
-/* 收集从当前 { 到匹配 } 之间的所有字符（包括嵌套大括号），返回动态分配的字符串。
+/* 收集从当前 { 到匹配 } 之间的原始源码文本（保留缩进和格式）。
  * 当前 token 必须是 {。结束后 cur 指向 } 之后。 */
 static char *cup_capture_braced_body(CuParser *p)
 {
     if (CUR(p) != '{') return NULL;
     int start_line = p->lex->cur.line;
+
+    /* 记录 { 在源码中的起始位置 */
+    size_t body_start = p->lex->cur.start_pos;
+
     NEXT(p);  /* 消费 { */
 
-    SB body; sb_init(&body);
     int depth = 1;
+    size_t body_end = body_start + 1;  /* 至少包含 { 字符 */
+
     while (CUR(p) != CUP_TOK_EOF) {
         int k = CUR(p);
         if (k == '{') {
             depth++;
-            sb_append_char(&body, '{');
-            sb_append_char(&body, ' ');
             NEXT(p);
             continue;
         }
         if (k == '}') {
             depth--;
             if (depth == 0) {
+                body_end = p->lex->cur.start_pos + 1;  /* } 之后的位置 */
                 NEXT(p);  /* 消费 } */
                 break;
             }
-            sb_append_char(&body, '}');
-            sb_append_char(&body, ' ');
             NEXT(p);
             continue;
         }
-        /* 附加 token 文本 */
-        sb_append_token(&body, p->lex);
-        sb_append_char(&body, ' ');
         NEXT(p);
     }
     if (depth != 0) {
@@ -610,31 +609,86 @@ static char *cup_capture_braced_body(CuParser *p)
         snprintf(buf, sizeof(buf), "未闭合的函数体（起始于第 %d 行）", start_line);
         cup_error_at(p, start_line, buf);
     }
-    sb_trim(&body);
-    char *result = strdup(body.buf ? body.buf : "");
-    sb_free(&body);
+
+    /* 提取 { 到 } 之间的原始源码文本（不含外层大括号） */
+    size_t inner_start = body_start + 1;  /* 跳过 { */
+    size_t inner_len = 0;
+    if (body_end > inner_start) {
+        inner_len = body_end - 1 - inner_start;  /* 跳过 } */
+    }
+
+    char *result = (char *)malloc(inner_len + 1);
+    if (!result) return strdup("");
+    memcpy(result, p->lex->src + inner_start, inner_len);
+    result[inner_len] = '\0';
+
+    /* 去除首尾空白 */
+    char *start = result;
+    while (*start && isspace((unsigned char)*start)) start++;
+    char *end = result + inner_len;
+    while (end > start && isspace((unsigned char)*(end - 1))) end--;
+    *end = '\0';
+    if (start != result) {
+        memmove(result, start, end - start + 1);
+    }
+
     return result;
 }
 
 /* 跳过初始化列表或表达式，到 ; 或 , 之前。
- * 用于全局变量声明的初始化。返回捕获的初始化表达式文本。 */
+ * 用于全局变量声明的初始化。返回捕获的初始化表达式原始文本。 */
 static char *cup_capture_initializer(CuParser *p)
 {
+    /* 记录起始位置 */
+    size_t init_start = p->lex->cur.start_pos;
+
     SB init; sb_init(&init);
     int depth = 0;
+    size_t init_end = init_start;
     while (CUR(p) != CUP_TOK_EOF) {
         int k = CUR(p);
         if (depth == 0 && (k == ',' || k == ';' || k == '}')) break;
         if (k == '{' || k == '(' || k == '[') depth++;
         else if (k == '}' || k == ')' || k == ']') depth--;
-        sb_append_token(&init, p->lex);
-        sb_append_char(&init, ' ');
+        init_end = p->lex->cur.start_pos + 1;  /* 粗略估计当前位置之后 */
         NEXT(p);
     }
-    sb_trim(&init);
-    char *result = strdup(init.buf ? init.buf : "");
-    sb_free(&init);
-    return result;
+
+    /* 提取原始源码文本 */
+    size_t init_len = 0;
+    if (init_end > init_start) {
+        /* 找到 = 之后的位置作为真正的起始 */
+        const char *eq_pos = NULL;
+        /* 从 init_start 向后搜索 = 符号 */
+        for (size_t i = init_start; i < init_end && i < p->lex->src_len; i++) {
+            if (p->lex->src[i] == '=') {
+                eq_pos = p->lex->src + i + 1;
+                break;
+            }
+            /* 遇到 ; 或 , 提前终止（无初始化值） */
+            if (p->lex->src[i] == ';' || p->lex->src[i] == ',') break;
+        }
+        if (eq_pos) {
+            /* 从 = 后面到当前 token 之前 */
+            size_t eq_offset = eq_pos - p->lex->src;
+            /* 找到当前 token 的起始位置作为结束 */
+            size_t cur_start = p->lex->cur.start_pos;
+            if (cur_start > eq_offset) {
+                init_len = cur_start - eq_offset;
+                /* 去除尾部空白 */
+                while (init_len > 0 && isspace((unsigned char)p->lex->src[eq_offset + init_len - 1])) init_len--;
+                /* 去除头部空白 */
+                while (init_len > 0 && isspace((unsigned char)p->lex->src[eq_offset])) { eq_offset++; init_len--; }
+                char *result = (char *)malloc(init_len + 1);
+                if (!result) return strdup("");
+                memcpy(result, p->lex->src + eq_offset, init_len);
+                result[init_len] = '\0';
+                return result;
+            }
+        }
+    }
+
+    return NULL;  /* 无初始值 */
 }
 
 /* ------------------------------------------------------------------ */

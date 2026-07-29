@@ -1,0 +1,94 @@
+# create.cboot - 创建 calc 测试项目
+# 测试 cboot update 和 adjust 功能
+#
+# 项目结构:
+#   模块 calc，包含 add/sub/mul 函数
+#   宏 MAX_VALUE 100
+#   结构体 Point { int x; int y; }
+
+project calc_project
+cmt "测试项目 - 验证 cboot update 和 adjust 功能"
+
+# 创建顶级模块 calc
+mod calc
+cd calc
+cmt "计算器模块 - 包含 add/sub/mul 函数"
+mode src
+cmode normal
+
+# 模块实现代码（code 字段为 .c 文件的完整内容）
+code <<EOF
+#include "calc.h"
+#include <stdio.h>
+
+#define MAX_VALUE 100
+
+typedef struct Point {
+    int x;
+    int y;
+} Point;
+
+int calc_add(int a, int b) {
+    return a + b;
+}
+
+int calc_sub(int a, int b) {
+    return a - b;
+}
+
+int calc_mul(int a, int b) {
+    return a * b;
+}
+EOF
+
+# 宏 MAX_VALUE（normal 模式：仅存在于 .c，不导出到 .h）
+def MAX_VALUE
+cd MAX_VALUE
+mode normal
+value "100"
+cmt "最大值常量"
+cd ..
+
+# 结构体 Point（normal 模式：仅存在于 .c，不导出到 .h）
+struct Point
+cd Point
+mode normal
+mem x int
+mem y int
+cd ..
+
+# 函数 add（api 模式：声明导出到 .h，定义在 .c）
+void add int
+cd add
+mode api
+cmt "两数相加"
+value "返回 a + b 的结果"
+mem a int
+mem b int
+cd ..
+
+# 函数 sub
+void sub int
+cd sub
+mode api
+cmt "两数相减"
+value "返回 a - b 的结果"
+mem a int
+mem b int
+cd ..
+
+# 函数 mul
+void mul int
+cd mul
+mode api
+cmt "两数相乘"
+value "返回 a * b 的结果"
+mem a int
+mem b int
+cd ..
+
+# 返回项目根
+cd ..
+
+# 生成代码
+gen

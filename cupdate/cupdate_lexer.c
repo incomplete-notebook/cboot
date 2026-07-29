@@ -314,11 +314,14 @@ static void cu_read_string(CuLexer *lex, char quote, CuToken *out)
     int start_line = lex->line;
     int start_col = lex->col;
 
-    /* 收集到 buffer */
+    /* 收集到 buffer，保留外层引号以保持语义正确性 */
     size_t cap = 32;
     size_t len = 0;
     char *buf = (char *)malloc(cap);
     if (!buf) { out->kind = CUP_TOK_ERROR; return; }
+
+    /* 保留开头引号 */
+    buf[len++] = quote;
 
     cu_read_char(lex);  /* 消费开头的引号 */
 
@@ -333,21 +336,24 @@ static void cu_read_string(CuLexer *lex, char quote, CuToken *out)
             break;
         }
         if (c == '\\') {
+            /* 保留转义序列的原始文本，不做反转义 */
             cu_read_char(lex);  /* 消费反斜杠 */
-            size_t p = lex->pos;
-            int ch = cu_parse_escape(lex, &p);
-            /* 推进 lex 位置到 p，并粗略更新列号 */
-            int consumed = (int)(p - lex->pos);
-            lex->pos = p;
-            lex->col += consumed;
-            if (len + 1 >= cap) { cap *= 2; buf = (char *)realloc(buf, cap); }
-            buf[len++] = (char)ch;
+            if (len + 2 >= cap) { cap *= 2; buf = (char *)realloc(buf, cap); }
+            buf[len++] = '\\';
+            if (lex->pos < lex->src_len) {
+                char esc = cu_peek_char(lex, 0);
+                cu_read_char(lex);
+                buf[len++] = esc;
+            }
             continue;
         }
         cu_read_char(lex);
         if (len + 1 >= cap) { cap *= 2; buf = (char *)realloc(buf, cap); }
         buf[len++] = c;
     }
+    /* 保留结尾引号 */
+    if (len + 1 >= cap) { cap *= 2; buf = (char *)realloc(buf, cap); }
+    buf[len++] = quote;
     buf[len] = '\0';
 
     out->kind = (quote == '"') ? CUP_TOK_STR : CUP_TOK_CHAR;
@@ -355,8 +361,21 @@ static void cu_read_string(CuLexer *lex, char quote, CuToken *out)
     out->line = start_line;
     out->col = start_col;
     if (quote == '\'') {
-        /* 字符字面量的值 */
-        out->ival = (len > 0) ? (unsigned char)buf[0] : 0;
+        /* 字符字面量的值：跳过首尾引号取实际字符 */
+        if (len >= 3 && buf[1] != '\\') out->ival = (unsigned char)buf[1];
+        else if (len >= 4 && buf[1] == '\\') {
+            /* 转义字符：手动解析 */
+            switch (buf[2]) {
+                case 'n': out->ival = '\n'; break;
+                case 't': out->ival = '\t'; break;
+                case 'r': out->ival = '\r'; break;
+                case '0': out->ival = '\0'; break;
+                case '\\': out->ival = '\\'; break;
+                case '\'': out->ival = '\''; break;
+                case '"': out->ival = '"'; break;
+                default: out->ival = (unsigned char)buf[2]; break;
+            }
+        } else out->ival = 0;
     }
 }
 
@@ -571,6 +590,7 @@ static int cu_lex_scan(CuLexer *lex)
 
         int start_line = lex->line;
         int start_col = lex->col;
+        size_t token_start_pos = lex->pos;  /* 记录 token 在源码中的起始位置 */
         char c = cu_peek_char(lex, 0);
         char c2 = cu_peek_char(lex, 1);
         char c3 = cu_peek_char(lex, 2);
@@ -581,6 +601,7 @@ static int cu_lex_scan(CuLexer *lex)
         /* 行首的 #：预处理器指令 */
         if (lex->at_line_start && c == '#') {
             cu_read_pp_line(lex, &lex->cur);
+            lex->cur.start_pos = token_start_pos;
             lex->at_line_start = 0;
             fprintf(stderr, "DEBUG lex: PP token '%s' at line %d\n",
                     lex->cur.str ? lex->cur.str : "<null>", lex->cur.line);
@@ -599,6 +620,7 @@ static int cu_lex_scan(CuLexer *lex)
         /* 标识符 / 关键字 */
         if (isalpha((unsigned char)c) || c == '_' || (c & 0x80)) {
             cu_read_identifier(lex, &lex->cur);
+            lex->cur.start_pos = token_start_pos;
             fprintf(stderr, "DEBUG lex: ID token '%s' kind=%d at line %d\n",
                     lex->cur.str ? lex->cur.str : "<null>", lex->cur.kind, lex->cur.line);
             return lex->cur.kind;
@@ -607,20 +629,20 @@ static int cu_lex_scan(CuLexer *lex)
         /* 数字 */
         if (isdigit((unsigned char)c)) {
             cu_read_number(lex, &lex->cur);
+            lex->cur.start_pos = token_start_pos;
             return lex->cur.kind;
         }
         /* . 后跟数字（浮点） */
         if (c == '.' && isdigit((unsigned char)c2)) {
             cu_read_number(lex, &lex->cur);
+            lex->cur.start_pos = token_start_pos;
             return lex->cur.kind;
         }
 
         /* 字符串/字符字面量 */
         if (c == '"' || c == '\'') {
-            /* 字符串前缀：L u U u8 */
-            /* 此处简化：直接读取，前缀已被标识符扫描吸收，但若以 L" 形式出现，
-             * 上一个 token 已为 L 标识符。此处仅处理普通字符串。 */
             cu_read_string(lex, c, &lex->cur);
+            lex->cur.start_pos = token_start_pos;
             return lex->cur.kind;
         }
 
@@ -631,6 +653,7 @@ static int cu_lex_scan(CuLexer *lex)
             lex->cur.str = NULL;
             lex->cur.line = start_line;
             lex->cur.col = start_col;
+            lex->cur.start_pos = token_start_pos;
             return CUP_TOK_ELLIPSIS;
         }
         if (c == '<' && c2 == '<' && c3 == '=') {
@@ -639,6 +662,7 @@ static int cu_lex_scan(CuLexer *lex)
             lex->cur.str = NULL;
             lex->cur.line = start_line;
             lex->cur.col = start_col;
+            lex->cur.start_pos = token_start_pos;
             return CUP_TOK_SHL_EQ;
         }
         if (c == '>' && c2 == '>' && c3 == '=') {
@@ -647,6 +671,7 @@ static int cu_lex_scan(CuLexer *lex)
             lex->cur.str = NULL;
             lex->cur.line = start_line;
             lex->cur.col = start_col;
+            lex->cur.start_pos = token_start_pos;
             return CUP_TOK_SHR_EQ;
         }
         if (c == '#' && c2 == '#') {
@@ -655,6 +680,7 @@ static int cu_lex_scan(CuLexer *lex)
             lex->cur.str = NULL;
             lex->cur.line = start_line;
             lex->cur.col = start_col;
+            lex->cur.start_pos = token_start_pos;
             return CUP_TOK_HASH_HASH;
         }
 
@@ -710,12 +736,14 @@ static int cu_lex_scan(CuLexer *lex)
         lex->cur.str = NULL;
         lex->cur.line = start_line;
         lex->cur.col = start_col;
+        lex->cur.start_pos = token_start_pos;
         return lex->cur.kind;
 
     ret2:
         lex->cur.str = NULL;
         lex->cur.line = start_line;
         lex->cur.col = start_col;
+        lex->cur.start_pos = token_start_pos;
         return lex->cur.kind;
     }
 }

@@ -1166,8 +1166,27 @@ int commands_cmd_update(void) {
 }
 
 /* ================================================================== */
-/* 导入: im <.cboot file>  - 仅导入API定义，记录依赖链（项目内）         */
+/* 微调: adjust - 先update同步源码，再进入交互式REPL调整                 */
 /* ================================================================== */
+
+int commands_cmd_adjust(void) {
+    if (!g_proj || !g_proj->root) {
+        printf("错误: 无活动项目\n");
+        return -1;
+    }
+
+    printf("=== adjust: 正在同步源码到 .cboot ===\n");
+    int rc = commands_cmd_update();
+    if (rc == 0) {
+        printf("=== 同步完成，进入交互式调整模式 ===\n");
+        printf("提示: 使用 cd/ls 浏览域树，cmt/value/mode/code 修改定义，gen 重新生成代码\n\n");
+    } else {
+        printf("=== 同步完成（有错误），仍可进行交互式调整 ===\n");
+        printf("提示: 使用 cd/ls 浏览域树，cmt/value/mode/code 修改定义，gen 重新生成代码\n\n");
+    }
+    return 0;
+}
+
 
 /*
  * im 命令设计：

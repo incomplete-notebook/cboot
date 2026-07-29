@@ -323,12 +323,16 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
                     func->call = NULL;
                     changed = 1;
                 }
-                /* 比较参数列表 */
+                /* 函数体同步：定义时更新body，原型时清除body */
                 if (decl->is_function_def && decl->body) {
                     if (!func->code || strcmp(func->code, decl->body) != 0) {
                         domain_domain_set_code((Domain *)func, decl->body);
                         changed = 1;
                     }
+                } else if (!decl->is_function_def && func->code) {
+                    /* 源码中从定义改为声明：清除函数体 */
+                    domain_domain_set_code((Domain *)func, NULL);
+                    changed = 1;
                 }
                 /* API 模式：仅当源码中显式 static 时降级为 NORMAL，
                  * 非 static 时保留现有模式（因为 generator 对 API 和非 API
@@ -415,6 +419,10 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
                         domain_domain_set_value((Domain *)md, decl->value);
                         (*changes)++;
                     }
+                } else if (md->value) {
+                    /* 源码中宏变为无值（如 #define X vs #define X 1） */
+                    domain_domain_set_value((Domain *)md, NULL);
+                    (*changes)++;
                 }
             }
             break;
@@ -438,6 +446,10 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
                 }
                 if (decl->value && (!vd->value || strcmp(vd->value, decl->value) != 0)) {
                     domain_domain_set_value((Domain *)vd, decl->value);
+                    (*changes)++;
+                } else if (!decl->value && vd->value) {
+                    /* 源码中移除了初始值 */
+                    domain_domain_set_value((Domain *)vd, NULL);
                     (*changes)++;
                 }
             }
@@ -561,6 +573,74 @@ int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
         }
 
         cup_sync_decl(mod, d, &changes);
+    }
+
+    /* 删除检测：检查 domain 树中哪些声明不在解析结果中，将其删除。
+     * 只检查函数、结构体、类型、宏、变量（不检查 member/include/other）。
+     * 对函数和变量，需要加回前缀后再比较。 */
+    {
+        /* 收集解析结果中的所有名称（按类型分组） */
+        Domain **to_remove = (Domain **)calloc(mod->base.child_count, sizeof(Domain *));
+        int remove_count = 0;
+
+        for (int i = 0; i < mod->base.child_count; i++) {
+            Domain *c = mod->base.children[i];
+            if (!c || !c->name) continue;
+
+            /* 只检查可删除的域类型 */
+            if (c->type != DOMAIN_FUNCTION && c->type != DOMAIN_STRUCT &&
+                c->type != DOMAIN_TYPE && c->type != DOMAIN_MACRO &&
+                c->type != DOMAIN_VARIABLE) continue;
+
+            /* main 函数不删除 */
+            if (c->type == DOMAIN_FUNCTION && strcmp(c->name, "main") == 0) continue;
+
+            /* 在解析结果中查找匹配 */
+            int found = 0;
+            for (int j = 0; j < result.decl_count; j++) {
+                CUPDecl *d = &result.decls[j];
+                if (!d->name) continue;
+
+                /* 类型匹配 */
+                int type_match = 0;
+                switch (c->type) {
+                    case DOMAIN_FUNCTION: type_match = (d->kind == CUP_DECL_FUNCTION); break;
+                    case DOMAIN_STRUCT:   type_match = (d->kind == CUP_DECL_STRUCT || d->kind == CUP_DECL_ENUM); break;
+                    case DOMAIN_TYPE:     type_match = (d->kind == CUP_DECL_TYPEDEF); break;
+                    case DOMAIN_MACRO:    type_match = (d->kind == CUP_DECL_MACRO); break;
+                    case DOMAIN_VARIABLE: type_match = (d->kind == CUP_DECL_VARIABLE); break;
+                }
+                if (!type_match) continue;
+
+                /* 名称匹配（考虑前缀） */
+                const char *decl_name = d->name;
+                /* 对函数/变量，可能需要加前缀比较 */
+                if (plen > 0 && (d->kind == CUP_DECL_FUNCTION || d->kind == CUP_DECL_VARIABLE) &&
+                    strcmp(d->name, "main") != 0) {
+                    /* d->name 已被剥离前缀，直接比较 */
+                    if (strcmp(c->name, decl_name) == 0) { found = 1; break; }
+                    /* 也尝试带前缀的匹配（以防未被剥离） */
+                    char full[MAX_NAME_LEN * 5];
+                    snprintf(full, sizeof(full), "%s_%s", prefix, c->name);
+                    if (strcmp(decl_name, full) == 0) { found = 1; break; }
+                } else {
+                    if (strcmp(c->name, decl_name) == 0) { found = 1; break; }
+                }
+            }
+
+            if (!found) {
+                to_remove[remove_count++] = c;
+            }
+        }
+
+        /* 执行删除 */
+        for (int i = 0; i < remove_count; i++) {
+            fprintf(stderr, "  删除: %s (type=%d)\n", to_remove[i]->name, to_remove[i]->type);
+            domain_domain_remove_child((Domain *)mod, to_remove[i]);
+            domain_domain_delete(to_remove[i]);
+            changes++;
+        }
+        free(to_remove);
     }
 
     /* 将整个 .c 文件内容设置为模块的 code 字段。

@@ -41,9 +41,12 @@ int main(int argc, char **argv) {
     const char *script_file = NULL;
 
     /* 解析命令行参数 */
+    int adjust_mode = 0;
     for (int i = 1; i < argc; i++) {
         if (utils_str_eq(argv[i], "-f") || utils_str_eq(argv[i], "--force")) {
             g_force = 1;
+        } else if (utils_str_eq(argv[i], "adjust")) {
+            adjust_mode = 1;
         } else if (utils_str_eq(argv[i], "-h") || utils_str_eq(argv[i], "--help")) {
             main_print_usage(argv[0]);
             return 0;
@@ -80,6 +83,26 @@ int main(int argc, char **argv) {
         printf("CBoot V%s - to_cboot 模式\n", CBOOT_VERSION);
         printf("目标目录: %s\n", to_cboot_dir);
         printf("(to_cboot 功能尚未实现)\n");
+        return 0;
+    }
+
+    /* adjust 模式：加载已有项目，执行update，然后进入交互式REPL */
+    if (adjust_mode) {
+        if (!utils_file_exists(".cboot")) {
+            fprintf(stderr, "cboot: 当前目录没有 .cboot 文件\n");
+            return 1;
+        }
+        g_mode = MODE_INTERACTIVE;
+        g_proj = domain_project_new("cboot_project");
+        if (parser_parse_cboot_script(".cboot") != 0) {
+            fprintf(stderr, "cboot: 无法加载 .cboot 文件\n");
+            return 1;
+        }
+        printf("CBoot V%s - 微调模式 (adjust)\n", CBOOT_VERSION);
+        printf("项目 '%s' 已加载。\n\n", g_proj->root->name);
+        commands_cmd_adjust();
+        main_repl_loop();
+        domain_project_free(g_proj);
         return 0;
     }
 
@@ -184,6 +207,7 @@ static void main_print_usage(const char *prog) {
     printf("  %s <项目名>            交互模式，创建项目并进入 REPL\n", prog);
     printf("  %s <项目名> -f         交互模式，强制重建项目\n", prog);
     printf("  %s <file.cboot>        执行指定的 .cboot 脚本文件\n", prog);
+    printf("  %s adjust              微调模式：update同步后进入交互式REPL\n", prog);
     printf("  %s                     批处理模式，读取当前目录 .cboot\n", prog);
     printf("  %s -to_cboot <目录>    反向工程：将 C 项目转为 .cboot\n", prog);
     printf("  %s -v                  显示版本号\n", prog);
@@ -829,6 +853,11 @@ static int main_dispatch_command(char **tokens, int count) {
     /* 更新：扫描源码同步 .cboot */
     if (utils_str_eq(cmd, "update")) {
         return commands_cmd_update();
+    }
+
+    /* 微调：先update再进入交互式调整 */
+    if (utils_str_eq(cmd, "adjust")) {
+        return commands_cmd_adjust();
     }
 
     /* 导入: im - 仅API定义 */

@@ -120,6 +120,9 @@ int commands_cmd_gen(void);
 /* 更新: update - 扫描源码同步 .cboot */
 int commands_cmd_update(void);
 
+/* 微调: adjust - 先update再进入交互式REPL调整 */
+int commands_cmd_adjust(void);
+
 /* 导入: im <.cboot file> - 仅导入API定义，记录依赖链（项目内） */
 int commands_cmd_im(const char *path);
 
