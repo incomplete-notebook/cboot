@@ -23,6 +23,7 @@
 
 # Build artifacts
 build/
+build*/
 
 # CMake
 CMakeLists.txt.user
