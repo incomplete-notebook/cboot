@@ -42,6 +42,11 @@ static void generator_generate_project_cboot(Project *proj);
 static Domain *generator_find_exe_module(Project *proj);
 static void generator_write_dllexport_macro(FILE *f, const char *mod_name);
 static void generator_write_function_params(Domain *func_domain, FILE *f);
+static void generator_cboot_write_header(Domain *mod, FILE *f);
+static void generator_cboot_write_children(Domain *mod, FILE *f);
+static void generator_cboot_write_submodule_refs(Domain *mod, FILE *f);
+static void generator_cmake_write_prebuilt_lib(Domain *mod, FILE *f);
+static void generator_cmake_write_submodule_sources(Domain *mod, FILE *f);
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -322,6 +327,20 @@ static void generator_write_c_defs(Domain *mod, FILE *f) {
     }
 }
 
+/* 输出结构体成员列表（带可选注释） */
+static void generator_write_struct_members(Domain *parent, FILE *f) {
+    for (int j = 0; j < parent->child_count; j++) {
+        Domain *mem = parent->children[j];
+        if (mem->type != DOMAIN_MEMBER) continue;
+        MemberDomain *mb = (MemberDomain *)mem;
+        if (mem->comment) {
+            fprintf(f, "    %s %s;  // %s\n", mb->type, mem->name, mem->comment);
+        } else {
+            fprintf(f, "    %s %s;\n", mb->type, mem->name);
+        }
+    }
+}
+
 static void generator_write_c_types(Domain *mod, FILE *f) {
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
@@ -333,41 +352,17 @@ static void generator_write_c_types(Domain *mod, FILE *f) {
             }
             if (child->comment) fprintf(f, "// %s\n", child->comment);
             fprintf(f, "typedef struct %s {\n", child->name);
-            for (int j = 0; j < child->child_count; j++) {
-                Domain *mem = child->children[j];
-                if (mem->type == DOMAIN_MEMBER) {
-                    MemberDomain *mb = (MemberDomain *)mem;
-                    if (mem->comment) {
-                        fprintf(f, "    %s %s;  // %s\n", mb->type, mem->name, mem->comment);
-                    } else {
-                        fprintf(f, "    %s %s;\n", mb->type, mem->name);
-                    }
-                }
-            }
+            generator_write_struct_members(child, f);
             fprintf(f, "} %s;\n\n", child->name);
         }
         else if (child->type == DOMAIN_TYPE) {
             TypeDomain *td = (TypeDomain *)child;
             if (child->comment) fprintf(f, "// %s\n", child->comment);
             if (td->mode == TYPE_MODE_RENAME || td->mode == TYPE_MODE_API_RENAME) {
-                if (td->value) {
-                    fprintf(f, "typedef %s %s;\n", td->value, child->name);
-                } else {
-                    fprintf(f, "typedef int %s;\n", child->name);
-                }
+                fprintf(f, "typedef %s %s;\n", td->value ? td->value : "int", child->name);
             } else {
                 fprintf(f, "typedef struct %s {\n", child->name);
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *mem = child->children[j];
-                    if (mem->type == DOMAIN_MEMBER) {
-                        MemberDomain *mb = (MemberDomain *)mem;
-                        if (mem->comment) {
-                            fprintf(f, "    %s %s;  // %s\n", mb->type, mem->name, mem->comment);
-                        } else {
-                            fprintf(f, "    %s %s;\n", mb->type, mem->name);
-                        }
-                    }
-                }
+                generator_write_struct_members(child, f);
                 fprintf(f, "} %s;\n", child->name);
             }
             fprintf(f, "\n");
@@ -402,6 +397,31 @@ static void generator_write_c_variables(Domain *mod, FILE *f) {
     }
 }
 
+/* 写入函数签名（含可选调用约定） */
+static void generator_write_func_signature(FunctionDomain *func, const char *abs_name, FILE *f) {
+    if (func->call) {
+        fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
+    } else {
+        fprintf(f, "%s %s(", func->return_type, abs_name);
+    }
+}
+
+/* 写入函数局部变量声明 */
+static void generator_write_func_vars(Domain *child, FILE *f) {
+    int has_vars = 0;
+    for (int j = 0; j < child->child_count; j++) {
+        Domain *var = child->children[j];
+        if (var->type != DOMAIN_VARIABLE) continue;
+        VariableDomain *v = (VariableDomain *)var;
+        if (var->comment) fprintf(f, "    // %s\n", var->comment);
+        fprintf(f, "    %s%s %s", v->mode == VAR_MODE_STATIC ? "static " : "", v->type, var->name);
+        if (v->value) fprintf(f, " = %s", v->value);
+        fprintf(f, ";\n");
+        has_vars = 1;
+    }
+    if (has_vars) fprintf(f, "\n");
+}
+
 static void generator_write_c_functions(Domain *mod, FILE *f) {
     char prefix[MAX_NAME_LEN * 4];
     generator_get_module_prefix(mod, prefix, sizeof(prefix));
@@ -411,48 +431,19 @@ static void generator_write_c_functions(Domain *mod, FILE *f) {
         if (child->type != DOMAIN_FUNCTION) continue;
 
         FunctionDomain *func = (FunctionDomain *)child;
-
         if (child->comment) fprintf(f, "// %s\n", child->comment);
         if (func->value) fprintf(f, "// 业务逻辑: %s\n", func->value);
 
-        /* 符号重命名：函数名用绝对名称（模块路径_函数名），不再用static */
         char abs_name[MAX_NAME_LEN * 5];
         generator_make_abs_name(prefix, child->name, abs_name, sizeof(abs_name));
 
-        /* Generate function signature with optional calling convention */
-        if (func->call) {
-            fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
-        } else {
-            fprintf(f, "%s %s(", func->return_type, abs_name);
-        }
+        generator_write_func_signature(func, abs_name, f);
         generator_write_function_params(child, f);
         fprintf(f, ") {\n");
 
-        int has_vars = 0;
-        for (int j = 0; j < child->child_count; j++) {
-            Domain *var = child->children[j];
-            if (var->type == DOMAIN_VARIABLE) {
-                VariableDomain *v = (VariableDomain *)var;
-                if (var->comment) fprintf(f, "    // %s\n", var->comment);
-                if (v->mode == VAR_MODE_STATIC) {
-                    fprintf(f, "    static %s %s", v->type, var->name);
-                } else {
-                    fprintf(f, "    %s %s", v->type, var->name);
-                }
-                if (v->value) fprintf(f, " = %s", v->value);
-                fprintf(f, ";\n");
-                has_vars = 1;
-            }
-        }
-        if (has_vars) fprintf(f, "\n");
+        generator_write_func_vars(child, f);
 
-        if (func->code) {
-            fprintf(f, "%s\n", func->code);
-        } else {
-            fprintf(f, "    // TODO: implement\n");
-        }
-
-        fprintf(f, "}\n\n");
+        fprintf(f, "%s\n}\n\n", func->code ? func->code : "    // TODO: implement");
     }
 }
 
@@ -559,36 +550,29 @@ static void generator_write_h_api_macros(Domain *mod, FILE *f) {
 /* generator_write_h_api_types - API struct/type declarations         */
 /* ------------------------------------------------------------------ */
 
+/* 输出 API rename 类型的 typedef */
+static void generator_write_api_rename_type(TypeDomain *td, Domain *child, FILE *f) {
+    if (td->mode == TYPE_MODE_API_RENAME) {
+        fprintf(f, "typedef %s %s;\n", td->value ? td->value : "int", child->name);
+    } else {
+        fprintf(f, "typedef struct %s %s;\n", child->name, child->name);
+    }
+}
+
 static void generator_write_h_api_types(Domain *mod, FILE *f) {
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-        if (child->type == DOMAIN_TYPE && docgen_is_api(child)) {
-            TypeDomain *td = (TypeDomain *)child;
+        if (!docgen_is_api(child)) continue;
+
+        if (child->type == DOMAIN_TYPE) {
             if (child->comment) fprintf(f, "// %s\n", child->comment);
-            if (td->mode == TYPE_MODE_API_RENAME) {
-                if (td->value) {
-                    fprintf(f, "typedef %s %s;\n", td->value, child->name);
-                } else {
-                    fprintf(f, "typedef int %s;\n", child->name);
-                }
-            } else {
-                fprintf(f, "typedef struct %s %s;\n", child->name, child->name);
-            }
+            generator_write_api_rename_type((TypeDomain *)child, child, f);
             fprintf(f, "\n");
-        }
-        else if (child->type == DOMAIN_STRUCT && docgen_is_api(child)) {
-            /* API 结构体：输出完整定义（含成员），供调用方直接访问字段。
-             * 仅前向声明 (typedef struct X X;) 会导致调用方无法访问成员，
-             * 使依赖该结构体的 .c 编译失败。 */
+        } else if (child->type == DOMAIN_STRUCT) {
+            /* API 结构体：输出完整定义（含成员），供调用方直接访问字段 */
             if (child->comment) fprintf(f, "// %s\n", child->comment);
             fprintf(f, "typedef struct %s {\n", child->name);
-            for (int j = 0; j < child->child_count; j++) {
-                Domain *mem = child->children[j];
-                if (mem->type == DOMAIN_MEMBER) {
-                    MemberDomain *mb = (MemberDomain *)mem;
-                    fprintf(f, "    %s %s;\n", mb->type, mem->name);
-                }
-            }
+            generator_write_struct_members(child, f);
             fprintf(f, "} %s;\n\n", child->name);
         }
     }
@@ -598,72 +582,84 @@ static void generator_write_h_api_types(Domain *mod, FILE *f) {
 /* generator_write_h_fwd_decls - forward decls for struct param types */
 /* ------------------------------------------------------------------ */
 
+/* 从 "struct Name *" 提取 Name；成功返回 1，结果存入 sname */
+static int generator_extract_struct_name(const char *ts, char *sname, size_t size) {
+    if (!ts || strncmp(ts, "struct ", 7) != 0) return 0;
+    strncpy(sname, ts + 7, size - 1);
+    sname[size - 1] = '\0';
+    int slen = (int)strlen(sname);
+    while (slen > 0 && (sname[slen-1] == '*' || isspace((unsigned char)sname[slen-1])))
+        sname[--slen] = '\0';
+    return slen > 0 ? 1 : 0;
+}
+
+/* 检查名称是否已在 fwd_decls 列表中 */
+static int generator_fwd_list_contains(char arr[][MAX_NAME_LEN], int count, const char *name) {
+    for (int k = 0; k < count; k++) {
+        if (strcmp(arr[k], name) == 0) return 1;
+    }
+    return 0;
+}
+
+/* 检查名称是否作为 API struct/type 定义在模块中 */
+static int generator_defined_in_module(Domain *mod, const char *sname) {
+    for (int k = 0; k < mod->child_count; k++) {
+        Domain *tc = mod->children[k];
+        if ((tc->type == DOMAIN_STRUCT || tc->type == DOMAIN_TYPE) &&
+            docgen_is_api(tc) && strcmp(tc->name, sname) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+/* 收集函数签名中的候选类型字符串（返回类型 + 参数类型） */
+static int generator_collect_func_types(FunctionDomain *func, Domain *child,
+                                        const char *out[], int cap) {
+    int n = 0;
+    if (func->return_type && n < cap) out[n++] = func->return_type;
+    for (int j = 0; j < child->child_count && n < cap; j++) {
+        Domain *param = child->children[j];
+        if (param->type == DOMAIN_MEMBER) out[n++] = ((MemberDomain *)param)->type;
+    }
+    return n;
+}
+
+/* 尝试将候选类型加入前向声明列表（去重 + 排除本模块已定义） */
+static void generator_fwd_try_add(const char *type, Domain *mod,
+                                  char fwd_decls[][MAX_NAME_LEN], int *fwd_count, int cap) {
+    char sname[MAX_NAME_LEN];
+    if (!generator_extract_struct_name(type, sname, sizeof(sname))) return;
+    if (generator_fwd_list_contains(fwd_decls, *fwd_count, sname)) return;
+    if (generator_defined_in_module(mod, sname)) return;
+    if (*fwd_count < cap) {
+        strncpy(fwd_decls[*fwd_count], sname, MAX_NAME_LEN - 1);
+        fwd_decls[*fwd_count][MAX_NAME_LEN - 1] = '\0';
+        (*fwd_count)++;
+    }
+}
+
 static void generator_write_h_fwd_decls(Domain *mod, FILE *f) {
     char fwd_decls[32][MAX_NAME_LEN];
     int fwd_count = 0;
 
-    /* Collect candidate struct names from return types and params */
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
         if (child->type != DOMAIN_FUNCTION || !docgen_is_api(child)) continue;
-        FunctionDomain *func = (FunctionDomain *)child;
 
-        /* Gather candidate type strings for this function */
         const char *cand_types[64];
-        int cand_count = 0;
-        if (func->return_type && cand_count < 64)
-            cand_types[cand_count++] = func->return_type;
-        for (int j = 0; j < child->child_count && cand_count < 64; j++) {
-            Domain *param = child->children[j];
-            if (param->type == DOMAIN_MEMBER)
-                cand_types[cand_count++] = ((MemberDomain *)param)->type;
-        }
-
+        int cand_count = generator_collect_func_types((FunctionDomain *)child, child,
+                                                      cand_types, 64);
         for (int c = 0; c < cand_count; c++) {
-            const char *ts = cand_types[c];
-            if (!ts || strncmp(ts, "struct ", 7) != 0) continue;
-
-            char sname[MAX_NAME_LEN];
-            strncpy(sname, ts + 7, MAX_NAME_LEN - 1);
-            sname[MAX_NAME_LEN - 1] = '\0';
-            int slen = (int)strlen(sname);
-            while (slen > 0 && (sname[slen-1] == '*' || isspace((unsigned char)sname[slen-1])))
-                sname[--slen] = '\0';
-            if (slen == 0) continue;
-
-            /* Skip if already collected */
-            int found = 0;
-            for (int k = 0; k < fwd_count; k++) {
-                if (strcmp(fwd_decls[k], sname) == 0) { found = 1; break; }
-            }
-            if (found) continue;
-
-            /* Skip if defined as an API struct/type in this module */
-            int defined_here = 0;
-            for (int k = 0; k < mod->child_count; k++) {
-                Domain *tc = mod->children[k];
-                if ((tc->type == DOMAIN_STRUCT || tc->type == DOMAIN_TYPE) &&
-                    docgen_is_api(tc) && strcmp(tc->name, sname) == 0) {
-                    defined_here = 1; break;
-                }
-            }
-            if (defined_here) continue;
-
-            if (fwd_count < 32) {
-                strncpy(fwd_decls[fwd_count], sname, MAX_NAME_LEN - 1);
-                fwd_decls[fwd_count][MAX_NAME_LEN - 1] = '\0';
-                fwd_count++;
-            }
+            generator_fwd_try_add(cand_types[c], mod, fwd_decls, &fwd_count, 32);
         }
     }
 
-    if (fwd_count > 0) {
-        fprintf(f, "/* Forward declarations for struct types used in API signatures */\n");
-        for (int k = 0; k < fwd_count; k++) {
-            fprintf(f, "typedef struct %s %s;\n", fwd_decls[k], fwd_decls[k]);
-        }
-        fprintf(f, "\n");
+    if (fwd_count == 0) return;
+    fprintf(f, "/* Forward declarations for struct types used in API signatures */\n");
+    for (int k = 0; k < fwd_count; k++) {
+        fprintf(f, "typedef struct %s %s;\n", fwd_decls[k], fwd_decls[k]);
     }
+    fprintf(f, "\n");
 }
 
 /* ------------------------------------------------------------------ */
@@ -756,6 +752,53 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
     fclose(f);
 }
 
+/* ------------------------------------------------------------------ */
+/* generator_cmake_write_prebuilt_lib - write CMake for static/dynamic */
+/* prebuilt library modules (IMPORTED target)                          */
+/* ------------------------------------------------------------------ */
+
+static void generator_cmake_write_prebuilt_lib(Domain *mod, FILE *f) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+    const char *lib_type = (md->mode == MOD_MODE_STATIC) ? "STATIC" : "SHARED";
+    const char *mode_str = (md->mode == MOD_MODE_STATIC) ? "static" : "dynamic";
+    const char *lib_path = md->value ? md->value : "";
+
+    fprintf(f, "# CMakeLists.txt for module %s (CBoot generated, mode: %s)\n\n",
+            mod->name, mode_str);
+
+    fprintf(f, "# 预编译%s库：value 字段指定库文件路径\n",
+            md->mode == MOD_MODE_STATIC ? "静态" : "动态");
+    fprintf(f, "add_library(%s %s IMPORTED GLOBAL)\n", mod->name, lib_type);
+    fprintf(f, "set_target_properties(%s PROPERTIES\n", mod->name);
+    fprintf(f, "    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/%s\n", lib_path);
+    fprintf(f, "    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}\n");
+    fprintf(f, ")\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_cmake_write_submodule_sources - write add_subdirectory    */
+/* calls and append child sources for non-prebuilt child modules       */
+/* ------------------------------------------------------------------ */
+
+static void generator_cmake_write_submodule_sources(Domain *mod, FILE *f) {
+    int has_subdirs = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        if (mod->children[i]->type == DOMAIN_MODULE) {
+            ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
+            if (child_md->mode == MOD_MODE_EXTERNAL ||
+                child_md->mode == MOD_MODE_STATIC ||
+                child_md->mode == MOD_MODE_DYNAMIC) continue;
+            if (!has_subdirs) {
+                fprintf(f, "# Sub-modules\n");
+                has_subdirs = 1;
+            }
+            fprintf(f, "add_subdirectory(%s)\n", mod->children[i]->name);
+            fprintf(f, "list(APPEND %s_SOURCES ${%s_SOURCES})\n",
+                    mod->name, mod->children[i]->name);
+        }
+    }
+}
+
 /* ================================================================== */
 /* generator_generate_mod_cmake - write CMakeLists.txt for a module              */
 /* ================================================================== */
@@ -775,21 +818,7 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
 
     /* 预编译库模式（static/dynamic）：链接 value 指定的 .a/.so */
     if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
-        const char *lib_type = (md->mode == MOD_MODE_STATIC) ? "STATIC" : "SHARED";
-        const char *mode_str = (md->mode == MOD_MODE_STATIC) ? "static" : "dynamic";
-        const char *lib_path = md->value ? md->value : "";
-
-        fprintf(f, "# CMakeLists.txt for module %s (CBoot generated, mode: %s)\n\n",
-                mod->name, mode_str);
-
-        fprintf(f, "# 预编译%s库：value 字段指定库文件路径\n",
-                md->mode == MOD_MODE_STATIC ? "静态" : "动态");
-        fprintf(f, "add_library(%s %s IMPORTED GLOBAL)\n", mod->name, lib_type);
-        fprintf(f, "set_target_properties(%s PROPERTIES\n", mod->name);
-        fprintf(f, "    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/%s\n", lib_path);
-        fprintf(f, "    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}\n");
-        fprintf(f, ")\n");
-
+        generator_cmake_write_prebuilt_lib(mod, f);
         fclose(f);
         return;
     }
@@ -804,22 +833,8 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         fprintf(f, ")\n\n");
 
         /* Collect sub-module sources */
-        int has_subdirs = 0;
-        for (int i = 0; i < mod->child_count; i++) {
-            if (mod->children[i]->type == DOMAIN_MODULE) {
-                ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL ||
-                    child_md->mode == MOD_MODE_STATIC ||
-                    child_md->mode == MOD_MODE_DYNAMIC) continue;
-                if (!has_subdirs) {
-                    fprintf(f, "# Sub-modules\n");
-                    has_subdirs = 1;
-                }
-                fprintf(f, "add_subdirectory(%s)\n", mod->children[i]->name);
-                fprintf(f, "list(APPEND %s_SOURCES ${%s_SOURCES})\n",
-                        mod->name, mod->children[i]->name);
-            }
-        }
+        generator_cmake_write_submodule_sources(mod, f);
+
         fprintf(f, "\n# Executable target\n");
         fprintf(f, "add_executable(%s ${%s_SOURCES})\n\n", mod->name, mod->name);
         fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})\n", mod->name);
@@ -830,22 +845,8 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/%s.c\n", mod->name);
         fprintf(f, ")\n\n");
 
-        int has_subdirs = 0;
-        for (int i = 0; i < mod->child_count; i++) {
-            if (mod->children[i]->type == DOMAIN_MODULE) {
-                ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL ||
-                    child_md->mode == MOD_MODE_STATIC ||
-                    child_md->mode == MOD_MODE_DYNAMIC) continue;
-                if (!has_subdirs) {
-                    fprintf(f, "# Sub-modules\n");
-                    has_subdirs = 1;
-                }
-                fprintf(f, "add_subdirectory(%s)\n", mod->children[i]->name);
-                fprintf(f, "list(APPEND %s_SOURCES ${%s_SOURCES})\n",
-                        mod->name, mod->children[i]->name);
-            }
-        }
+        generator_cmake_write_submodule_sources(mod, f);
+
         fprintf(f, "\n# Static library target\n");
         fprintf(f, "add_library(%s STATIC ${%s_SOURCES})\n\n", mod->name, mod->name);
         fprintf(f, "target_include_directories(%s PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})\n", mod->name);
@@ -856,22 +857,8 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/%s.c\n", mod->name);
         fprintf(f, ")\n\n");
 
-        int has_subdirs = 0;
-        for (int i = 0; i < mod->child_count; i++) {
-            if (mod->children[i]->type == DOMAIN_MODULE) {
-                ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL ||
-                    child_md->mode == MOD_MODE_STATIC ||
-                    child_md->mode == MOD_MODE_DYNAMIC) continue;
-                if (!has_subdirs) {
-                    fprintf(f, "# Sub-modules\n");
-                    has_subdirs = 1;
-                }
-                fprintf(f, "add_subdirectory(%s)\n", mod->children[i]->name);
-                fprintf(f, "list(APPEND %s_SOURCES ${%s_SOURCES})\n",
-                        mod->name, mod->children[i]->name);
-            }
-        }
+        generator_cmake_write_submodule_sources(mod, f);
+
         fprintf(f, "\n# Dynamic library target\n");
         fprintf(f, "add_library(%s SHARED ${%s_SOURCES})\n", mod->name, mod->name);
         fprintf(f, "target_include_directories(%s PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})\n", mod->name);
@@ -883,22 +870,8 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
         fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/%s.c\n", mod->name);
         fprintf(f, ")\n\n");
 
-        int has_subdirs = 0;
-        for (int i = 0; i < mod->child_count; i++) {
-            if (mod->children[i]->type == DOMAIN_MODULE) {
-                ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
-                if (child_md->mode == MOD_MODE_EXTERNAL ||
-                    child_md->mode == MOD_MODE_STATIC ||
-                    child_md->mode == MOD_MODE_DYNAMIC) continue;
-                if (!has_subdirs) {
-                    fprintf(f, "# Sub-modules\n");
-                    has_subdirs = 1;
-                }
-                fprintf(f, "add_subdirectory(%s)\n", mod->children[i]->name);
-                fprintf(f, "list(APPEND %s_SOURCES ${%s_SOURCES})\n",
-                        mod->name, mod->children[i]->name);
-            }
-        }
+        generator_cmake_write_submodule_sources(mod, f);
+
         fprintf(f, "\n# Export sources to parent scope\n");
         fprintf(f, "set(%s_SOURCES ${%s_SOURCES} PARENT_SCOPE)\n\n", mod->name, mod->name);
     }
@@ -906,20 +879,19 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
     fclose(f);
 }
 
-/* ================================================================== */
-/* generator_generate_mod_cboot - write minimal .cboot for a module              */
-/* ================================================================== */
+/* ------------------------------------------------------------------ */
+/* generator_cboot_write_header - write .cboot header: comments,      */
+/* mode, value, cmode, and code fields                                */
+/* ------------------------------------------------------------------ */
 
-static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
-    char file_path[MAX_PATH_LEN];
-    snprintf(file_path, sizeof(file_path), "%s/.cboot", dir);
+/* 输出模块模式行 */
+static void generator_write_mod_mode(ModuleDomain *md, FILE *f) {
+    static const char *mode_str[] = {"src", "static", "dynamic", "external"};
+    int m = md->mode;
+    if (m >= 0 && m < 4) fprintf(f, "mode %s\n", mode_str[m]);
+}
 
-    FILE *f = fopen(file_path, "w");
-    if (!f) {
-        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
-        return;
-    }
-
+static void generator_cboot_write_header(Domain *mod, FILE *f) {
     ModuleDomain *md = (ModuleDomain *)mod;
 
     /* 模块级 .cboot 假设已在模块作用域内执行（由父级 .cboot 引用创建并 cd 进入）*/
@@ -931,12 +903,7 @@ static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
     }
 
     /* 输出模块模式 */
-    switch (md->mode) {
-        case MOD_MODE_SRC:      fprintf(f, "mode src\n"); break;
-        case MOD_MODE_STATIC:   fprintf(f, "mode static\n"); break;
-        case MOD_MODE_DYNAMIC:  fprintf(f, "mode dynamic\n"); break;
-        case MOD_MODE_EXTERNAL: fprintf(f, "mode external\n"); break;
-    }
+    generator_write_mod_mode(md, f);
 
     /* static/dynamic 模式：输出 value（库文件路径） */
     if ((md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) && md->value) {
@@ -953,103 +920,108 @@ static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
         if (md->code[strlen(md->code) - 1] != '\n') fprintf(f, "\n");
         fprintf(f, "EOF\n");
     }
+}
 
-    /* im 导入的模块（外部引用子模块）*/
-    for (int i = 0; i < mod->child_count; i++) {
-        Domain *child = mod->children[i];
-        if (child->type == DOMAIN_MODULE &&
-            ((ModuleDomain *)child)->mode == MOD_MODE_EXTERNAL) {
-            fprintf(f, "im %s\n", child->name);
-        }
+/* ------------------------------------------------------------------ */
+/* generator_cboot_write_children - write function/struct/type/macro/ */
+/* variable definitions to .cboot                                     */
+/* ------------------------------------------------------------------ */
+
+static void generator_cboot_write_children(Domain *mod, FILE *f);
+
+/* 写入成员列表（用于函数参数/结构体成员/类型成员） */
+static void generator_cboot_write_members(Domain *parent, FILE *f) {
+    for (int j = 0; j < parent->child_count; j++) {
+        Domain *mem = parent->children[j];
+        if (mem->type != DOMAIN_MEMBER) continue;
+        MemberDomain *mb = (MemberDomain *)mem;
+        fprintf(f, "mem %s %s\n", mem->name, mb->type);
+        if (mem->comment) fprintf(f, "cmt \"%s\"\n", mem->comment);
     }
+}
 
+/* 写入函数子域 */
+static void generator_cboot_write_function(Domain *child, FILE *f) {
+    FunctionDomain *func = (FunctionDomain *)child;
+    fprintf(f, "void %s %s\n", child->name, func->return_type);
+    fprintf(f, "cd %s\n", child->name);
+    if (func->mode == API_MODE_API) fprintf(f, "mode api\n");
+    if (func->call) fprintf(f, "call %s\n", func->call);
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (func->value) fprintf(f, "value \"%s\"\n", func->value);
+    generator_cboot_write_members(child, f);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入结构体子域 */
+static void generator_cboot_write_struct(Domain *child, FILE *f) {
+    fprintf(f, "struct %s\n", child->name);
+    fprintf(f, "cd %s\n", child->name);
+    if (docgen_is_api(child)) fprintf(f, "mode api\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    generator_cboot_write_members(child, f);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入类型子域 */
+static void generator_cboot_write_type(Domain *child, FILE *f) {
+    TypeDomain *td = (TypeDomain *)child;
+    fprintf(f, "type %s\n", child->name);
+    fprintf(f, "cd %s\n", child->name);
+    if (td->mode == TYPE_MODE_RENAME) fprintf(f, "mode rename\n");
+    else if (td->mode == TYPE_MODE_API_RENAME) fprintf(f, "mode api rename\n");
+    else if (td->mode == TYPE_MODE_API_STRUCT) fprintf(f, "mode api struct\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (td->value) fprintf(f, "value \"%s\"\n", td->value);
+    generator_cboot_write_members(child, f);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入宏子域 */
+static void generator_cboot_write_macro(Domain *child, FILE *f) {
+    MacroDomain *m = (MacroDomain *)child;
+    fprintf(f, "def %s\n", child->name);
+    fprintf(f, "cd %s\n", child->name);
+    if (m->mode == API_MODE_API) fprintf(f, "mode api\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (m->value) fprintf(f, "value \"%s\"\n", m->value);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入变量子域 */
+static void generator_cboot_write_variable(Domain *child, FILE *f) {
+    VariableDomain *v = (VariableDomain *)child;
+    fprintf(f, "var %s %s\n", child->name, v->type);
+    fprintf(f, "cd %s\n", child->name);
+    if (v->mode == VAR_MODE_STATIC) fprintf(f, "mode static\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (v->value) fprintf(f, "value \"%s\"\n", v->value);
+    fprintf(f, "cd ..\n");
+}
+
+static void generator_cboot_write_children(Domain *mod, FILE *f) {
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-
         switch (child->type) {
+            case DOMAIN_FUNCTION: generator_cboot_write_function(child, f); break;
+            case DOMAIN_STRUCT:   generator_cboot_write_struct(child, f);   break;
+            case DOMAIN_TYPE:     generator_cboot_write_type(child, f);     break;
+            case DOMAIN_MACRO:    generator_cboot_write_macro(child, f);    break;
+            case DOMAIN_VARIABLE: generator_cboot_write_variable(child, f); break;
             case DOMAIN_MODULE:
-                /* 子模块通过 .cboot 引用处理，不在此重复定义 */
-                break;
-            case DOMAIN_FUNCTION: {
-                FunctionDomain *func = (FunctionDomain *)child;
-                fprintf(f, "void %s %s\n", child->name, func->return_type);
-                fprintf(f, "cd %s\n", child->name);
-                if (func->mode == API_MODE_API) fprintf(f, "mode api\n");
-                if (func->call) fprintf(f, "call %s\n", func->call);
-                if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
-                if (func->value) fprintf(f, "value \"%s\"\n", func->value);
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *param = child->children[j];
-                    if (param->type == DOMAIN_MEMBER) {
-                        MemberDomain *mb = (MemberDomain *)param;
-                        fprintf(f, "mem %s %s\n", param->name, mb->type);
-                        if (param->comment) fprintf(f, "cmt \"%s\"\n", param->comment);
-                    }
-                }
-                fprintf(f, "cd ..\n");
-                break;
-            }
-            case DOMAIN_STRUCT: {
-                fprintf(f, "struct %s\n", child->name);
-                fprintf(f, "cd %s\n", child->name);
-                if (docgen_is_api(child)) fprintf(f, "mode api\n");
-                if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *mem = child->children[j];
-                    if (mem->type == DOMAIN_MEMBER) {
-                        MemberDomain *mb = (MemberDomain *)mem;
-                        fprintf(f, "mem %s %s\n", mem->name, mb->type);
-                        if (mem->comment) fprintf(f, "cmt \"%s\"\n", mem->comment);
-                    }
-                }
-                fprintf(f, "cd ..\n");
-                break;
-            }
-            case DOMAIN_TYPE: {
-                TypeDomain *td = (TypeDomain *)child;
-                fprintf(f, "type %s\n", child->name);
-                fprintf(f, "cd %s\n", child->name);
-                if (td->mode == TYPE_MODE_RENAME) fprintf(f, "mode rename\n");
-                else if (td->mode == TYPE_MODE_API_RENAME) fprintf(f, "mode api rename\n");
-                else if (td->mode == TYPE_MODE_API_STRUCT) fprintf(f, "mode api struct\n");
-                if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
-                if (td->value) fprintf(f, "value \"%s\"\n", td->value);
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *mem = child->children[j];
-                    if (mem->type == DOMAIN_MEMBER) {
-                        MemberDomain *mb = (MemberDomain *)mem;
-                        fprintf(f, "mem %s %s\n", mem->name, mb->type);
-                        if (mem->comment) fprintf(f, "cmt \"%s\"\n", mem->comment);
-                    }
-                }
-                fprintf(f, "cd ..\n");
-                break;
-            }
-            case DOMAIN_MACRO: {
-                MacroDomain *m = (MacroDomain *)child;
-                fprintf(f, "def %s\n", child->name);
-                fprintf(f, "cd %s\n", child->name);
-                if (m->mode == API_MODE_API) fprintf(f, "mode api\n");
-                if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
-                if (m->value) fprintf(f, "value \"%s\"\n", m->value);
-                fprintf(f, "cd ..\n");
-                break;
-            }
-            case DOMAIN_VARIABLE: {
-                VariableDomain *v = (VariableDomain *)child;
-                fprintf(f, "var %s %s\n", child->name, v->type);
-                fprintf(f, "cd %s\n", child->name);
-                if (v->mode == VAR_MODE_STATIC) fprintf(f, "mode static\n");
-                if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
-                if (v->value) fprintf(f, "value \"%s\"\n", v->value);
-                fprintf(f, "cd ..\n");
-                break;
-            }
             case DOMAIN_MEMBER:
+            default:
                 break;
         }
     }
+}
 
+/* ------------------------------------------------------------------ */
+/* generator_cboot_write_submodule_refs - write submodule references  */
+/* (im commands for EXTERNAL modules, <name>/.cboot for others)       */
+/* ------------------------------------------------------------------ */
+
+static void generator_cboot_write_submodule_refs(Domain *mod, FILE *f) {
     /* 子模块引用：每个子模块通过 <name>/.cboot 引用。
      * EXTERNAL 模式模块（im 导入的 API 引用）输出为 im <name>，
      * 不能输出为 <name>/.cboot，否则会被 parser 当作子模块引用，
@@ -1071,6 +1043,39 @@ static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
             }
         }
     }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_cboot - write minimal .cboot for a module              */
+/* ================================================================== */
+
+static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/.cboot", dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    /* Write header (comments, mode, value, cmode, code) */
+    generator_cboot_write_header(mod, f);
+
+    /* im 导入的模块（外部引用子模块）*/
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE &&
+            ((ModuleDomain *)child)->mode == MOD_MODE_EXTERNAL) {
+            fprintf(f, "im %s\n", child->name);
+        }
+    }
+
+    /* Write children definitions (function/struct/type/macro/variable) */
+    generator_cboot_write_children(mod, f);
+
+    /* Write submodule references (im commands and .cboot refs) */
+    generator_cboot_write_submodule_refs(mod, f);
 
     fprintf(f, "\n# End of .cboot for %s\n", mod->name);
     fclose(f);

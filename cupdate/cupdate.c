@@ -279,214 +279,230 @@ static void cup_sync_struct_members(Domain *sd, CUPDecl *decl)
 }
 
 /* 同步单个声明到模块的 domain 树 */
+/* 创建新函数域并加入模块 */
+static FunctionDomain *cup_create_new_function(ModuleDomain *mod, CUPDecl *decl) {
+    FunctionDomain *func = domain_function_domain_new(decl->name,
+                                                      decl->return_type ? decl->return_type : "void");
+    if (!func) return NULL;
+    func->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
+    if (decl->call) {
+        free(func->call);
+        func->call = strdup(decl->call);
+    }
+    domain_domain_add_child((Domain *)mod, (Domain *)func);
+    if (decl->is_function_def && decl->body) {
+        domain_domain_set_code((Domain *)func, decl->body);
+    }
+    cup_sync_function_params(func, decl);
+    return func;
+}
+
+/* 同步已有函数的各字段；返回是否有变更 */
+/* 替换字符串字段：新值非 NULL 且与旧值不同时替换；返回是否变化 */
+static int cup_replace_str_field(char **field, const char *new_val) {
+    char *cur = *field;
+    if (new_val) {
+        if (cur && strcmp(cur, new_val) == 0) return 0;
+        free(cur);
+        *field = strdup(new_val);
+        return 1;
+    }
+    if (!cur) return 0;
+    free(cur);
+    *field = NULL;
+    return 1;
+}
+
+/* 同步函数体：定义时更新，原型时清除 */
+static int cup_sync_func_body(FunctionDomain *func, CUPDecl *decl) {
+    if (decl->is_function_def && decl->body) {
+        if (!func->code || strcmp(func->code, decl->body) != 0) {
+            domain_domain_set_code((Domain *)func, decl->body);
+            return 1;
+        }
+    } else if (!decl->is_function_def && func->code) {
+        domain_domain_set_code((Domain *)func, NULL);
+        return 1;
+    }
+    return 0;
+}
+
+static int cup_update_existing_function(FunctionDomain *func, CUPDecl *decl) {
+    int changed = 0;
+    /* 返回类型（仅当声明指定了返回类型时才更新） */
+    if (decl->return_type && cup_replace_str_field(&func->return_type, decl->return_type))
+        changed = 1;
+    /* 调用约定 */
+    if (cup_replace_str_field(&func->call, decl->call)) changed = 1;
+    /* 函数体 */
+    if (cup_sync_func_body(func, decl)) changed = 1;
+    /* static 时降级 API 模式 */
+    if (decl->is_static && func->mode != API_MODE_NORMAL) {
+        func->mode = API_MODE_NORMAL;
+        changed = 1;
+    }
+    /* 参数同步 */
+    if (decl->param_count > 0 || (decl->is_function_def && decl->body)) {
+        cup_sync_function_params(func, decl);
+        changed = 1;
+    }
+    return changed;
+}
+
+/* 同步函数声明 */
+static void cup_sync_function_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
+{
+    FunctionDomain *func = cup_find_function(mod, decl->name);
+    if (!func) {
+        if (cup_create_new_function(mod, decl)) (*changes)++;
+        return;
+    }
+    if (cup_update_existing_function(func, decl)) (*changes)++;
+}
+
+/* 同步结构体声明 */
+static void cup_sync_struct_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
+{
+    StructDomain *sd = cup_find_struct(mod, decl->name);
+    if (!sd) {
+        /* 若已存在同名的 type 域，将其转换为 struct 模式 */
+        TypeDomain *td = cup_find_type(mod, decl->name);
+        if (td) {
+            cup_sync_struct_members((Domain *)td, decl);
+            if (td->mode == TYPE_MODE_RENAME || td->mode == TYPE_MODE_API_RENAME) {
+                td->mode = decl->is_api ? TYPE_MODE_API_STRUCT : TYPE_MODE_STRUCT;
+            }
+            (*changes)++;
+            return;
+        }
+        sd = domain_struct_domain_new(decl->name);
+        sd->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
+        domain_domain_add_child((Domain *)mod, (Domain *)sd);
+        cup_sync_struct_members((Domain *)sd, decl);
+        (*changes)++;
+    } else {
+        cup_sync_struct_members((Domain *)sd, decl);
+        (*changes)++;
+    }
+}
+
+/* 同步 typedef 声明 */
+static void cup_sync_typedef_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
+{
+    /* 若已有同名的 struct 域，不再创建 type 域 */
+    if (cup_find_struct(mod, decl->name)) return;
+
+    TypeDomain *td = cup_find_type(mod, decl->name);
+    if (!td) {
+        td = domain_type_domain_new(decl->name);
+        td->mode = decl->is_api ? TYPE_MODE_API_RENAME : TYPE_MODE_RENAME;
+        if (decl->base_type) domain_domain_set_value((Domain *)td, decl->base_type);
+        domain_domain_add_child((Domain *)mod, (Domain *)td);
+        (*changes)++;
+    } else {
+        /* 若 type 已被 struct sync 转为 struct 模式，不再覆盖 value */
+        if (td->mode == TYPE_MODE_STRUCT || td->mode == TYPE_MODE_API_STRUCT) return;
+        if (decl->base_type) {
+            if (!td->value || strcmp(td->value, decl->base_type) != 0) {
+                domain_domain_set_value((Domain *)td, decl->base_type);
+                (*changes)++;
+            }
+        }
+    }
+}
+
+/* 同步宏声明 */
+static void cup_sync_macro_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
+{
+    MacroDomain *md = cup_find_macro(mod, decl->name);
+    if (!md) {
+        md = domain_macro_domain_new(decl->name);
+        md->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
+        if (decl->value) domain_domain_set_value((Domain *)md, decl->value);
+        domain_domain_add_child((Domain *)mod, (Domain *)md);
+        (*changes)++;
+    } else {
+        if (decl->value) {
+            if (!md->value || strcmp(md->value, decl->value) != 0) {
+                domain_domain_set_value((Domain *)md, decl->value);
+                (*changes)++;
+            }
+        } else if (md->value) {
+            domain_domain_set_value((Domain *)md, NULL);
+            (*changes)++;
+        }
+    }
+}
+
+/* 同步变量声明 */
+/* 同步变量已有字段：类型 + 初始值 */
+static void cup_sync_var_fields(VariableDomain *vd, CUPDecl *decl, int *changes) {
+    if (decl->base_type && cup_replace_str_field(&vd->type, decl->base_type))
+        (*changes)++;
+    /* value 字段：decl->value 为 NULL 时也需清除已有值 */
+    if (decl->value || vd->value) {
+        char *new_val = decl->value ? strdup(decl->value) : NULL;
+        if (cup_replace_str_field(&vd->value, new_val))
+            (*changes)++;
+        free(new_val);
+    }
+}
+
+static void cup_sync_variable_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
+{
+    VariableDomain *vd = cup_find_variable(mod, decl->name);
+    if (!vd) {
+        vd = domain_variable_domain_new(decl->name,
+                                        decl->base_type ? decl->base_type : "int");
+        vd->mode = decl->is_static ? VAR_MODE_STATIC : VAR_MODE_NORMAL;
+        if (decl->value) domain_domain_set_value((Domain *)vd, decl->value);
+        domain_domain_add_child((Domain *)mod, (Domain *)vd);
+        (*changes)++;
+        return;
+    }
+    cup_sync_var_fields(vd, decl, changes);
+}
+
+/* 同步枚举声明 */
+static void cup_sync_enum_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
+{
+    StructDomain *sd = cup_find_struct(mod, decl->name);
+    if (!sd) {
+        sd = domain_struct_domain_new(decl->name);
+        sd->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
+        domain_domain_add_child((Domain *)mod, (Domain *)sd);
+        (*changes)++;
+    }
+    /* 枚举常量作为宏记录 */
+    for (int i = 0; i < decl->member_count; i++) {
+        CUParMember *mm = &decl->members[i];
+        if (!mm->name) continue;
+        MacroDomain *md = cup_find_macro(mod, mm->name);
+        if (!md) {
+            md = domain_macro_domain_new(mm->name);
+            md->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
+            if (mm->value) domain_domain_set_value((Domain *)md, mm->value);
+            domain_domain_add_child((Domain *)mod, (Domain *)md);
+            (*changes)++;
+        } else if (mm->value) {
+            if (!md->value || strcmp(md->value, mm->value) != 0) {
+                domain_domain_set_value((Domain *)md, mm->value);
+                (*changes)++;
+            }
+        }
+    }
+}
+
 static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
 {
     switch (decl->kind) {
-        case CUP_DECL_FUNCTION: {
-            FunctionDomain *func = cup_find_function(mod, decl->name);
-            if (!func) {
-                /* 新函数：创建 */
-                func = domain_function_domain_new(decl->name,
-                                                  decl->return_type ? decl->return_type : "void");
-                func->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
-                if (decl->call) {
-                    free(func->call);
-                    func->call = strdup(decl->call);
-                }
-                domain_domain_add_child((Domain *)mod, (Domain *)func);
-                if (decl->is_function_def && decl->body) {
-                    domain_domain_set_code((Domain *)func, decl->body);
-                }
-                cup_sync_function_params(func, decl);
-                (*changes)++;
-            } else {
-                /* 更新已有 */
-                int changed = 0;
-                if (decl->return_type) {
-                    char *cur_rt = func->return_type;
-                    if (!cur_rt || strcmp(cur_rt, decl->return_type) != 0) {
-                        free(func->return_type);
-                        func->return_type = strdup(decl->return_type);
-                        changed = 1;
-                    }
-                }
-                /* 同步调用约定 */
-                if (decl->call) {
-                    if (!func->call || strcmp(func->call, decl->call) != 0) {
-                        free(func->call);
-                        func->call = strdup(decl->call);
-                        changed = 1;
-                    }
-                } else if (!decl->call && func->call) {
-                    /* 源码中移除了调用约定 */
-                    free(func->call);
-                    func->call = NULL;
-                    changed = 1;
-                }
-                /* 函数体同步：定义时更新body，原型时清除body */
-                if (decl->is_function_def && decl->body) {
-                    if (!func->code || strcmp(func->code, decl->body) != 0) {
-                        domain_domain_set_code((Domain *)func, decl->body);
-                        changed = 1;
-                    }
-                } else if (!decl->is_function_def && func->code) {
-                    /* 源码中从定义改为声明：清除函数体 */
-                    domain_domain_set_code((Domain *)func, NULL);
-                    changed = 1;
-                }
-                /* API 模式：仅当源码中显式 static 时降级为 NORMAL，
-                 * 非 static 时保留现有模式（因为 generator 对 API 和非 API
-                 * 函数都不加 static，无法从源码区分）。 */
-                if (decl->is_static && func->mode != API_MODE_NORMAL) {
-                    func->mode = API_MODE_NORMAL;
-                    changed = 1;
-                }
-                /* 参数同步：仅当有参数列表时才同步 */
-                if (decl->param_count > 0 || (decl->is_function_def && decl->body)) {
-                    cup_sync_function_params(func, decl);
-                    changed = 1;
-                }
-                if (changed) (*changes)++;
-            }
-            break;
-        }
-        case CUP_DECL_STRUCT: {
-            StructDomain *sd = cup_find_struct(mod, decl->name);
-            if (!sd) {
-                /* 若已存在同名的 type 域（来自 .cboot 中的 type 声明），
-                 * 将其转换为 struct 模式并同步成员，避免创建重复域。 */
-                TypeDomain *td = cup_find_type(mod, decl->name);
-                if (td) {
-                    cup_sync_struct_members((Domain *)td, decl);
-                    /* 若 type 处于 rename 模式，转为 struct 模式 */
-                    if (td->mode == TYPE_MODE_RENAME || td->mode == TYPE_MODE_API_RENAME) {
-                        td->mode = decl->is_api ? TYPE_MODE_API_STRUCT : TYPE_MODE_STRUCT;
-                    }
-                    (*changes)++;
-                    break;
-                }
-                sd = domain_struct_domain_new(decl->name);
-                sd->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
-                domain_domain_add_child((Domain *)mod, (Domain *)sd);
-                cup_sync_struct_members((Domain *)sd, decl);
-                (*changes)++;
-            } else {
-                cup_sync_struct_members((Domain *)sd, decl);
-                /* 保留现有 mode（源码无法区分 API/非 API struct） */
-                (*changes)++;
-            }
-            break;
-        }
-        case CUP_DECL_TYPEDEF: {
-            /* 若模块中已有同名的 struct 域（来自 typedef struct X { ... } X;），
-             * 则不再创建 type 域，避免 .cboot 中 struct X 与 type X 冲突。
-             * struct 域本身已能完整表示该类型定义。 */
-            if (cup_find_struct(mod, decl->name)) {
-                break;
-            }
-            TypeDomain *td = cup_find_type(mod, decl->name);
-            if (!td) {
-                td = domain_type_domain_new(decl->name);
-                td->mode = decl->is_api ? TYPE_MODE_API_RENAME : TYPE_MODE_RENAME;
-                if (decl->base_type) domain_domain_set_value((Domain *)td, decl->base_type);
-                domain_domain_add_child((Domain *)mod, (Domain *)td);
-                (*changes)++;
-            } else {
-                /* 若 type 已被 struct sync 转为 struct 模式，不再覆盖 value */
-                if (td->mode == TYPE_MODE_STRUCT || td->mode == TYPE_MODE_API_STRUCT) {
-                    break;
-                }
-                if (decl->base_type) {
-                    if (!td->value || strcmp(td->value, decl->base_type) != 0) {
-                        domain_domain_set_value((Domain *)td, decl->base_type);
-                        (*changes)++;
-                    }
-                }
-            }
-            break;
-        }
-        case CUP_DECL_MACRO: {
-            MacroDomain *md = cup_find_macro(mod, decl->name);
-            if (!md) {
-                md = domain_macro_domain_new(decl->name);
-                md->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
-                if (decl->value) domain_domain_set_value((Domain *)md, decl->value);
-                domain_domain_add_child((Domain *)mod, (Domain *)md);
-                (*changes)++;
-            } else {
-                if (decl->value) {
-                    if (!md->value || strcmp(md->value, decl->value) != 0) {
-                        domain_domain_set_value((Domain *)md, decl->value);
-                        (*changes)++;
-                    }
-                } else if (md->value) {
-                    /* 源码中宏变为无值（如 #define X vs #define X 1） */
-                    domain_domain_set_value((Domain *)md, NULL);
-                    (*changes)++;
-                }
-            }
-            break;
-        }
-        case CUP_DECL_VARIABLE: {
-            VariableDomain *vd = cup_find_variable(mod, decl->name);
-            if (!vd) {
-                vd = domain_variable_domain_new(decl->name,
-                                                decl->base_type ? decl->base_type : "int");
-                vd->mode = decl->is_static ? VAR_MODE_STATIC : VAR_MODE_NORMAL;
-                if (decl->value) domain_domain_set_value((Domain *)vd, decl->value);
-                domain_domain_add_child((Domain *)mod, (Domain *)vd);
-                (*changes)++;
-            } else {
-                if (decl->base_type) {
-                    if (!vd->type || strcmp(vd->type, decl->base_type) != 0) {
-                        free(vd->type);
-                        vd->type = strdup(decl->base_type);
-                        (*changes)++;
-                    }
-                }
-                if (decl->value && (!vd->value || strcmp(vd->value, decl->value) != 0)) {
-                    domain_domain_set_value((Domain *)vd, decl->value);
-                    (*changes)++;
-                } else if (!decl->value && vd->value) {
-                    /* 源码中移除了初始值 */
-                    domain_domain_set_value((Domain *)vd, NULL);
-                    (*changes)++;
-                }
-            }
-            break;
-        }
-        case CUP_DECL_ENUM: {
-            /* enum 视为 struct 类型，成员为枚举常量（作为 macro 记录） */
-            StructDomain *sd = cup_find_struct(mod, decl->name);
-            if (!sd) {
-                sd = domain_struct_domain_new(decl->name);
-                sd->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
-                domain_domain_add_child((Domain *)mod, (Domain *)sd);
-                (*changes)++;
-            }
-            /* 枚举常量作为宏记录 */
-            for (int i = 0; i < decl->member_count; i++) {
-                CUParMember *mm = &decl->members[i];
-                if (!mm->name) continue;
-                MacroDomain *md = cup_find_macro(mod, mm->name);
-                if (!md) {
-                    md = domain_macro_domain_new(mm->name);
-                    md->mode = decl->is_api ? API_MODE_API : API_MODE_NORMAL;
-                    if (mm->value) domain_domain_set_value((Domain *)md, mm->value);
-                    domain_domain_add_child((Domain *)mod, (Domain *)md);
-                    (*changes)++;
-                } else if (mm->value) {
-                    if (!md->value || strcmp(md->value, mm->value) != 0) {
-                        domain_domain_set_value((Domain *)md, mm->value);
-                        (*changes)++;
-                    }
-                }
-            }
-            break;
-        }
+        case CUP_DECL_FUNCTION:  cup_sync_function_decl(mod, decl, changes); break;
+        case CUP_DECL_STRUCT:    cup_sync_struct_decl(mod, decl, changes); break;
+        case CUP_DECL_TYPEDEF:   cup_sync_typedef_decl(mod, decl, changes); break;
+        case CUP_DECL_MACRO:     cup_sync_macro_decl(mod, decl, changes); break;
+        case CUP_DECL_VARIABLE:  cup_sync_variable_decl(mod, decl, changes); break;
+        case CUP_DECL_ENUM:      cup_sync_enum_decl(mod, decl, changes); break;
         case CUP_DECL_INCLUDE:
-            /* #include 不同步到 domain 树（generator 已根据 im 依赖自动生成） */
-            break;
         case CUP_DECL_OTHER:
             break;
     }
@@ -496,165 +512,85 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
 /* 主流程：单模块 update                                               */
 /* ------------------------------------------------------------------ */
 
-int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
-{
-    if (!mod || mod->base.type != DOMAIN_MODULE) return -1;
-    if (mod->mode != MOD_MODE_SRC) {
-        return 0;  /* 非 src 模式跳过 */
+/* 检测并删除源码中已不存在的声明 */
+/* 判断 domain 类型与 CUPDecl 类型是否匹配 */
+static int cup_decl_type_matches(DomainType dtype, CUPDeclKind dkind) {
+    switch (dtype) {
+        case DOMAIN_FUNCTION: return (dkind == CUP_DECL_FUNCTION);
+        case DOMAIN_STRUCT:   return (dkind == CUP_DECL_STRUCT || dkind == CUP_DECL_ENUM);
+        case DOMAIN_TYPE:     return (dkind == CUP_DECL_TYPEDEF);
+        case DOMAIN_MACRO:    return (dkind == CUP_DECL_MACRO);
+        case DOMAIN_VARIABLE: return (dkind == CUP_DECL_VARIABLE);
+        default:              return 0;
     }
+}
 
-    /* 确定 .c 文件路径 */
-    char cfile[MAX_PATH_LEN];
-    if (mod->compiler == COMPILER_EXE) {
-        snprintf(cfile, sizeof(cfile), "%s/main.c", mod_dir);
-    } else {
-        snprintf(cfile, sizeof(cfile), "%s/%s.c", mod_dir, mod->base.name);
-    }
-
-    char *source = cup_read_file(cfile);
-    if (!source) {
-        /* .c 文件不存在：可能尚未 gen，跳过 */
-        return 0;
-    }
-
-    /* 解析源码 */
-    CUPResult result;
-    cupdate_result_init(&result);
-    cupdate_parse_source(source, cfile, &result);
-
-    /* 打印解析错误/警告 */
-    for (int i = 0; i < result.error_count; i++) {
-        fprintf(stderr, "%s\n", result.errors[i]);
-    }
-    for (int i = 0; i < result.warning_count; i++) {
-        fprintf(stderr, "%s\n", result.warnings[i]);
-    }
-
-    /* 计算模块符号前缀，用于将源码中的绝对符号名（如 testapp_add）
-     * 还原为 .cboot 中的短名（如 add）。
-     * generator 生成 .c 时会对函数/变量名加前缀（main 除外），
-     * update 需要逆向这一过程才能正确匹配已有声明。 */
-    char prefix[MAX_NAME_LEN * 4];
-    cup_get_module_prefix((Domain *)mod, prefix, sizeof(prefix));
-    size_t plen = prefix[0] ? strlen(prefix) : 0;
-
-    /* 同步声明到 domain 树 */
-    int changes = 0;
-    int decl_count = result.decl_count;
-    for (int i = 0; i < result.decl_count; i++) {
-        CUPDecl *d = &result.decls[i];
+/* 在解析结果中查找与给定 domain 同名同类型的声明；找到返回 1 */
+static int cup_find_matching_decl(Domain *c, CUPResult *result,
+                                  const char *prefix, size_t plen) {
+    for (int j = 0; j < result->decl_count; j++) {
+        CUPDecl *d = &result->decls[j];
         if (!d->name) continue;
-
-        /* 对函数和变量：剥离模块前缀以匹配 .cboot 中的短名。
-         * main 保持不变（generator 不对 main 加前缀）。 */
-        if (plen > 0 && strcmp(d->name, "main") != 0 &&
-            (d->kind == CUP_DECL_FUNCTION || d->kind == CUP_DECL_VARIABLE)) {
-            if (strncmp(d->name, prefix, plen) == 0 && d->name[plen] == '_') {
-                char *stripped = strdup(d->name + plen + 1);
-                if (stripped) {
-                    free(d->name);
-                    d->name = stripped;
-                }
-            }
-        }
-
-        cup_sync_decl(mod, d, &changes);
-    }
-
-    /* 删除检测：检查 domain 树中哪些声明不在解析结果中，将其删除。
-     * 只检查函数、结构体、类型、宏、变量（不检查 member/include/other）。
-     * 对函数和变量，需要加回前缀后再比较。 */
-    {
-        /* 收集解析结果中的所有名称（按类型分组） */
-        Domain **to_remove = (Domain **)calloc(mod->base.child_count, sizeof(Domain *));
-        int remove_count = 0;
-
-        for (int i = 0; i < mod->base.child_count; i++) {
-            Domain *c = mod->base.children[i];
-            if (!c || !c->name) continue;
-
-            /* 只检查可删除的域类型 */
-            if (c->type != DOMAIN_FUNCTION && c->type != DOMAIN_STRUCT &&
-                c->type != DOMAIN_TYPE && c->type != DOMAIN_MACRO &&
-                c->type != DOMAIN_VARIABLE) continue;
-
-            /* main 函数不删除 */
-            if (c->type == DOMAIN_FUNCTION && strcmp(c->name, "main") == 0) continue;
-
-            /* 在解析结果中查找匹配 */
-            int found = 0;
-            for (int j = 0; j < result.decl_count; j++) {
-                CUPDecl *d = &result.decls[j];
-                if (!d->name) continue;
-
-                /* 类型匹配 */
-                int type_match = 0;
-                switch (c->type) {
-                    case DOMAIN_FUNCTION: type_match = (d->kind == CUP_DECL_FUNCTION); break;
-                    case DOMAIN_STRUCT:   type_match = (d->kind == CUP_DECL_STRUCT || d->kind == CUP_DECL_ENUM); break;
-                    case DOMAIN_TYPE:     type_match = (d->kind == CUP_DECL_TYPEDEF); break;
-                    case DOMAIN_MACRO:    type_match = (d->kind == CUP_DECL_MACRO); break;
-                    case DOMAIN_VARIABLE: type_match = (d->kind == CUP_DECL_VARIABLE); break;
-                }
-                if (!type_match) continue;
-
-                /* 名称匹配（考虑前缀） */
-                const char *decl_name = d->name;
-                /* 对函数/变量，可能需要加前缀比较 */
-                if (plen > 0 && (d->kind == CUP_DECL_FUNCTION || d->kind == CUP_DECL_VARIABLE) &&
-                    strcmp(d->name, "main") != 0) {
-                    /* d->name 已被剥离前缀，直接比较 */
-                    if (strcmp(c->name, decl_name) == 0) { found = 1; break; }
-                    /* 也尝试带前缀的匹配（以防未被剥离） */
-                    char full[MAX_NAME_LEN * 5];
-                    snprintf(full, sizeof(full), "%s_%s", prefix, c->name);
-                    if (strcmp(decl_name, full) == 0) { found = 1; break; }
-                } else {
-                    if (strcmp(c->name, decl_name) == 0) { found = 1; break; }
-                }
-            }
-
-            if (!found) {
-                to_remove[remove_count++] = c;
-            }
-        }
-
-        /* 执行删除 */
-        for (int i = 0; i < remove_count; i++) {
-            fprintf(stderr, "  删除: %s (type=%d)\n", to_remove[i]->name, to_remove[i]->type);
-            domain_domain_remove_child((Domain *)mod, to_remove[i]);
-            domain_domain_delete(to_remove[i]);
-            changes++;
-        }
-        free(to_remove);
-    }
-
-    /* 将整个 .c 文件内容设置为模块的 code 字段。
-     * 这样后续 gen 时直接输出 code，避免重新生成的代码覆盖用户修改。
-     * 由于 generator 会自动添加 "/* <name>.c - CBoot generated * /" 头部，
-     * 若 source 开头已有此头部（可能多层叠加），需全部剥离避免重复。
-     * 若 source 末尾没有换行，添加一个。 */
-    const char *code_start = source;
-    {
-        size_t name_len = strlen(mod->base.name);
-        /* 循环剥离所有前导头部注释：
-         *   /* <name>.c - CBoot generated (compiler: xxx) * /
-         *   /* Module: <name> * /
-         * 后跟可选空行 */
-        while (strncmp(code_start, "/* ", 3) == 0 &&
-               strncmp(code_start + 3, mod->base.name, name_len) == 0 &&
-               strncmp(code_start + 3 + name_len, ".c - CBoot generated", 20) == 0) {
-            const char *eol1 = strchr(code_start, '\n');
-            if (!eol1) break;
-            const char *line2 = eol1 + 1;
-            if (strncmp(line2, "/* Module:", 10) != 0) break;
-            const char *eol2 = strchr(line2, '\n');
-            if (!eol2) break;
-            const char *after = eol2 + 1;
-            while (*after == '\n' || *after == '\r') after++;
-            code_start = after;
+        if (!cup_decl_type_matches(c->type, d->kind)) continue;
+        if (strcmp(c->name, d->name) == 0) return 1;
+        if (plen > 0 && (d->kind == CUP_DECL_FUNCTION || d->kind == CUP_DECL_VARIABLE) &&
+            strcmp(d->name, "main") != 0) {
+            char full[MAX_NAME_LEN * 5];
+            snprintf(full, sizeof(full), "%s_%s", prefix, c->name);
+            if (strcmp(d->name, full) == 0) return 1;
         }
     }
+    return 0;
+}
+
+static void cup_detect_and_remove_deleted(ModuleDomain *mod, CUPResult *result,
+                                           const char *prefix, size_t plen, int *changes)
+{
+    /* 可移除的声明类型查表：DOMAIN_MODULE=0..DOMAIN_MEMBER=6 */
+    static const int removable[] = {0, 1, 1, 1, 1, 1, 0};
+    Domain **to_remove = (Domain **)calloc(mod->base.child_count, sizeof(Domain *));
+    int remove_count = 0;
+
+    for (int i = 0; i < mod->base.child_count; i++) {
+        Domain *c = mod->base.children[i];
+        if (!c || !c->name) continue;
+        if (c->type >= (int)(sizeof(removable)/sizeof(removable[0])) || !removable[c->type]) continue;
+        if (c->type == DOMAIN_FUNCTION && strcmp(c->name, "main") == 0) continue;
+        if (cup_find_matching_decl(c, result, prefix, plen)) continue;
+        to_remove[remove_count++] = c;
+    }
+
+    for (int i = 0; i < remove_count; i++) {
+        fprintf(stderr, "  删除: %s (type=%d)\n", to_remove[i]->name, to_remove[i]->type);
+        domain_domain_remove_child((Domain *)mod, to_remove[i]);
+        domain_domain_delete(to_remove[i]);
+        (*changes)++;
+    }
+    free(to_remove);
+}
+
+/* 剥离生成头部并设置模块代码 */
+static const char *cup_skip_generated_header(const char *p, const char *mod_name, size_t name_len) {
+    while (strncmp(p, "/* ", 3) == 0 &&
+           strncmp(p + 3, mod_name, name_len) == 0 &&
+           strncmp(p + 3 + name_len, ".c - CBoot generated", 20) == 0) {
+        const char *eol1 = strchr(p, '\n');
+        if (!eol1) break;
+        const char *line2 = eol1 + 1;
+        if (strncmp(line2, "/* Module:", 10) != 0) break;
+        const char *eol2 = strchr(line2, '\n');
+        if (!eol2) break;
+        const char *after = eol2 + 1;
+        while (*after == '\n' || *after == '\r') after++;
+        p = after;
+    }
+    return p;
+}
+
+static void cup_set_module_code(ModuleDomain *mod, const char *source)
+{
+    size_t name_len = strlen(mod->base.name);
+    const char *code_start = cup_skip_generated_header(source, mod->base.name, name_len);
 
     size_t srclen = strlen(code_start);
     char *with_nl = (char *)malloc(srclen + 2);
@@ -667,17 +603,91 @@ int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
     }
     domain_domain_set_code((Domain *)mod, with_nl);
     free(with_nl);
+}
 
-    int had_errors = result.error_count > 0;
+/* 打印解析诊断信息 */
+static void cup_print_diagnostics(CUPResult *result)
+{
+    for (int i = 0; i < result->error_count; i++)
+        fprintf(stderr, "%s\n", result->errors[i]);
+    for (int i = 0; i < result->warning_count; i++)
+        fprintf(stderr, "%s\n", result->warnings[i]);
+}
+
+/* 剥离声明中的模块前缀 */
+static void cup_strip_decl_prefix(CUPResult *result, const char *prefix, size_t plen)
+{
+    for (int i = 0; i < result->decl_count; i++) {
+        CUPDecl *d = &result->decls[i];
+        if (!d->name) continue;
+        if (plen > 0 && strcmp(d->name, "main") != 0 &&
+            (d->kind == CUP_DECL_FUNCTION || d->kind == CUP_DECL_VARIABLE)) {
+            if (strncmp(d->name, prefix, plen) == 0 && d->name[plen] == '_') {
+                char *stripped = strdup(d->name + plen + 1);
+                if (stripped) {
+                    free(d->name);
+                    d->name = stripped;
+                }
+            }
+        }
+    }
+}
+
+/* 打印模块处理摘要 */
+static void cup_print_summary(ModuleDomain *mod, CUPResult *result, int changes) {
     printf("模块 %s: 解析了 %d 个声明，%d 处变更",
-           mod->base.name, decl_count, changes);
-    if (result.error_count > 0) printf("，%d 个错误", result.error_count);
-    if (result.warning_count > 0) printf("，%d 个警告", result.warning_count);
+           mod->base.name, result->decl_count, changes);
+    if (result->error_count > 0) printf("，%d 个错误", result->error_count);
+    if (result->warning_count > 0) printf("，%d 个警告", result->warning_count);
     printf("\n");
+}
+
+int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
+{
+    if (!mod || mod->base.type != DOMAIN_MODULE) return -1;
+    if (mod->mode != MOD_MODE_SRC) return 0;
+
+    /* 确定 .c 文件路径 */
+    char cfile[MAX_PATH_LEN];
+    if (mod->compiler == COMPILER_EXE)
+        snprintf(cfile, sizeof(cfile), "%s/main.c", mod_dir);
+    else
+        snprintf(cfile, sizeof(cfile), "%s/%s.c", mod_dir, mod->base.name);
+
+    char *source = cup_read_file(cfile);
+    if (!source) return 0;
+
+    /* 解析源码 */
+    CUPResult result;
+    cupdate_result_init(&result);
+    cupdate_parse_source(source, cfile, &result);
+    cup_print_diagnostics(&result);
+
+    /* 计算模块前缀并剥离 */
+    char prefix[MAX_NAME_LEN * 4];
+    cup_get_module_prefix((Domain *)mod, prefix, sizeof(prefix));
+    size_t plen = prefix[0] ? strlen(prefix) : 0;
+    cup_strip_decl_prefix(&result, prefix, plen);
+
+    /* 同步声明到 domain 树 */
+    int changes = 0;
+    for (int i = 0; i < result.decl_count; i++) {
+        if (result.decls[i].name)
+            cup_sync_decl(mod, &result.decls[i], &changes);
+    }
+
+    /* 删除检测 */
+    cup_detect_and_remove_deleted(mod, &result, prefix, plen, &changes);
+
+    /* 设置模块代码 */
+    cup_set_module_code(mod, source);
+
+    /* 打印摘要 */
+    int had_errors = result.error_count > 0;
+    cup_print_summary(mod, &result, changes);
 
     cupdate_result_free(&result);
     free(source);
-
     return had_errors ? -1 : 0;
 }
 

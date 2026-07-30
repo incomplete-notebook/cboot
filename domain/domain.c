@@ -171,11 +171,8 @@ Domain *domain_domain_find_child_by_type(Domain *parent, const char *name, Domai
 	return NULL;
 }
 
-void domain_domain_delete(Domain *domain)
-{
-	if (!domain) return;
-
-	/* Free type-specific data */
+/* 释放各域类型特有的动态字段 */
+static void domain_free_type_fields(Domain *domain) {
 	switch (domain->type) {
 	case DOMAIN_MODULE: {
 		ModuleDomain *mod = (ModuleDomain *)domain;
@@ -194,9 +191,6 @@ void domain_domain_delete(Domain *domain)
 		free(func->value);
 		break;
 	}
-	case DOMAIN_STRUCT:
-		/* StructDomain has no allocated fields beyond the base */
-		break;
 	case DOMAIN_TYPE: {
 		TypeDomain *t = (TypeDomain *)domain;
 		free(t->value);
@@ -218,7 +212,18 @@ void domain_domain_delete(Domain *domain)
 		free(m->type);
 		break;
 	}
+	case DOMAIN_STRUCT:
+		/* StructDomain has no allocated fields beyond the base */
+		break;
 	}
+}
+
+void domain_domain_delete(Domain *domain)
+{
+	if (!domain) return;
+
+	/* Free type-specific data */
+	domain_free_type_fields(domain);
 
 	/* Recursively delete children */
 	for (int i = 0; i < domain->child_count; i++) {

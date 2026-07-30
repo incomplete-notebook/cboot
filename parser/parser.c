@@ -120,15 +120,35 @@ static int parser_exec_cboot_ref(const char *ref) {
 /* Script line dispatch                                                */
 /* ------------------------------------------------------------------ */
 
-static int parser_dispatch_script_line(char **tokens, int count) {
+/* Sentinel value indicating a category handler did not match the command.
+ * Valid command return values are -1, 0, 1, 2, so this is safely out of range. */
+#define PARSER_NOT_HANDLED  (-1000)
+
+/* Build commands: project, mod, struct, type, def, void, var, mem, enum */
+/* 拼接 tokens 从 start 开始的所有 token，用空格分隔 */
+static void parser_join_tokens_from(char **tokens, int count, int start, char *buf, size_t size) {
+    buf[0] = '\0';
+    for (int i = start; i < count; i++) {
+        if (i > start) strncat(buf, " ", size - strlen(buf) - 1);
+        strncat(buf, tokens[i], size - strlen(buf) - 1);
+    }
+}
+
+/* 检查参数数量；不足则打印用法并返回 -1 */
+static int parser_require_args(char **tokens, int count, int needed, const char *usage) {
+    if (count < needed) {
+        fprintf(stderr, "parser: 用法: %s\n", usage);
+        return -1;
+    }
+    return 0;
+}
+
+static int parser_dispatch_build(char **tokens, int count) {
     const char *cmd = tokens[0];
 
     /* project <name> */
     if (utils_str_eq(cmd, "project")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: project <名称>\n");
-            return -1;
-        }
+        if (parser_require_args(tokens, count, 2, "project <名称>") < 0) return -1;
         free(g_proj->name);
         g_proj->name = utils_str_dup(tokens[1]);
         if (g_proj->root) {
@@ -138,170 +158,81 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return 0;
     }
 
-    /* 建立域: mod <name> */
-    if (utils_str_eq(cmd, "mod")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: mod <名称>\n");
-            return -1;
+    /* 单参数建立域命令表 */
+    struct { const char *name; int (*fn)(const char *); const char *usage; } single_cmds[] = {
+        {"mod",    commands_cmd_mod,    "mod <名称>"},
+        {"struct", commands_cmd_struct, "struct <名称>"},
+        {"type",   commands_cmd_type,   "type <名称>"},
+        {"def",    commands_cmd_def,    "def <名称>"},
+    };
+    for (size_t i = 0; i < sizeof(single_cmds)/sizeof(single_cmds[0]); i++) {
+        if (utils_str_eq(cmd, single_cmds[i].name)) {
+            if (parser_require_args(tokens, count, 2, single_cmds[i].usage) < 0) return -1;
+            return single_cmds[i].fn(tokens[1]);
         }
-        return commands_cmd_mod(tokens[1]);
     }
 
-    /* 建立域: struct <name> */
-    if (utils_str_eq(cmd, "struct")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: struct <名称>\n");
-            return -1;
+    /* 双参数建立域命令 (name + type) */
+    struct { const char *name; int (*fn)(const char *, const char *); const char *usage; } type_cmds[] = {
+        {"void", commands_cmd_void, "void <名称> <返回类型>"},
+        {"var",  commands_cmd_var,  "var <名称> <类型>"},
+        {"mem",  commands_cmd_mem,  "mem <名称> <类型>"},
+    };
+    for (size_t i = 0; i < sizeof(type_cmds)/sizeof(type_cmds[0]); i++) {
+        if (utils_str_eq(cmd, type_cmds[i].name)) {
+            if (parser_require_args(tokens, count, 3, type_cmds[i].usage) < 0) return -1;
+            char type_buf[MAX_LINE_LEN];
+            parser_join_tokens_from(tokens, count, 2, type_buf, sizeof(type_buf));
+            return type_cmds[i].fn(tokens[1], type_buf);
         }
-        return commands_cmd_struct(tokens[1]);
-    }
-
-    /* 建立域: type <name> */
-    if (utils_str_eq(cmd, "type")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: type <名称>\n");
-            return -1;
-        }
-        return commands_cmd_type(tokens[1]);
-    }
-
-    /* 建立域: def <name> */
-    if (utils_str_eq(cmd, "def")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: def <名称>\n");
-            return -1;
-        }
-        return commands_cmd_def(tokens[1]);
-    }
-
-    /* 带类型建立域: void <name> <type...> */
-    if (utils_str_eq(cmd, "void")) {
-        if (count < 3) {
-            fprintf(stderr, "parser: 用法: void <名称> <返回类型>\n");
-            return -1;
-        }
-        char type_buf[MAX_LINE_LEN];
-        type_buf[0] = '\0';
-        for (int i = 2; i < count; i++) {
-            if (i > 2) strcat(type_buf, " ");
-            strcat(type_buf, tokens[i]);
-        }
-        return commands_cmd_void(tokens[1], type_buf);
-    }
-
-    /* 带类型建立域: var <name> <type...> */
-    if (utils_str_eq(cmd, "var")) {
-        if (count < 3) {
-            fprintf(stderr, "parser: 用法: var <名称> <类型>\n");
-            return -1;
-        }
-        char type_buf[MAX_LINE_LEN];
-        type_buf[0] = '\0';
-        for (int i = 2; i < count; i++) {
-            if (i > 2) strcat(type_buf, " ");
-            strcat(type_buf, tokens[i]);
-        }
-        return commands_cmd_var(tokens[1], type_buf);
-    }
-
-    /* 带类型建立域: mem <name> <type...> */
-    if (utils_str_eq(cmd, "mem")) {
-        if (count < 3) {
-            fprintf(stderr, "parser: 用法: mem <名称> <类型>\n");
-            return -1;
-        }
-        char type_buf[MAX_LINE_LEN];
-        type_buf[0] = '\0';
-        for (int i = 2; i < count; i++) {
-            if (i > 2) strcat(type_buf, " ");
-            strcat(type_buf, tokens[i]);
-        }
-        return commands_cmd_mem(tokens[1], type_buf);
     }
 
     /* 枚举式def: enum <def1>,<def2>,... <start_num> */
     if (utils_str_eq(cmd, "enum")) {
-        if (count < 3) {
-            fprintf(stderr, "parser: 用法: enum <def1>,<def2>,... <start_num>\n");
-            return -1;
-        }
+        if (parser_require_args(tokens, count, 3, "enum <def1>,<def2>,... <start_num>") < 0) return -1;
         return commands_cmd_enum(tokens[1], tokens[2]);
     }
 
-    /* 修改字段: cmt "text" */
-    if (utils_str_eq(cmd, "cmt")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: cmt \"文本\"\n");
-            return -1;
+    return PARSER_NOT_HANDLED;
+}
+
+/* Modify commands: cmt, value, call, mode, cmode, code */
+static int parser_dispatch_modify(char **tokens, int count) {
+    const char *cmd = tokens[0];
+
+    /* 单参数修改命令表 (使用 tokens[1]) */
+    struct { const char *name; int (*fn)(const char *); const char *usage; } single[] = {
+        {"value", commands_cmd_value, "value <值>"},
+        {"cmode", commands_cmd_cmode, "cmode <exe|sl|dl|normal>"},
+    };
+    for (size_t i = 0; i < sizeof(single)/sizeof(single[0]); i++) {
+        if (utils_str_eq(cmd, single[i].name)) {
+            if (parser_require_args(tokens, count, 2, single[i].usage) < 0) return -1;
+            return single[i].fn(tokens[1]);
         }
-        /* Join all remaining tokens as comment text */
-        char cmt_buf[MAX_LINE_LEN];
-        cmt_buf[0] = '\0';
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(cmt_buf, " ");
-            strcat(cmt_buf, tokens[i]);
-        }
-        utils_strip_quotes(cmt_buf);
-        return commands_cmd_cmt(cmt_buf);
     }
 
-    /* 修改字段: value <text> */
-    if (utils_str_eq(cmd, "value")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: value <值>\n");
-            return -1;
+    /* 拼接式修改命令表 (拼接 tokens[1..] ) */
+    struct { const char *name; int (*fn)(const char *); const char *usage; int strip_quotes; } joined[] = {
+        {"cmt",  commands_cmd_cmt,  "cmt \"文本\"", 1},
+        {"call", commands_cmd_call, "call <调用约定>", 0},
+        {"mode", commands_cmd_mode, "mode <模式>", 0},
+    };
+    for (size_t i = 0; i < sizeof(joined)/sizeof(joined[0]); i++) {
+        if (utils_str_eq(cmd, joined[i].name)) {
+            if (parser_require_args(tokens, count, 2, joined[i].usage) < 0) return -1;
+            char buf[MAX_LINE_LEN];
+            parser_join_tokens_from(tokens, count, 1, buf, sizeof(buf));
+            if (joined[i].strip_quotes) utils_strip_quotes(buf);
+            return joined[i].fn(buf);
         }
-        return commands_cmd_value(tokens[1]);
-    }
-
-    /* 修改字段: call <text> - 设置函数调用约定 */
-    if (utils_str_eq(cmd, "call")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: call <调用约定>\n");
-            return -1;
-        }
-        char call_buf[MAX_LINE_LEN];
-        call_buf[0] = '\0';
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(call_buf, " ");
-            strcat(call_buf, tokens[i]);
-        }
-        return commands_cmd_call(call_buf);
-    }
-
-    /* 修改字段: mode <text> */
-    if (utils_str_eq(cmd, "mode")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: mode <模式>\n");
-            return -1;
-        }
-        char mode_buf[MAX_LINE_LEN];
-        mode_buf[0] = '\0';
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(mode_buf, " ");
-            strcat(mode_buf, tokens[i]);
-        }
-        return commands_cmd_mode(mode_buf);
-    }
-
-    /* 修改字段: cmode <text> — 设置编译器模式 */
-    if (utils_str_eq(cmd, "cmode")) {
-        if (count < 2) {
-            fprintf(stderr, "parser: 用法: cmode <exe|sl|dl|normal>\n");
-            return -1;
-        }
-        return commands_cmd_cmode(tokens[1]);
     }
 
     /* 修改字段: code (单行，兼容) */
     if (utils_str_eq(cmd, "code")) {
         if (count >= 2 && !utils_str_eq(tokens[1], "<<EOF")) {
             char code_buf[MAX_LINE_LEN];
-            code_buf[0] = '\0';
-            for (int i = 1; i < count; i++) {
-                if (i > 1) strcat(code_buf, " ");
-                strcat(code_buf, tokens[i]);
-            }
+            parser_join_tokens_from(tokens, count, 1, code_buf, sizeof(code_buf));
             domain_domain_set_code(g_proj->current, code_buf);
             return 0;
         }
@@ -309,66 +240,64 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return 1;  /* 特殊返回值: 由外层处理 heredoc */
     }
 
-    /* 控制: cd <path> */
+    return PARSER_NOT_HANDLED;
+}
+
+/* Control commands: cd, rm, find, ls, mv, exit */
+/* 解析 rm 命令的 -f 标志和名称 */
+static int parser_parse_rm(char **tokens, int count, const char **name, int *force) {
+    *name = NULL; *force = 0;
+    for (int i = 1; i < count; i++) {
+        if (utils_str_eq(tokens[i], "-f")) *force = 1;
+        else *name = tokens[i];
+    }
+    if (!*name) { fprintf(stderr, "parser: 用法: rm <名称> [-f]\n"); return -1; }
+    return 0;
+}
+
+/* 解析 find 命令的 -a/-an 标志 */
+static int parser_parse_find_flags(char **tokens, int count) {
+    int flags = 0;
+    for (int i = 3; i < count; i++) {
+        if (utils_str_eq(tokens[i], "-a")) flags = 1;
+        else if (utils_str_startswith(tokens[i], "-a")) flags = atoi(tokens[i] + 2);
+    }
+    return flags;
+}
+
+static int parser_dispatch_control(char **tokens, int count) {
+    const char *cmd = tokens[0];
+
     if (utils_str_eq(cmd, "cd")) {
-        if (count < 2) {
-            return commands_cmd_cd(NULL);
-        }
-        return commands_cmd_cd(tokens[1]);
+        return commands_cmd_cd(count >= 2 ? tokens[1] : NULL);
     }
-
-    /* 控制: rm <name> [-f] */
-    if (utils_str_eq(cmd, "rm")) {
-        int force = 0;
-        const char *name = NULL;
-        for (int i = 1; i < count; i++) {
-            if (utils_str_eq(tokens[i], "-f"))
-                force = 1;
-            else
-                name = tokens[i];
-        }
-        if (!name) {
-            fprintf(stderr, "parser: 用法: rm <名称> [-f]\n");
-            return -1;
-        }
-        return commands_cmd_rm(name, force);
-    }
-
-    /* 查找: find <type> <pattern> [-a|-an] */
-    if (utils_str_eq(cmd, "find")) {
-        if (count < 3) {
-            fprintf(stderr, "parser: 用法: find <类型> <字符> [-a|-an]\n");
-            return -1;
-        }
-        int flags = 0;
-        for (int i = 3; i < count; i++) {
-            if (utils_str_eq(tokens[i], "-a")) flags = 1;
-            else if (utils_str_startswith(tokens[i], "-a")) {
-                flags = atoi(tokens[i] + 2);
-            }
-        }
-        return commands_cmd_find(tokens[1], tokens[2], flags);
-    }
-
-    /* 查看: ls [name] */
     if (utils_str_eq(cmd, "ls")) {
         return commands_cmd_ls(count >= 2 ? tokens[1] : NULL);
     }
-
-    /* 移动: mv <src> <target> */
-    if (utils_str_eq(cmd, "mv")) {
-        if (count < 3) {
-            fprintf(stderr, "parser: 用法: mv <src> <target>\n");
-            return -1;
-        }
-        return commands_cmd_mv(tokens[1], tokens[2]);
-    }
-
-    /* 退出: exit */
     if (utils_str_eq(cmd, "exit")) {
         g_running = 0;
         return 0;
     }
+    if (utils_str_eq(cmd, "mv")) {
+        if (count < 3) { fprintf(stderr, "parser: 用法: mv <src> <target>\n"); return -1; }
+        return commands_cmd_mv(tokens[1], tokens[2]);
+    }
+    if (utils_str_eq(cmd, "rm")) {
+        const char *name; int force;
+        if (parser_parse_rm(tokens, count, &name, &force) != 0) return -1;
+        return commands_cmd_rm(name, force);
+    }
+    if (utils_str_eq(cmd, "find")) {
+        if (count < 3) { fprintf(stderr, "parser: 用法: find <类型> <字符> [-a|-an]\n"); return -1; }
+        return commands_cmd_find(tokens[1], tokens[2], parser_parse_find_flags(tokens, count));
+    }
+
+    return PARSER_NOT_HANDLED;
+}
+
+/* Action commands: gen, analyze, update, im, in, res */
+static int parser_dispatch_action(char **tokens, int count) {
+    const char *cmd = tokens[0];
 
     /* 生成: gen */
     if (utils_str_eq(cmd, "gen")) {
@@ -418,12 +347,31 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return commands_cmd_res(tokens[1]);
     }
 
+    return PARSER_NOT_HANDLED;
+}
+
+static int parser_dispatch_script_line(char **tokens, int count) {
+    const char *cmd = tokens[0];
+    int rc;
+
+    rc = parser_dispatch_build(tokens, count);
+    if (rc != PARSER_NOT_HANDLED) return rc;
+
+    rc = parser_dispatch_modify(tokens, count);
+    if (rc != PARSER_NOT_HANDLED) return rc;
+
+    rc = parser_dispatch_control(tokens, count);
+    if (rc != PARSER_NOT_HANDLED) return rc;
+
+    rc = parser_dispatch_action(tokens, count);
+    if (rc != PARSER_NOT_HANDLED) return rc;
+
     /* .cboot 文件引用: <dir>/.cboot 或 .cboot
      * 引用失败（如文件不存在或子脚本有错误）视为非致命错误，仅警告并继续，
      * 以免阻断同一脚本中后续模块的加载。 */
     if (parser_is_cboot_ref(cmd)) {
-        int rc = parser_exec_cboot_ref(cmd);
-        if (rc != 0) {
+        int ref_rc = parser_exec_cboot_ref(cmd);
+        if (ref_rc != 0) {
             fprintf(stderr, "parser: 警告: .cboot 引用 '%s' 失败，已跳过\n", cmd);
         }
         return 0;
@@ -438,17 +386,10 @@ static int parser_dispatch_script_line(char **tokens, int count) {
 /* parser_parse_cboot_script - read and execute a .cboot script              */
 /* ------------------------------------------------------------------ */
 
-int parser_parse_cboot_script(const char *filename) {
-    FILE *f = fopen(filename, "r");
-    if (!f) {
-        fprintf(stderr, "parser: 无法打开脚本文件 '%s': %s\n", filename, strerror(errno));
-        return -1;
-    }
-
-    /* 设置 g_script_dir 为本文件所在目录，用于 .cboot 引用解析 */
-    char saved_script_dir[MAX_PATH_LEN];
-    strcpy(saved_script_dir, g_script_dir);
-
+/* 设置 g_script_dir 为 filename 所在目录；返回旧目录到 saved_dir */
+static void parser_set_script_dir(const char *filename, char *saved_dir, size_t size) {
+    strncpy(saved_dir, g_script_dir, size - 1);
+    saved_dir[size - 1] = '\0';
     char dir[MAX_PATH_LEN];
     strncpy(dir, filename, MAX_PATH_LEN - 1);
     dir[MAX_PATH_LEN - 1] = '\0';
@@ -459,26 +400,57 @@ int parser_parse_cboot_script(const char *filename) {
     } else {
         strcpy(g_script_dir, ".");
     }
+}
+
+/* 读取 heredoc 代码块（直到 EOF 行），并设置到当前域；返回 0=成功，-1=失败 */
+static int parser_read_heredoc(FILE *f, int *line_no) {
+    char code_buf[MAX_LINE_LEN * 64];
+    code_buf[0] = '\0';
+    int first = 1;
+    char line[MAX_LINE_LEN];
+    while (fgets(line, sizeof(line), f)) {
+        (*line_no)++;
+        size_t len2 = strlen(line);
+        if (len2 > 0 && line[len2 - 1] == '\n') line[len2 - 1] = '\0';
+
+        char *line_trimmed = trim(line);
+        if (utils_str_eq(line_trimmed, "EOF")) {
+            if (!first) {
+                size_t clen = strlen(code_buf);
+                while (clen > 0 && code_buf[clen - 1] == '\n') code_buf[--clen] = '\0';
+            }
+            domain_domain_set_code(g_proj->current, code_buf);
+            return 0;
+        }
+        if (line_trimmed[0] == '\0' && first) continue;
+        if (!first) strncat(code_buf, "\n", sizeof(code_buf) - strlen(code_buf) - 1);
+        strncat(code_buf, line, sizeof(code_buf) - strlen(code_buf) - 1);
+        first = 0;
+    }
+    fprintf(stderr, "parser: code <<EOF 缺少代码内容\n");
+    return -1;
+}
+
+int parser_parse_cboot_script(const char *filename) {
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        fprintf(stderr, "parser: 无法打开脚本文件 '%s': %s\n", filename, strerror(errno));
+        return -1;
+    }
+
+    char saved_script_dir[MAX_PATH_LEN];
+    parser_set_script_dir(filename, saved_script_dir, sizeof(saved_script_dir));
 
     char line[MAX_LINE_LEN];
     int line_no = 0;
 
     while (fgets(line, sizeof(line), f)) {
         line_no++;
+        line[strcspn(line, "\n")] = '\0';
 
-        /* Remove trailing newline */
-        size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n')
-            line[len - 1] = '\0';
-
-        /* Trim whitespace */
         char *trimmed = trim(line);
-        if (trimmed[0] == '\0') continue;
+        if (trimmed[0] == '\0' || trimmed[0] == '#') continue;
 
-        /* Skip comments */
-        if (trimmed[0] == '#') continue;
-
-        /* Tokenize */
         int token_count = 0;
         char **tokens = tokenize(trimmed, &token_count);
         if (!tokens || token_count == 0) {
@@ -486,59 +458,22 @@ int parser_parse_cboot_script(const char *filename) {
             continue;
         }
 
-        /* Dispatch */
         int ret = parser_dispatch_script_line(tokens, token_count);
         utils_free_tokens(tokens, token_count);
 
         if (ret == 1) {
-            /* heredoc 模式: 读取多行代码直到 EOF 标记 */
-            char code_buf[MAX_LINE_LEN * 64];
-            code_buf[0] = '\0';
-            int first = 1;
-            while (fgets(line, sizeof(line), f)) {
-                line_no++;
-                size_t len2 = strlen(line);
-                if (len2 > 0 && line[len2 - 1] == '\n')
-                    line[len2 - 1] = '\0';
-
-                char *line_trimmed = trim(line);
-                if (utils_str_eq(line_trimmed, "EOF")) {
-                    /* 移除末尾多余换行 */
-                    if (!first) {
-                        size_t clen = strlen(code_buf);
-                        while (clen > 0 && code_buf[clen - 1] == '\n') {
-                            code_buf[--clen] = '\0';
-                        }
-                    }
-                    domain_domain_set_code(g_proj->current, code_buf);
-                    break;
-                }
-
-                if (line_trimmed[0] == '\0' && first) continue;
-
-                if (!first) {
-                    strncat(code_buf, "\n", sizeof(code_buf) - strlen(code_buf) - 1);
-                }
-                strncat(code_buf, line, sizeof(code_buf) - strlen(code_buf) - 1);
-                first = 0;
-            }
-            if (first) {
-                fprintf(stderr, "parser: code <<EOF 缺少代码内容\n");
+            if (parser_read_heredoc(f, &line_no) != 0) {
                 fclose(f);
                 strcpy(g_script_dir, saved_script_dir);
                 return -1;
             }
-            /* 继续外层循环 */
             continue;
         }
-
         if (ret == 2) {
-            /* update 命令：脚本已失效（.cboot 文件被重新生成），停止读取 */
             fclose(f);
             strcpy(g_script_dir, saved_script_dir);
             return 0;
         }
-
         if (ret != 0) {
             fprintf(stderr, "parser: 第 %d 行执行失败\n", line_no);
             fclose(f);

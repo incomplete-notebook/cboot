@@ -5,6 +5,7 @@ cmt "命令处理器 - 实现交互式和批处理模式的所有命令"
 mode src
 cmode normal
 code <<EOF
+
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Command handlers (新规范 v0.3.1)
@@ -95,47 +96,39 @@ static int commands_check_name_dup(const char *name, Domain *scope) {
 }
 
 /* Get mode string for display */
+/* 判断二元模式（API vs NORMAL）的域类型，返回 1 表示是二元模式 */
+static int commands_is_binary_api_domain(DomainType t) {
+    return t == DOMAIN_FUNCTION || t == DOMAIN_STRUCT || t == DOMAIN_MACRO;
+}
+
+/* 取二元模式（API/NORMAL）域的 mode 字段（转 int） */
+static int commands_binary_api_mode(Domain *d) {
+    switch (d->type) {
+        case DOMAIN_FUNCTION: return ((FunctionDomain *)d)->mode;
+        case DOMAIN_STRUCT:   return ((StructDomain *)d)->mode;
+        case DOMAIN_MACRO:    return ((MacroDomain *)d)->mode;
+        default:              return API_MODE_NORMAL;
+    }
+}
+
 static const char *commands_mode_str(Domain *d) {
     if (!d) return "";
-    switch (d->type) {
-        case DOMAIN_MODULE: {
-            ModuleDomain *mod = (ModuleDomain *)d;
-            switch (mod->mode) {
-                case MOD_MODE_SRC:      return "src";
-                case MOD_MODE_STATIC:   return "static";
-                case MOD_MODE_DYNAMIC:  return "dynamic";
-                case MOD_MODE_EXTERNAL: return "external";
-            }
-            return "?";
-        }
-        case DOMAIN_FUNCTION: {
-            FunctionDomain *f = (FunctionDomain *)d;
-            return f->mode == API_MODE_API ? "api" : "normal";
-        }
-        case DOMAIN_STRUCT: {
-            StructDomain *s = (StructDomain *)d;
-            return s->mode == API_MODE_API ? "api" : "normal";
-        }
-        case DOMAIN_TYPE: {
-            TypeDomain *t = (TypeDomain *)d;
-            switch (t->mode) {
-                case TYPE_MODE_RENAME:     return "rename";
-                case TYPE_MODE_STRUCT:     return "struct";
-                case TYPE_MODE_API_RENAME: return "api rename";
-                case TYPE_MODE_API_STRUCT: return "api struct";
-            }
-            return "?";
-        }
-        case DOMAIN_MACRO: {
-            MacroDomain *m = (MacroDomain *)d;
-            return m->mode == API_MODE_API ? "api" : "normal";
-        }
-        case DOMAIN_VARIABLE: {
-            VariableDomain *v = (VariableDomain *)d;
-            return v->mode == VAR_MODE_STATIC ? "static" : "normal";
-        }
-        default: return "";
+    static const char *mod_modes[]  = {"src", "static", "dynamic", "external"};
+    static const char *type_modes[] = {"rename", "struct", "api rename", "api struct"};
+
+    if (commands_is_binary_api_domain(d->type))
+        return commands_binary_api_mode(d) == API_MODE_API ? "api" : "normal";
+    if (d->type == DOMAIN_VARIABLE)
+        return ((VariableDomain *)d)->mode == VAR_MODE_STATIC ? "static" : "normal";
+    if (d->type == DOMAIN_MODULE) {
+        int m = ((ModuleDomain *)d)->mode;
+        return (m >= 0 && m < 4) ? mod_modes[m] : "?";
     }
+    if (d->type == DOMAIN_TYPE) {
+        int m = ((TypeDomain *)d)->mode;
+        return (m >= 0 && m < 4) ? type_modes[m] : "?";
+    }
+    return "";
 }
 
 /* ================================================================== */
@@ -310,6 +303,20 @@ int commands_cmd_var(const char *name, const char *type) {
     return 0;
 }
 
+/* 在当前作用域添加成员/参数；label 为输出时使用的中文标签 */
+static int commands_add_member(const char *name, const char *type, const char *label) {
+    if (commands_check_name_dup(name, g_proj->current) != 0) return -1;
+    if (commands_check_type(type) != 0) return -1;
+    MemberDomain *m = domain_member_domain_new(name, type);
+    if (!m) {
+        printf("错误: 无法创建%s\n", label);
+        return -1;
+    }
+    domain_domain_add_child(g_proj->current, (Domain *)m);
+    printf("%s %s %s 已添加。\n", label, type, name);
+    return 0;
+}
+
 /* commands_cmd_mem - 创建成员/参数 (mem <name> <type>, 上下文敏感) */
 int commands_cmd_mem(const char *name, const char *type) {
     if (!name || !type) {
@@ -319,65 +326,17 @@ int commands_cmd_mem(const char *name, const char *type) {
 
     DomainType cur_type = g_proj->current->type;
 
-    /* Context-sensitive: function→参数, struct/type→成员 */
+    /* Context-sensitive: function→参数, struct/type(struct模式)→成员 */
     if (cur_type == DOMAIN_FUNCTION) {
-        /* Adding a parameter */
-        if (commands_check_name_dup(name, g_proj->current) != 0)
-            return -1;
-
-        if (commands_check_type(type) != 0)
-            return -1;
-
-        MemberDomain *m = domain_member_domain_new(name, type);
-        if (!m) {
-            printf("错误: 无法创建参数\n");
-            return -1;
-        }
-
-        domain_domain_add_child(g_proj->current, (Domain *)m);
-        /* 不改变 current 作用域，便于连续添加多个参数 */
-        printf("参数 %s %s 已添加。\n", type, name);
-        return 0;
+        return commands_add_member(name, type, "参数");
     }
-    else if (cur_type == DOMAIN_STRUCT) {
-        /* Adding a struct member */
-        if (commands_check_name_dup(name, g_proj->current) != 0)
-            return -1;
-
-        if (commands_check_type(type) != 0)
-            return -1;
-
-        MemberDomain *m = domain_member_domain_new(name, type);
-        if (!m) {
-            printf("错误: 无法创建成员\n");
-            return -1;
-        }
-
-        domain_domain_add_child(g_proj->current, (Domain *)m);
-        /* 不改变 current 作用域，便于连续添加多个成员 */
-        printf("成员 %s %s 已添加。\n", type, name);
-        return 0;
+    if (cur_type == DOMAIN_STRUCT) {
+        return commands_add_member(name, type, "成员");
     }
-    else if (cur_type == DOMAIN_TYPE) {
+    if (cur_type == DOMAIN_TYPE) {
         TypeDomain *td = (TypeDomain *)g_proj->current;
         if (td->mode == TYPE_MODE_STRUCT || td->mode == TYPE_MODE_API_STRUCT) {
-            /* Adding a member to struct-mode type */
-            if (commands_check_name_dup(name, g_proj->current) != 0)
-                return -1;
-
-            if (commands_check_type(type) != 0)
-                return -1;
-
-            MemberDomain *m = domain_member_domain_new(name, type);
-            if (!m) {
-                printf("错误: 无法创建成员\n");
-                return -1;
-            }
-
-            domain_domain_add_child(g_proj->current, (Domain *)m);
-            /* 不改变 current 作用域，便于连续添加多个成员 */
-            printf("成员 %s %s 已添加。\n", type, name);
-            return 0;
+            return commands_add_member(name, type, "成员");
         }
         printf("错误: 当前类型不是struct模式，无法添加成员\n");
         return -1;
@@ -567,6 +526,127 @@ int commands_cmd_call(const char *call_conv) {
     return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* mode 命令辅助函数                                                    */
+/* ------------------------------------------------------------------ */
+
+typedef struct {
+    const char *name;
+    int value;
+} ModeMap;
+
+/* 在模式映射表中查找文本对应模式值 */
+static int commands_mode_find(const ModeMap *map, int n, const char *text, int *out) {
+    for (int i = 0; i < n; i++) {
+        if (utils_str_eq(text, map[i].name)) {
+            *out = map[i].value;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+/* 判断是否切换到 API 模式 */
+static int commands_mode_becoming_api(DomainType type, const char *text) {
+    switch (type) {
+        case DOMAIN_FUNCTION:
+        case DOMAIN_STRUCT:
+        case DOMAIN_MACRO:
+            return utils_str_eq(text, "api");
+        case DOMAIN_TYPE:
+            return utils_str_eq(text, "api rename") || utils_str_eq(text, "api struct");
+        default:
+            return 0;
+    }
+}
+
+/* 检查设为 API 后的名称冲突 */
+static int commands_mode_check_api_conflict(Domain *cur) {
+    if (!cur->parent) return 0;
+    Domain *parent = cur->parent;
+    while (parent) {
+        if (parent->type == DOMAIN_MODULE && parent != cur->parent) {
+            Domain *conflict = domain_domain_find_child(parent, cur->name);
+            if (conflict && conflict->type != DOMAIN_MODULE) {
+                char *path = domain_domain_get_path(conflict);
+                printf("错误: 设为 api 后名称 '%s' 将与父模块域冲突 (%s [%s])\n",
+                       cur->name, path, commands_domain_type_name(conflict->type));
+                free(path);
+                return -1;
+            }
+            Domain *api_conflict = domain_domain_check_api_name_conflict(parent, cur->name);
+            if (api_conflict && api_conflict != cur && api_conflict->type != DOMAIN_MODULE) {
+                char *path = domain_domain_get_path(api_conflict);
+                printf("错误: 设为 api 后名称 '%s' 将与子模块 API 项冲突 (%s [%s])\n",
+                       cur->name, path, commands_domain_type_name(api_conflict->type));
+                free(path);
+                return -1;
+            }
+        }
+        parent = parent->parent;
+    }
+    return 0;
+}
+
+/* 根据域类型应用模式 */
+static int commands_mode_apply(Domain *cur, const char *text) {
+    static const ModeMap mod_modes[] = {
+        {"src", MOD_MODE_SRC}, {"static", MOD_MODE_STATIC},
+        {"dynamic", MOD_MODE_DYNAMIC}, {"external", MOD_MODE_EXTERNAL}
+    };
+    static const ModeMap api_modes[] = {
+        {"api", API_MODE_API}, {"normal", API_MODE_NORMAL}
+    };
+    static const ModeMap type_modes[] = {
+        {"rename", TYPE_MODE_RENAME}, {"struct", TYPE_MODE_STRUCT},
+        {"api rename", TYPE_MODE_API_RENAME}, {"api struct", TYPE_MODE_API_STRUCT}
+    };
+    static const ModeMap var_modes[] = {
+        {"static", VAR_MODE_STATIC}, {"normal", VAR_MODE_NORMAL}
+    };
+
+    int mode;
+    const ModeMap *map = NULL;
+    int map_size = 0;
+    const char *err_msg = NULL;
+
+    switch (cur->type) {
+        case DOMAIN_MODULE:
+            map = mod_modes; map_size = 4;
+            err_msg = "错误: 模块模式只能是 src/static/dynamic/external\n";
+            break;
+        case DOMAIN_FUNCTION:
+        case DOMAIN_STRUCT:
+            map = api_modes; map_size = 2;
+            err_msg = "错误: API模式只能是 api 或 normal\n";
+            break;
+        case DOMAIN_TYPE:
+            map = type_modes; map_size = 4;
+            err_msg = "错误: 类型模式只能是 rename/struct/api rename/api struct\n";
+            break;
+        case DOMAIN_MACRO:
+            map = api_modes; map_size = 2;
+            err_msg = "错误: 宏模式只能是 api 或 normal\n";
+            break;
+        case DOMAIN_VARIABLE:
+            map = var_modes; map_size = 2;
+            err_msg = "错误: 变量模式只能是 static 或 normal\n";
+            break;
+        case DOMAIN_MEMBER:
+            printf("成员域不支持设置 mode\n");
+            return -1;
+        default:
+            return -1;
+    }
+
+    if (commands_mode_find(map, map_size, text, &mode) != 0) {
+        printf("%s", err_msg);
+        return -1;
+    }
+    domain_domain_set_mode(cur, mode);
+    return 0;
+}
+
 /* commands_cmd_mode - 设置模式 */
 int commands_cmd_mode(const char *text) {
     if (!text) {
@@ -575,121 +655,14 @@ int commands_cmd_mode(const char *text) {
     }
 
     Domain *cur = g_proj->current;
-    int becoming_api = 0;
 
-    /* Determine if we're switching to API mode */
-    switch (cur->type) {
-        case DOMAIN_FUNCTION:
-        case DOMAIN_STRUCT:
-        case DOMAIN_MACRO:
-            if (utils_str_eq(text, "api")) becoming_api = 1;
-            break;
-        case DOMAIN_TYPE:
-            if (utils_str_eq(text, "api rename") || utils_str_eq(text, "api struct"))
-                becoming_api = 1;
-            break;
-        default:
-            break;
-    }
-
-    /* If becoming API, check for name conflicts in parent modules */
-    if (becoming_api && cur->parent) {
-        Domain *parent = cur->parent;
-        /* Check all ancestor modules for conflicts */
-        while (parent) {
-            if (parent->type == DOMAIN_MODULE &&
-                parent != cur->parent /* skip direct parent - already has the name */) {
-                Domain *conflict = domain_domain_find_child(parent, cur->name);
-                if (conflict && conflict->type != DOMAIN_MODULE) {
-                    char *path = domain_domain_get_path(conflict);
-                    printf("错误: 设为 api 后名称 '%s' 将与父模块域冲突 (%s [%s])\n",
-                           cur->name, path, commands_domain_type_name(conflict->type));
-                    free(path);
-                    return -1;
-                }
-                /* Check sibling submodule API items too */
-                Domain *api_conflict = domain_domain_check_api_name_conflict(parent, cur->name);
-                if (api_conflict && api_conflict != cur && api_conflict->type != DOMAIN_MODULE) {
-                    char *path = domain_domain_get_path(api_conflict);
-                    printf("错误: 设为 api 后名称 '%s' 将与子模块 API 项冲突 (%s [%s])\n",
-                           cur->name, path, commands_domain_type_name(api_conflict->type));
-                    free(path);
-                    return -1;
-                }
-            }
-            parent = parent->parent;
-        }
-    }
-
-    switch (cur->type) {
-        case DOMAIN_MODULE: {
-            if (utils_str_eq(text, "src")) {
-                domain_domain_set_mode(cur, MOD_MODE_SRC);
-            } else if (utils_str_eq(text, "static")) {
-                domain_domain_set_mode(cur, MOD_MODE_STATIC);
-            } else if (utils_str_eq(text, "dynamic")) {
-                domain_domain_set_mode(cur, MOD_MODE_DYNAMIC);
-            } else if (utils_str_eq(text, "external")) {
-                domain_domain_set_mode(cur, MOD_MODE_EXTERNAL);
-            } else {
-                printf("错误: 模块模式只能是 src/static/dynamic/external\n");
-                return -1;
-            }
-            break;
-        }
-        case DOMAIN_FUNCTION:
-        case DOMAIN_STRUCT: {
-            if (utils_str_eq(text, "api")) {
-                domain_domain_set_mode(cur, API_MODE_API);
-            } else if (utils_str_eq(text, "normal")) {
-                domain_domain_set_mode(cur, API_MODE_NORMAL);
-            } else {
-                printf("错误: API模式只能是 api 或 normal\n");
-                return -1;
-            }
-            break;
-        }
-        case DOMAIN_TYPE: {
-            if (utils_str_eq(text, "rename")) {
-                domain_domain_set_mode(cur, TYPE_MODE_RENAME);
-            } else if (utils_str_eq(text, "struct")) {
-                domain_domain_set_mode(cur, TYPE_MODE_STRUCT);
-            } else if (utils_str_eq(text, "api rename")) {
-                domain_domain_set_mode(cur, TYPE_MODE_API_RENAME);
-            } else if (utils_str_eq(text, "api struct")) {
-                domain_domain_set_mode(cur, TYPE_MODE_API_STRUCT);
-            } else {
-                printf("错误: 类型模式只能是 rename/struct/api rename/api struct\n");
-                return -1;
-            }
-            break;
-        }
-        case DOMAIN_MACRO: {
-            if (utils_str_eq(text, "api")) {
-                domain_domain_set_mode(cur, API_MODE_API);
-            } else if (utils_str_eq(text, "normal")) {
-                domain_domain_set_mode(cur, API_MODE_NORMAL);
-            } else {
-                printf("错误: 宏模式只能是 api 或 normal\n");
-                return -1;
-            }
-            break;
-        }
-        case DOMAIN_VARIABLE: {
-            if (utils_str_eq(text, "static")) {
-                domain_domain_set_mode(cur, VAR_MODE_STATIC);
-            } else if (utils_str_eq(text, "normal")) {
-                domain_domain_set_mode(cur, VAR_MODE_NORMAL);
-            } else {
-                printf("错误: 变量模式只能是 static 或 normal\n");
-                return -1;
-            }
-            break;
-        }
-        case DOMAIN_MEMBER:
-            printf("成员域不支持设置 mode\n");
+    if (commands_mode_becoming_api(cur->type, text)) {
+        if (commands_mode_check_api_conflict(cur) != 0)
             return -1;
     }
+
+    if (commands_mode_apply(cur, text) != 0)
+        return -1;
 
     printf("模式已设置为 %s。\n", text);
     return 0;
@@ -731,9 +704,27 @@ int commands_cmd_cmode(const char *text) {
 /* ================================================================== */
 
 /* commands_cmd_cd - 导航域树 */
+/* 按 "/" 分割路径并逐段向下导航；失败返回 -1 */
+static int commands_cd_walk(Domain *start, const char *p) {
+    char segment[MAX_NAME_LEN];
+    Domain *cur = start;
+    while (*p) {
+        int i = 0;
+        while (*p && *p != '/' && i < MAX_NAME_LEN - 1) segment[i++] = *p++;
+        segment[i] = '\0';
+        if (*p == '/') p++;
+        if (segment[0] == '\0') continue;
+        Domain *child = domain_domain_find_child(cur, segment);
+        if (!child) { printf("cd: 未找到 '%s'\n", segment); return -1; }
+        cur = child;
+    }
+    g_proj->current = cur;
+    printf("已进入: %s\n", g_proj->current->name);
+    return 0;
+}
+
 int commands_cmd_cd(const char *path) {
     if (!path || path[0] == '\0') {
-        /* cd without args: show current path */
         char *p = domain_domain_get_path(g_proj->current);
         printf("当前路径: %s\n", p);
         free(p);
@@ -751,51 +742,17 @@ int commands_cmd_cd(const char *path) {
         return 0;
     }
 
-    /* "/" -> root */
-    if (utils_str_eq(path, "/")) {
-        g_proj->current = g_proj->root;
-        printf("已进入: %s\n", g_proj->current->name);
-        return 0;
-    }
-
-    Domain *start = g_proj->current;
-    const char *p = path;
-
-    /* "/xxx" prefix -> navigate from root */
+    /* "/" 或 "/xxx" -> 从根导航 */
     if (path[0] == '/') {
-        start = g_proj->root;
-        p = path + 1;
-        if (*p == '\0') {
-            g_proj->current = start;
+        if (path[1] == '\0') {
+            g_proj->current = g_proj->root;
             printf("已进入: %s\n", g_proj->current->name);
             return 0;
         }
+        return commands_cd_walk(g_proj->root, path + 1);
     }
 
-    /* Split by "/" and walk */
-    char segment[MAX_NAME_LEN];
-    Domain *cur = start;
-
-    while (*p) {
-        int i = 0;
-        while (*p && *p != '/' && i < MAX_NAME_LEN - 1)
-            segment[i++] = *p++;
-        segment[i] = '\0';
-        if (*p == '/') p++;
-
-        if (segment[0] == '\0') continue;
-
-        Domain *child = domain_domain_find_child(cur, segment);
-        if (!child) {
-            printf("cd: 未找到 '%s'\n", segment);
-            return -1;
-        }
-        cur = child;
-    }
-
-    g_proj->current = cur;
-    printf("已进入: %s\n", g_proj->current->name);
-    return 0;
+    return commands_cd_walk(g_proj->current, path);
 }
 
 /* commands_cmd_rm - 删除子域 */
@@ -869,36 +826,38 @@ static void commands_find_recursive(Domain *root, DomainType type_filter,
     }
 }
 
+/* 把类型过滤字符串映射为 DomainType；未识别返回 -2，"all" 返回 -1 */
+static DomainType commands_parse_type_filter(const char *type_filter) {
+    struct { const char *name; DomainType type; } table[] = {
+        {"mod",    DOMAIN_MODULE},
+        {"void",   DOMAIN_FUNCTION},
+        {"struct", DOMAIN_STRUCT},
+        {"type",   DOMAIN_TYPE},
+        {"def",    DOMAIN_MACRO},
+        {"var",    DOMAIN_VARIABLE},
+        {"mem",    DOMAIN_MEMBER},
+        {"all",    (DomainType)-1},
+    };
+    for (size_t i = 0; i < sizeof(table)/sizeof(table[0]); i++) {
+        if (utils_str_eq(type_filter, table[i].name)) return table[i].type;
+    }
+    return (DomainType)-2;
+}
+
 int commands_cmd_find(const char *type_filter, const char *pattern, int flags) {
     if (!type_filter) {
         printf("用法: find <类型:mod,void,struct,type,def,var,mem,all> <字符> [-a|-an]\n");
         return -1;
     }
 
-    DomainType filter_type = -1;  /* -1 = all */
-
-    if (utils_str_eq(type_filter, "mod"))     filter_type = DOMAIN_MODULE;
-    else if (utils_str_eq(type_filter, "void"))    filter_type = DOMAIN_FUNCTION;
-    else if (utils_str_eq(type_filter, "struct"))  filter_type = DOMAIN_STRUCT;
-    else if (utils_str_eq(type_filter, "type"))    filter_type = DOMAIN_TYPE;
-    else if (utils_str_eq(type_filter, "def"))     filter_type = DOMAIN_MACRO;
-    else if (utils_str_eq(type_filter, "var"))     filter_type = DOMAIN_VARIABLE;
-    else if (utils_str_eq(type_filter, "mem"))     filter_type = DOMAIN_MEMBER;
-    else if (utils_str_eq(type_filter, "all"))     filter_type = -1;
+    DomainType filter_type = commands_parse_type_filter(type_filter);
 
     /*
      * flags: bit 0 = -a (recursive), bits 1-7 = depth for -an
      * For simplicity: flags == 0 = current only, flags == 1 = -a full recursive,
      * flags > 1 = depth limit
      */
-    int max_depth = 0;
-    if (flags == 0) {
-        max_depth = 0;  /* current only */
-    } else if (flags == 1) {
-        max_depth = -1; /* unlimited */
-    } else {
-        max_depth = flags; /* depth limit */
-    }
+    int max_depth = (flags == 0) ? 0 : (flags == 1 ? -1 : flags);
 
     int found_count = 0;
     commands_find_recursive(g_proj->current, filter_type, pattern, max_depth, 0, &found_count);
@@ -916,35 +875,8 @@ int commands_cmd_find(const char *type_filter, const char *pattern, int flags) {
 /* 查看: ls [name]                                                      */
 /* ================================================================== */
 
-int commands_cmd_ls(const char *name) {
-    Domain *target = g_proj->current;
-
-    if (name) {
-        /* ls <name>: show specific child */
-        Domain *child = domain_domain_find_child(g_proj->current, name);
-        if (!child) {
-            printf("未找到: %s\n", name);
-            return -1;
-        }
-        target = child;
-    }
-
-    char *path = domain_domain_get_path(target);
-    printf("域: %s", path);
-    free(path);
-
-    /* Show type and mode */
-    printf(" [%s]", commands_domain_type_name(target->type));
-    const char *ms = commands_mode_str(target);
-    if (ms && ms[0]) printf(" mode=%s", ms);
-    printf("\n");
-
-    /* Show comment */
-    if (target->comment) {
-        printf("  注释: %s\n", target->comment);
-    }
-
-    /* Show type-specific info */
+/* 输出特定类型域的额外信息（value/类型/返回类型等） */
+static void commands_ls_print_type_info(Domain *target) {
     switch (target->type) {
         case DOMAIN_MODULE: {
             ModuleDomain *mod = (ModuleDomain *)target;
@@ -980,30 +912,59 @@ int commands_cmd_ls(const char *name) {
         }
         default: break;
     }
+}
+
+/* 输出单个子域的一行描述 */
+static void commands_ls_print_child(Domain *child) {
+    printf("    [%s] %s", commands_domain_type_name(child->type), child->name);
+    switch (child->type) {
+        case DOMAIN_MEMBER:   printf(" : %s", ((MemberDomain *)child)->type); break;
+        case DOMAIN_VARIABLE: printf(" : %s", ((VariableDomain *)child)->type); break;
+        case DOMAIN_FUNCTION: printf(" : %s()", ((FunctionDomain *)child)->return_type); break;
+        default: break;
+    }
+    if (child->comment) printf(" - %s", child->comment);
+    printf("\n");
+}
+
+int commands_cmd_ls(const char *name) {
+    Domain *target = g_proj->current;
+
+    if (name) {
+        /* ls <name>: show specific child */
+        Domain *child = domain_domain_find_child(g_proj->current, name);
+        if (!child) {
+            printf("未找到: %s\n", name);
+            return -1;
+        }
+        target = child;
+    }
+
+    char *path = domain_domain_get_path(target);
+    printf("域: %s", path);
+    free(path);
+
+    /* Show type and mode */
+    printf(" [%s]", commands_domain_type_name(target->type));
+    const char *ms = commands_mode_str(target);
+    if (ms && ms[0]) printf(" mode=%s", ms);
+    printf("\n");
+
+    /* Show comment */
+    if (target->comment) {
+        printf("  注释: %s\n", target->comment);
+    }
+
+    /* Show type-specific info */
+    commands_ls_print_type_info(target);
 
     /* List children */
     if (target->child_count > 0) {
         printf("  子域 (%d):\n", target->child_count);
         for (int i = 0; i < target->child_count; i++) {
-            Domain *child = target->children[i];
-            printf("    [%s] %s", commands_domain_type_name(child->type), child->name);
-
-            /* Show type for members and variables */
-            if (child->type == DOMAIN_MEMBER) {
-                MemberDomain *mb = (MemberDomain *)child;
-                printf(" : %s", mb->type);
-            } else if (child->type == DOMAIN_VARIABLE) {
-                VariableDomain *v = (VariableDomain *)child;
-                printf(" : %s", v->type);
-            } else if (child->type == DOMAIN_FUNCTION) {
-                FunctionDomain *f = (FunctionDomain *)child;
-                printf(" : %s()", f->return_type);
-            }
-
-            if (child->comment) printf(" - %s", child->comment);
-            printf("\n");
+            commands_ls_print_child(target->children[i]);
         }
-    } else if (target->child_count == 0 && !name) {
+    } else if (!name) {
         printf("  (无子域)\n");
     }
 
@@ -1013,6 +974,54 @@ int commands_cmd_ls(const char *name) {
 /* ================================================================== */
 /* 移动: mv <src> <target>                                              */
 /* ================================================================== */
+
+/* mv 辅助: 解析目标路径，返回目标父域和名称 */
+static int commands_mv_resolve_target(const char *target, Domain **out_parent, const char **out_name) {
+    Domain *target_parent = g_proj->current;
+    const char *target_name = target;
+
+    const char *slash = strrchr(target, '/');
+    if (slash) {
+        char parent_path[MAX_NAME_LEN];
+        int parent_len = (int)(slash - target);
+        if (parent_len == 0) {
+            target_parent = g_proj->root;
+        } else {
+            strncpy(parent_path, target, parent_len);
+            parent_path[parent_len] = '\0';
+            Domain *saved = g_proj->current;
+            g_proj->current = target_parent;
+            if (commands_cmd_cd(parent_path) != 0) {
+                g_proj->current = saved;
+                return -1;
+            }
+            target_parent = g_proj->current;
+            g_proj->current = saved;
+        }
+        target_name = slash + 1;
+    }
+
+    *out_parent = target_parent;
+    *out_name = target_name;
+    return 0;
+}
+
+/* mv 辅助: 检查目标是否可用 */
+static int commands_mv_check_target(Domain *target_parent, const char *target_name, Domain *src_domain) {
+    if (domain_domain_find_child(target_parent, target_name)) {
+        printf("错误: 目标 '%s' 已存在\n", target_name);
+        return -1;
+    }
+    Domain *api_conflict = domain_domain_check_api_name_conflict(target_parent, target_name);
+    if (api_conflict && api_conflict != src_domain) {
+        char *path = domain_domain_get_path(api_conflict);
+        printf("错误: 目标 '%s' 与子模块 API 项冲突 (%s [%s])\n",
+               target_name, path, commands_domain_type_name(api_conflict->type));
+        free(path);
+        return -1;
+    }
+    return 0;
+}
 
 int commands_cmd_mv(const char *src, const char *target) {
     if (!src || !target) {
@@ -1026,62 +1035,20 @@ int commands_cmd_mv(const char *src, const char *target) {
         return -1;
     }
 
-    /* Navigate to target */
-    Domain *target_parent = g_proj->current;
-    const char *target_name = target;
-
-    /* Check if target is a path */
-    const char *slash = strrchr(target, '/');
-    if (slash) {
-        /* Navigate to the parent directory of target */
-        char parent_path[MAX_NAME_LEN];
-        int parent_len = (int)(slash - target);
-        if (parent_len == 0) {
-            target_parent = g_proj->root;
-            target_name = slash + 1;
-        } else {
-            strncpy(parent_path, target, parent_len);
-            parent_path[parent_len] = '\0';
-
-            /* Save current and navigate */
-            Domain *saved = g_proj->current;
-            g_proj->current = target_parent;
-            if (commands_cmd_cd(parent_path) != 0) {
-                g_proj->current = saved;
-                return -1;
-            }
-            target_parent = g_proj->current;
-            g_proj->current = saved;
-            target_name = slash + 1;
-        }
-    }
-
-    /* Check target doesn't exist */
-    if (domain_domain_find_child(target_parent, target_name)) {
-        printf("错误: 目标 '%s' 已存在\n", target_name);
+    Domain *target_parent;
+    const char *target_name;
+    if (commands_mv_resolve_target(target, &target_parent, &target_name) != 0)
         return -1;
-    }
 
-    /* Check for conflict with submodule API items */
-    Domain *api_conflict = domain_domain_check_api_name_conflict(target_parent, target_name);
-    if (api_conflict && api_conflict != src_domain) {
-        char *path = domain_domain_get_path(api_conflict);
-        printf("错误: 目标 '%s' 与子模块 API 项冲突 (%s [%s])\n",
-               target_name, path, commands_domain_type_name(api_conflict->type));
-        free(path);
+    if (commands_mv_check_target(target_parent, target_name, src_domain) != 0)
         return -1;
-    }
 
-    /* Remove from source */
+    /* 执行移动 */
     domain_domain_remove_child(g_proj->current, src_domain);
-
-    /* Rename if needed */
     if (!utils_str_eq(src_domain->name, target_name)) {
         free(src_domain->name);
         src_domain->name = utils_str_dup(target_name);
     }
-
-    /* Add to target */
     domain_domain_add_child(target_parent, src_domain);
 
     printf("已将 %s 移动到 %s。\n", src, target);
@@ -1196,6 +1163,27 @@ typedef struct {
     char text[64];          /* 标识符保留原文；数字/字符串/字符归一化 */
 } AnalyzeToken;
 
+/* 构造模块路径名：从根走到当前模块，用 "/" 连接 */
+static void analyze_build_module_path(Domain *d, char *out, size_t size) {
+    out[0] = '\0';
+    char parts[16][128];
+    int n = 0;
+    Domain *p = d;
+    while (p && p->type == DOMAIN_MODULE && n < 16) {
+        if (p->parent == NULL) break;  /* 跳过根项目 */
+        if (p->name) {
+            strncpy(parts[n], p->name, 127);
+            parts[n][127] = '\0';
+            n++;
+        }
+        p = p->parent;
+    }
+    for (int i = n - 1; i >= 0; i--) {
+        if (out[0] != '\0') strncat(out, "/", size - strlen(out) - 1);
+        strncat(out, parts[i], size - strlen(out) - 1);
+    }
+}
+
 static void analyze_collect_modules(Domain *d, AnalyzeMod *mods, int *count, int cap)
 {
     if (!d || *count >= cap) return;
@@ -1204,24 +1192,7 @@ static void analyze_collect_modules(Domain *d, AnalyzeMod *mods, int *count, int
         ModuleDomain *md = (ModuleDomain *)d;
         if (md->mode == MOD_MODE_SRC && md->code && md->code[0] != '\0') {
             AnalyzeMod *m = &mods[*count];
-            /* 构造模块路径名：从根走到当前模块 */
-            m->name[0] = '\0';
-            Domain *p = d;
-            char parts[16][128];
-            int n = 0;
-            while (p && p->type == DOMAIN_MODULE && n < 16) {
-                if (p->parent == NULL) break;  /* 跳过根项目 */
-                if (p->name) {
-                    strncpy(parts[n], p->name, 127);
-                    parts[n][127] = '\0';
-                    n++;
-                }
-                p = p->parent;
-            }
-            for (int i = n - 1; i >= 0; i--) {
-                if (m->name[0] != '\0') strncat(m->name, "/", sizeof(m->name) - strlen(m->name) - 1);
-                strncat(m->name, parts[i], sizeof(m->name) - strlen(m->name) - 1);
-            }
+            analyze_build_module_path(d, m->name, sizeof(m->name));
             m->code = md->code;
             m->code_lines = 0;
             (*count)++;
@@ -1232,157 +1203,237 @@ static void analyze_collect_modules(Domain *d, AnalyzeMod *mods, int *count, int
         analyze_collect_modules(d->children[i], mods, count, cap);
 }
 
+/* 处理行尾：若当前行已有代码字符则计数，并重置标记 */
+static void analyze_count_line_end(int *has_code, int *lines) {
+    if (*has_code) (*lines)++;
+    *has_code = 0;
+}
+
+/* ST_NORMAL 状态下处理字符；返回新状态 */
+static int analyze_count_normal_char(char c, const char *p, const char **next,
+                                     int *has_code) {
+    if (c == '/' && p[1] == '/') { *next = p + 1; return 1 /*ST_LINE_CMT*/; }
+    if (c == '/' && p[1] == '*') { *next = p + 1; return 2 /*ST_BLOCK_CMT*/; }
+    if (c == '"')  { *has_code = 1; return 3 /*ST_STRING*/; }
+    if (c == '\'') { *has_code = 1; return 4 /*ST_CHAR*/; }
+    if (!isspace((unsigned char)c)) *has_code = 1;
+    return 0;
+}
+
+/* 处理引号状态（STRING/CHAR 逻辑相同，仅 quote 字符不同） */
+static int analyze_count_quote_char(char c, char quote, const char **next) {
+    if (c == '\\') { *next = *next + 1; return 1; }
+    if (c == quote) return 0;  /* 退出引号状态 */
+    return 1;  /* 保持引号状态 */
+}
+
+/* 状态机上下文，避免长参数列表 */
+typedef struct {
+    int lines;
+    int has_code;
+    int state;     /* 0=NORMAL 1=LINE_CMT 2=BLOCK_CMT 3=QUOTE */
+    char quote;    /* 当前引号字符（仅 state==3 有效） */
+} CountCtx;
+
+/* ST_NORMAL: 处理普通字符，返回新状态 */
+static int count_st_normal(char c, const char *p, const char **next, CountCtx *ctx) {
+    if (c == '\n') { analyze_count_line_end(&ctx->has_code, &ctx->lines); return 0; }
+    int s = analyze_count_normal_char(c, p, next, &ctx->has_code);
+    if (s == 3) { ctx->quote = '"';  return 3; }
+    if (s == 4) { ctx->quote = '\''; return 3; }
+    return s;
+}
+
+/* ST_LINE_CMT: 行注释中遇到换行则结束 */
+static int count_st_line_cmt(char c, CountCtx *ctx) {
+    if (c == '\n') { analyze_count_line_end(&ctx->has_code, &ctx->lines); return 0; }
+    return 1;
+}
+
+/* ST_BLOCK_CMT: 块注释中遇到 star-slash 则结束 */
+static int count_st_block_cmt(char c, const char *p, const char **next, CountCtx *ctx) {
+    if (c == '*' && p[1] == '/') { *next = p + 1; return 0; }
+    if (c == '\n') analyze_count_line_end(&ctx->has_code, &ctx->lines);
+    return 2;
+}
+
+/* ST_QUOTE: 字符串/字符字面量，遇到匹配引号则结束 */
+static int count_st_quote(char c, const char **next, CountCtx *ctx) {
+    if (!analyze_count_quote_char(c, ctx->quote, next)) return 0;
+    if (c == '\n') analyze_count_line_end(&ctx->has_code, &ctx->lines);
+    return 3;
+}
+
 static int analyze_count_code_lines(const char *code)
 {
     if (!code) return 0;
-    int lines = 0;
-    int has_code = 0;          /* 当前行是否已出现代码字符 */
-    enum { ST_NORMAL, ST_LINE_CMT, ST_BLOCK_CMT, ST_STRING, ST_CHAR } state = ST_NORMAL;
+    CountCtx ctx = {0, 0, 0, 0};
     const char *p = code;
     while (*p) {
         char c = *p;
-        switch (state) {
-        case ST_NORMAL:
-            if (c == '/' && p[1] == '/') { state = ST_LINE_CMT; p++; }
-            else if (c == '/' && p[1] == '*') { state = ST_BLOCK_CMT; p++; }
-            else if (c == '"') { state = ST_STRING; has_code = 1; }
-            else if (c == '\'') { state = ST_CHAR; has_code = 1; }
-            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
-            else if (!isspace((unsigned char)c)) has_code = 1;
-            break;
-        case ST_LINE_CMT:
-            if (c == '\n') { if (has_code) lines++; has_code = 0; state = ST_NORMAL; }
-            break;
-        case ST_BLOCK_CMT:
-            if (c == '*' && p[1] == '/') { state = ST_NORMAL; p++; }
-            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
-            break;
-        case ST_STRING:
-            if (c == '\\') { p++; }
-            else if (c == '"') { state = ST_NORMAL; }
-            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
-            break;
-        case ST_CHAR:
-            if (c == '\\') { p++; }
-            else if (c == '\'') { state = ST_NORMAL; }
-            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
-            break;
+        const char *next = p;
+        switch (ctx.state) {
+        case 0: ctx.state = count_st_normal(c, p, &next, &ctx); break;
+        case 1: ctx.state = count_st_line_cmt(c, &ctx); break;
+        case 2: ctx.state = count_st_block_cmt(c, p, &next, &ctx); break;
+        case 3: ctx.state = count_st_quote(c, &next, &ctx); break;
         }
-        p++;
+        p = (next > p) ? next + 1 : p + 1;
     }
-    if (has_code) lines++;
-    return lines;
+    if (ctx.has_code) ctx.lines++;
+    return ctx.lines;
 }
 
 /* 从源码中提取函数：匹配 "type name(...)" 后跟 "{" 的模式 */
+/* 检查名称是否为控制流关键字 */
+static int analyze_is_keyword(const char *name, int len) {
+    static const char *keywords[] = {"if", "for", "while", "switch", "return", "sizeof", "else", "do", 0};
+    for (int k = 0; keywords[k]; k++) {
+        if (len == (int)strlen(keywords[k]) && strncmp(name, keywords[k], len) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+/* 跳过字符串内容，返回跳过后的指针 */
+static const char *analyze_skip_string(const char *p, char quote);
+
+/* 查找函数体结束位置（匹配大括号），跳过字符串和字符 */
+static const char *analyze_find_body_end(const char *body_start) {
+    const char *p = body_start;
+    int brace_depth = 1;
+    while (*p && brace_depth > 0) {
+        if (*p == '{') brace_depth++;
+        else if (*p == '}') brace_depth--;
+        else if (*p == '"' || *p == '\'') {
+            p = analyze_skip_string(p, *p);
+            continue;  /* skip_string 已推进过指针 */
+        }
+        if (p < body_start) break;
+        p++;
+    }
+    return (brace_depth == 0) ? p : NULL;
+}
+
+/* 跳过字符串、字符、注释、预处理指令 */
+/* 跳过行注释或预处理指令（读到换行） */
+static const char *analyze_skip_line_comment(const char *p) {
+    while (*p && *p != '\n') p++;
+    return p;
+}
+
+/* 跳过块注释 */
+static const char *analyze_skip_block_comment(const char *p) {
+    p += 2;
+    while (*p && !(p[0] == '*' && p[1] == '/')) p++;
+    if (*p) p += 2;
+    return p;
+}
+
+static const char *analyze_skip_non_code(const char *p) {
+    if (*p == '"' || *p == '\'') return analyze_skip_string(p, *p);
+    if (p[0] == '/' && p[1] == '/') return analyze_skip_line_comment(p);
+    if (*p == '#') return analyze_skip_line_comment(p);
+    if (p[0] == '/' && p[1] == '*') return analyze_skip_block_comment(p);
+    return NULL;
+}
+
+/* 在 [start, ...) 范围内查找配对的圆括号；成功返回 1 并设置 open/close 指针，
+ * 失败时返回 0。查找到 '{' 或 ';' 或 '\0' 即停止。 */
+static int analyze_find_parens(const char *start,
+                               const char **open_paren, const char **close_paren) {
+    const char *paren = start;
+    int depth = 0;
+    *open_paren = NULL;
+    *close_paren = NULL;
+    while (*paren && *paren != '{' && *paren != ';') {
+        if (*paren == '(') {
+            if (depth == 0) *open_paren = paren;
+            depth++;
+        }
+        if (*paren == ')') {
+            depth--;
+            if (depth == 0 && *open_paren) *close_paren = paren;
+        }
+        paren++;
+    }
+    return (depth == 0 && *paren == '{' && *open_paren && *close_paren) ? 1 : 0;
+}
+
+/* 从 open_paren 回溯到 start，提取函数名 [name_start, name_end)，并校验存在返回类型 */
+static int analyze_extract_func_name(const char *start, const char *open_paren,
+                                     const char **name_start, const char **name_end) {
+    const char *ne = open_paren;
+    while (ne > start && isspace((unsigned char)ne[-1])) ne--;
+    const char *ns = ne;
+    while (ns > start && (isalnum((unsigned char)ns[-1]) || ns[-1] == '_')) ns--;
+    int has_type = 0;
+    for (const char *c = start; c < ns; c++) {
+        if (!isspace((unsigned char)*c)) { has_type = 1; break; }
+    }
+    *name_start = ns;
+    *name_end = ne;
+    return (has_type && ns < ne) ? 1 : 0;
+}
+
+/* 尝试在当前行起始位置解析一个函数定义；成功返回 1，*next 指向函数体之后 */
+static int analyze_try_extract_function(const char *start,
+                                        const char *mod_name,
+                                        AnalyzeFunc *funcs, int *count, int cap,
+                                        const char **next) {
+    /* 跳过行首空白（isspace('\0') 返回 0，循环自然终止） */
+    while (isspace((unsigned char)*start)) start++;
+    if (*start == '\0') return 0;
+
+    const char *open_paren, *close_paren;
+    if (!analyze_find_parens(start, &open_paren, &close_paren)) return 0;
+    const char *brace = close_paren;
+    while (*brace && *brace != '{') brace++;
+    if (*brace != '{') return 0;
+
+    const char *name_start, *name_end;
+    if (!analyze_extract_func_name(start, open_paren, &name_start, &name_end)) return 0;
+
+    int nlen = (int)(name_end - name_start);
+    if (nlen <= 0 || nlen >= 127 || analyze_is_keyword(name_start, nlen)) return 0;
+
+    const char *body_start = brace + 1;
+    const char *body_end = analyze_find_body_end(body_start);
+    if (!body_end) return 0;
+    if (*count >= cap) return 0;
+
+    AnalyzeFunc *f = &funcs[*count];
+    strncpy(f->name, name_start, nlen);
+    f->name[nlen] = '\0';
+    strncpy(f->module, mod_name, 127);
+    f->module[127] = '\0';
+    int blen = (int)(body_end - body_start);
+    f->code = (char *)malloc(blen + 1);
+    if (f->code) {
+        memcpy(f->code, body_start, blen);
+        f->code[blen] = '\0';
+        (*count)++;
+    }
+    *next = body_end;
+    return 1;
+}
+
 static void analyze_extract_functions(const char *mod_name, const char *code,
                                        AnalyzeFunc *funcs, int *count, int cap)
 {
     if (!code || !*code) return;
     const char *p = code;
     while (*p && *count < cap) {
-        /* 跳过字符串和注释 */
-        if (*p == '"') { p++; while (*p && *p != '"') { if (*p == '\\') p++; if (*p) p++; } if (*p) p++; continue; }
-        if (*p == '\'') { p++; while (*p && *p != '\'') { if (*p == '\\') p++; if (*p) p++; } if (*p) p++; continue; }
-        if (p[0] == '/' && p[1] == '/') { while (*p && *p != '\n') p++; continue; }
-        if (p[0] == '/' && p[1] == '*') { p += 2; while (*p && !(p[0] == '*' && p[1] == '/')) p++; if (*p) p += 2; continue; }
-        if (*p == '#') { while (*p && *p != '\n') p++; continue; }
+        /* 跳过字符串、注释、预处理 */
+        const char *skipped = analyze_skip_non_code(p);
+        if (skipped) { p = skipped; continue; }
 
         /* 记录行首位置（可能为函数定义开头） */
         if (p == code || p[-1] == '\n') {
-            const char *start = p;
-            /* 跳过前导空白 */
-            while (*start && isspace((unsigned char)*start)) start++;
-            if (*start == '\0') { p++; continue; }
-
-            /* 查找参数列表闭合后跟 "{"
-             * 跟踪第一次 depth 升到 1 的 '(' (open_paren) 与最近一次 depth 回到 0 的 ')' (close_paren) */
-            const char *paren = start;
-            int depth = 0;
-            const char *open_paren = NULL;   /* 第一个 '(' */
-            const char *close_paren = NULL;  /* 与 open_paren 匹配的 ')' */
-            while (*paren && *paren != '{' && *paren != ';') {
-                if (*paren == '(') {
-                    if (depth == 0) open_paren = paren;
-                    depth++;
-                } else if (*paren == ')') {
-                    depth--;
-                    if (depth == 0 && open_paren) close_paren = paren;
-                }
-                paren++;
-            }
-            /* 检查是否找到参数列表闭合后跟 "{" */
-            if (depth == 0 && *paren == '{' && open_paren && close_paren) {
-                /* 从 open_paren 回溯找到函数名 */
-                const char *brace = paren;
-                const char *name_end = open_paren;
-                while (name_end > start && isspace((unsigned char)name_end[-1])) name_end--;
-                const char *name_start = name_end;
-                while (name_start > start && (isalnum((unsigned char)name_start[-1]) || name_start[-1] == '_'))
-                    name_start--;
-
-                /* 检查返回类型是否存在（确保不是 if/for/while 等语句） */
-                int has_type = 0;
-                for (const char *c = start; c < name_start; c++) {
-                    if (!isspace((unsigned char)*c)) { has_type = 1; break; }
-                }
-
-                if (has_type && name_start < name_end) {
-                    /* 提取函数名 */
-                    int nlen = (int)(name_end - name_start);
-                    if (nlen > 0 && nlen < 127) {
-                        /* 排除控制流关键字 */
-                        const char *keywords[] = {"if", "for", "while", "switch", "return", "sizeof", "else", "do", 0};
-                        int is_kw = 0;
-                        for (int k = 0; keywords[k]; k++) {
-                            if (nlen == (int)strlen(keywords[k]) && strncmp(name_start, keywords[k], nlen) == 0) {
-                                is_kw = 1; break;
-                            }
-                        }
-                        if (!is_kw) {
-                            /* 找到函数定义，提取函数体 */
-                            const char *body_start = brace + 1;
-                            const char *body_end = body_start;
-                            int brace_depth = 1;
-                            while (*body_end && brace_depth > 0) {
-                                if (*body_end == '{') brace_depth++;
-                                else if (*body_end == '}') brace_depth--;
-                                else if (*body_end == '"') {
-                                    body_end++;
-                                    while (*body_end && *body_end != '"') {
-                                        if (*body_end == '\\') body_end++;
-                                        if (*body_end) body_end++;
-                                    }
-                                } else if (*body_end == '\'') {
-                                    body_end++;
-                                    while (*body_end && *body_end != '\'') {
-                                        if (*body_end == '\\') body_end++;
-                                        if (*body_end) body_end++;
-                                    }
-                                }
-                                if (body_end < body_start) break;
-                                body_end++;
-                            }
-                            if (brace_depth == 0) {
-                                AnalyzeFunc *f = &funcs[*count];
-                                strncpy(f->name, name_start, nlen);
-                                f->name[nlen] = '\0';
-                                strncpy(f->module, mod_name, 127);
-                                f->module[127] = '\0';
-
-                                int blen = (int)(body_end - body_start);
-                                f->code = (char *)malloc(blen + 1);
-                                if (f->code) {
-                                    memcpy(f->code, body_start, blen);
-                                    f->code[blen] = '\0';
-                                    (*count)++;
-                                }
-                                p = body_end;
-                                continue;
-                            }
-                        }
-                    }
-                }
+            const char *next = NULL;
+            if (analyze_try_extract_function(p, mod_name, funcs, count, cap, &next)) {
+                p = next;
+                continue;
             }
         }
         p++;
@@ -1390,84 +1441,112 @@ static void analyze_extract_functions(const char *mod_name, const char *code,
 }
 
 /* 简单词法分析：将代码拆分为 token，用于 n-gram 比对 */
+/* 检查是否为双字符运算符 */
+static int analyze_is_two_char_op(char a, char b) {
+    static const char ops[][3] = {
+        "==","!=","<=",">=","&&","||","++","--","->","<<",">>",
+        "+=","-=","*=","/=","%=","&=","|=","^=",".."
+    };
+    for (int i = 0; i < (int)(sizeof(ops)/sizeof(ops[0])); i++) {
+        if (a == ops[i][0] && b == ops[i][1]) return 1;
+    }
+    return 0;
+}
+
+/* 跳过字符串内容，返回跳过后的指针 */
+static const char *analyze_skip_string(const char *p, char quote) {
+    p++; /* skip opening quote */
+    while (*p && *p != quote) {
+        if (*p == '\\') p++;
+        if (*p) p++;
+    }
+    if (*p) p++;
+    return p;
+}
+
+/* 添加一个字面量归一化 token（"STR"/"'C'"/"NUM"） */
+static int analyze_emit_literal(AnalyzeToken *toks, int *count, int cap, const char *text) {
+    if (*count >= cap) return 0;
+    strncpy(toks[*count].text, text, 63);
+    toks[*count].text[63] = '\0';
+    (*count)++;
+    return 1;
+}
+
+/* 处理标识符 token；返回 1 表示已处理，0 表示当前字符不是标识符开头 */
+static int analyze_emit_identifier(const char **p, AnalyzeToken *toks, int *count, int cap) {
+    if (!isalpha((unsigned char)**p) && **p != '_') return 0;
+    if (*count >= cap) return 0;
+    int len = 0;
+    while ((isalnum((unsigned char)**p) || **p == '_') && len < 63) {
+        toks[*count].text[len++] = **p;
+        (*p)++;
+    }
+    toks[*count].text[len] = '\0';
+    while (isalnum((unsigned char)**p) || **p == '_') (*p)++;
+    (*count)++;
+    return 1;
+}
+
+/* 处理运算符和标点符号 token */
+static int analyze_emit_operator(const char **p, AnalyzeToken *toks, int *count, int cap) {
+    if (!ispunct((unsigned char)**p)) return 0;
+    if (*count >= cap) return 0;
+    if ((*p)[0] && (*p)[1] && analyze_is_two_char_op((*p)[0], (*p)[1])) {
+        toks[*count].text[0] = (*p)[0];
+        toks[*count].text[1] = (*p)[1];
+        toks[*count].text[2] = '\0';
+        *p += 2;
+    } else {
+        toks[*count].text[0] = **p;
+        toks[*count].text[1] = '\0';
+        (*p)++;
+    }
+    (*count)++;
+    return 1;
+}
+
+/* 跳过空白和注释；返回 1 表示已跳过非代码内容，0 表示当前位置是代码 */
+static int analyze_skip_trivia(const char **p) {
+    if (isspace((unsigned char)**p)) { (*p)++; return 1; }
+    if ((*p)[0] == '/' && (*p)[1] == '/') {
+        while (**p && **p != '\n') (*p)++;
+        return 1;
+    }
+    if ((*p)[0] == '/' && (*p)[1] == '*') {
+        *p += 2;
+        while (**p && !((*p)[0] == '*' && (*p)[1] == '/')) (*p)++;
+        if (**p) *p += 2;
+        return 1;
+    }
+    return 0;
+}
+
+/* 处理字面量 token（字符串/字符/数字）；返回 1 表示已处理 */
+static int analyze_emit_literal_token(const char **p, AnalyzeToken *toks, int *count, int cap) {
+    char ch = **p;
+    if (ch == '"' || ch == '\'') {
+        analyze_emit_literal(toks, count, cap, ch == '"' ? "\"STR\"" : "'C'");
+        *p = analyze_skip_string(*p, ch);
+        return 1;
+    }
+    if (isdigit((unsigned char)ch) || (ch == '.' && isdigit((unsigned char)(*p)[1]))) {
+        analyze_emit_literal(toks, count, cap, "NUM");
+        while (isdigit((unsigned char)**p) || **p == '.' || **p == 'x' || **p == 'X') (*p)++;
+        return 1;
+    }
+    return 0;
+}
+
 static int analyze_tokenize(const char *code, AnalyzeToken *toks, int cap)
 {
     int count = 0;
     const char *p = code;
     while (*p && count < cap) {
-        /* 跳过空白 */
-        if (isspace((unsigned char)*p)) { p++; continue; }
-        /* 跳过注释 */
-        if (p[0] == '/' && p[1] == '/') { while (*p && *p != '\n') p++; continue; }
-        if (p[0] == '/' && p[1] == '*') { p += 2; while (*p && !(p[0] == '*' && p[1] == '/')) p++; if (*p) p += 2; continue; }
-
-        /* 字符串 -> 归一化为 "STR" */
-        if (*p == '"') {
-            strncpy(toks[count].text, "\"STR\"", 63);
-            toks[count].text[63] = '\0';
-            count++;
-            p++;
-            while (*p && *p != '"') { if (*p == '\\') p++; if (*p) p++; }
-            if (*p) p++;
-            continue;
-        }
-        /* 字符 -> 归一化为 'C' */
-        if (*p == '\'') {
-            strncpy(toks[count].text, "'C'", 63);
-            toks[count].text[63] = '\0';
-            count++;
-            p++;
-            while (*p && *p != '\'') { if (*p == '\\') p++; if (*p) p++; }
-            if (*p) p++;
-            continue;
-        }
-        /* 数字 -> 归一化为 NUM */
-        if (isdigit((unsigned char)*p) || (*p == '.' && isdigit((unsigned char)p[1]))) {
-            strncpy(toks[count].text, "NUM", 63);
-            toks[count].text[63] = '\0';
-            count++;
-            while (isdigit((unsigned char)*p) || *p == '.' || *p == 'x' || *p == 'X' || (isdigit((unsigned char)*p))) p++;
-            continue;
-        }
-        /* 标识符 */
-        if (isalpha((unsigned char)*p) || *p == '_') {
-            int len = 0;
-            while ((isalnum((unsigned char)*p) || *p == '_') && len < 63) {
-                toks[count].text[len++] = *p++;
-            }
-            toks[count].text[len] = '\0';
-            while (isalnum((unsigned char)*p) || *p == '_') p++;
-            count++;
-            continue;
-        }
-        /* 运算符和其他符号 */
-        if (ispunct((unsigned char)*p)) {
-            /* 多字符运算符 */
-            if (p[0] && p[1]) {
-                char two[3] = { p[0], p[1], '\0' };
-                if (two[0] == '=' && two[1] == '=' || two[0] == '!' && two[1] == '=' ||
-                    two[0] == '<' && two[1] == '=' || two[0] == '>' && two[1] == '=' ||
-                    two[0] == '&' && two[1] == '&' || two[0] == '|' && two[1] == '|' ||
-                    two[0] == '+' && two[1] == '+' || two[0] == '-' && two[1] == '-' ||
-                    two[0] == '-' && two[1] == '>' || two[0] == '<' && two[1] == '<' ||
-                    two[0] == '>' && two[1] == '>' || two[0] == '+' && two[1] == '=' ||
-                    two[0] == '-' && two[1] == '=' || two[0] == '*' && two[1] == '=' ||
-                    two[0] == '/' && two[1] == '=' || two[0] == '%' && two[1] == '=' ||
-                    two[0] == '&' && two[1] == '=' || two[0] == '|' && two[1] == '=' ||
-                    two[0] == '^' && two[1] == '=' || two[0] == '.' && two[1] == '.' ) {
-                    strncpy(toks[count].text, two, 63);
-                    toks[count].text[63] = '\0';
-                    count++;
-                    p += 2;
-                    continue;
-                }
-            }
-            toks[count].text[0] = *p;
-            toks[count].text[1] = '\0';
-            count++;
-            p++;
-            continue;
-        }
+        if (analyze_skip_trivia(&p)) continue;
+        if (analyze_emit_literal_token(&p, toks, &count, cap)) continue;
+        if (analyze_emit_identifier(&p, toks, &count, cap)) continue;
+        if (analyze_emit_operator(&p, toks, &count, cap))   continue;
         p++;
     }
     return count;
@@ -1502,29 +1581,19 @@ static int analyze_ngram_equal(AnalyzeToken *a, AnalyzeToken *b)
     return 1;
 }
 
-int commands_cmd_analyze(void)
-{
-    if (!g_proj || !g_proj->root) {
-        printf("错误: 无活动项目\n");
-        return -1;
-    }
-
-    /* 若项目为空但有 .cboot，则加载之 */
+/* analyze 辅助: 确保项目已加载 */
+static void commands_analyze_ensure_loaded(void) {
     if (g_proj->root->child_count == 0 && utils_file_exists(".cboot")) {
         domain_project_free(g_proj);
         g_proj = domain_project_new("cboot_project");
-        g_skip_gen = 1;  /* 加载时跳过 gen，避免破坏源码 */
+        g_skip_gen = 1;
         parser_parse_cboot_script(".cboot");
         g_skip_gen = 0;
     }
+}
 
-    printf("=== CBoot 代码分析报告 ===\n\n");
-
-    /* 1. 有效代码行数 */
-    AnalyzeMod mods[ANALYZE_MAX_MODS];
-    int mod_count = 0;
-    analyze_collect_modules(g_proj->root, mods, &mod_count, ANALYZE_MAX_MODS);
-
+/* analyze 辅助: 统计并打印有效代码行数 */
+static void commands_analyze_code_lines(AnalyzeMod *mods, int mod_count) {
     int total_lines = 0;
     printf("--- 1. 有效代码行数 ---\n");
     printf("  %-32s %s\n", "模块", "有效行数");
@@ -1537,13 +1606,10 @@ int commands_cmd_analyze(void)
     printf("  %-32s %s\n", "------------------------------", "--------");
     printf("  %-32s %d\n", "总计", total_lines);
     printf("\n");
+}
 
-    /* 2. 圈复杂度 */
-    AnalyzeFunc funcs[ANALYZE_MAX_FUNCS];
-    int func_count = 0;
-    for (int i = 0; i < mod_count && func_count < ANALYZE_MAX_FUNCS; i++)
-        analyze_extract_functions(mods[i].name, mods[i].code, funcs, &func_count, ANALYZE_MAX_FUNCS);
-
+/* analyze 辅助: 计算并打印圈复杂度 */
+static void commands_analyze_cyclomatic(AnalyzeFunc *funcs, int func_count) {
     for (int i = 0; i < func_count; i++)
         funcs[i].complexity = analyze_cyclomatic_complexity(funcs[i].code);
 
@@ -1556,9 +1622,7 @@ int commands_cmd_analyze(void)
         int cc = funcs[i].complexity;
         char display[300];
         snprintf(display, sizeof(display), "%s [%s]", funcs[i].name, funcs[i].module);
-        const char *marker = "";
-        if (cc > 15) marker = " *** 高";
-        else if (cc > 10) marker = " ** 中";
+        const char *marker = (cc > 15) ? " *** 高" : (cc > 10) ? " ** 中" : "";
         printf("  %-44s %d%s\n", display, cc, marker);
         total_cc += cc;
         if (cc > max_cc) {
@@ -1576,8 +1640,60 @@ int commands_cmd_analyze(void)
         printf("  (无函数数据)\n");
     }
     printf("\n");
+}
 
-    /* 3. 代码重复率 (基于 token n-gram 比对) */
+/* analyze 辅助: 检查 n-gram 是否在其他函数中重复 */
+static int analyze_ngram_is_dup(AnalyzeToken **all_toks, int *tok_counts,
+                                 int func_count, int fi, int g) {
+    for (int j = 0; j < func_count; j++) {
+        if (j == fi) continue;
+        int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
+        if (gj <= 0) continue;
+        for (int g2 = 0; g2 < gj; g2++) {
+            if (analyze_ngram_equal(&all_toks[fi][g], &all_toks[j][g2]))
+                return 1;
+        }
+    }
+    return 0;
+}
+
+/* analyze 辅助: 打印重复代码片段 */
+/* 打印一对函数间的第一个重复 n-gram；返回 1 表示已打印 */
+static int analyze_print_first_dup_pair(AnalyzeToken **all_toks, int *tok_counts,
+                                        int i, int j, AnalyzeFunc *funcs) {
+    int gi = tok_counts[i] - ANALYZE_NGRAM_SIZE + 1;
+    int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
+    if (gi <= 0 || gj <= 0) return 0;
+    for (int g = 0; g < gi; g++) {
+        for (int g2 = 0; g2 < gj; g2++) {
+            if (!analyze_ngram_equal(&all_toks[i][g], &all_toks[j][g2])) continue;
+            printf("    %s [%s] <-> %s [%s]: ",
+                   funcs[i].name, funcs[i].module,
+                   funcs[j].name, funcs[j].module);
+            for (int k = 0; k < ANALYZE_NGRAM_SIZE && k < 6; k++)
+                printf("%s ", all_toks[i][g + k].text);
+            if (ANALYZE_NGRAM_SIZE > 6) printf("...");
+            printf("\n");
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void analyze_print_dup_fragments(AnalyzeToken **all_toks, int *tok_counts,
+                                         AnalyzeFunc *funcs, int func_count) {
+    printf("\n  重复代码片段 (最多显示 10 处):\n");
+    int shown = 0;
+    for (int i = 0; i < func_count && shown < 10; i++) {
+        for (int j = i + 1; j < func_count && shown < 10; j++) {
+            if (analyze_print_first_dup_pair(all_toks, tok_counts, i, j, funcs))
+                shown++;
+        }
+    }
+}
+
+/* analyze 辅助: 计算并打印代码重复率 */
+static void commands_analyze_duplication(AnalyzeFunc *funcs, int func_count) {
     printf("--- 3. 代码重复率 (Code Duplication) ---\n");
     AnalyzeToken **all_toks = (AnalyzeToken **)calloc(func_count, sizeof(AnalyzeToken *));
     int *tok_counts = (int *)calloc(func_count, sizeof(int));
@@ -1592,19 +1708,8 @@ int commands_cmd_analyze(void)
         if (gi <= 0) continue;
         for (int g = 0; g < gi; g++) {
             total_ngrams++;
-            int is_dup = 0;
-            for (int j = 0; j < func_count && !is_dup; j++) {
-                if (j == i) continue;
-                int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
-                if (gj <= 0) continue;
-                for (int g2 = 0; g2 < gj; g2++) {
-                    if (analyze_ngram_equal(&all_toks[i][g], &all_toks[j][g2])) {
-                        is_dup = 1;
-                        break;
-                    }
-                }
-            }
-            if (is_dup) dup_ngrams++;
+            if (analyze_ngram_is_dup(all_toks, tok_counts, func_count, i, g))
+                dup_ngrams++;
         }
     }
 
@@ -1614,44 +1719,44 @@ int commands_cmd_analyze(void)
     printf("  重复 n-gram 数: %d\n", dup_ngrams);
     printf("  代码重复率: %.1f%%\n", dup_rate);
 
-    if (dup_ngrams > 0) {
-        printf("\n  重复代码片段 (最多显示 10 处):\n");
-        int shown = 0;
-        for (int i = 0; i < func_count && shown < 10; i++) {
-            int gi = tok_counts[i] - ANALYZE_NGRAM_SIZE + 1;
-            if (gi <= 0) continue;
-            for (int g = 0; g < gi && shown < 10; g++) {
-                for (int j = i + 1; j < func_count; j++) {
-                    int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
-                    if (gj <= 0) continue;
-                    int found = 0;
-                    for (int g2 = 0; g2 < gj; g2++) {
-                        if (analyze_ngram_equal(&all_toks[i][g], &all_toks[j][g2])) {
-                            printf("    %s [%s] <-> %s [%s]: ",
-                                   funcs[i].name, funcs[i].module,
-                                   funcs[j].name, funcs[j].module);
-                            for (int k = 0; k < ANALYZE_NGRAM_SIZE && k < 6; k++)
-                                printf("%s ", all_toks[i][g + k].text);
-                            if (ANALYZE_NGRAM_SIZE > 6) printf("...");
-                            printf("\n");
-                            found = 1;
-                            break;
-                        }
-                    }
-                    if (found) { shown++; break; }
-                }
-            }
-        }
+    if (dup_ngrams > 0)
+        analyze_print_dup_fragments(all_toks, tok_counts, funcs, func_count);
+
+    for (int i = 0; i < func_count; i++) free(all_toks[i]);
+    free(all_toks);
+    free(tok_counts);
+}
+
+int commands_cmd_analyze(void)
+{
+    if (!g_proj || !g_proj->root) {
+        printf("错误: 无活动项目\n");
+        return -1;
     }
+
+    commands_analyze_ensure_loaded();
+
+    printf("=== CBoot 代码分析报告 ===\n\n");
+
+    /* 1. 有效代码行数 */
+    AnalyzeMod mods[ANALYZE_MAX_MODS];
+    int mod_count = 0;
+    analyze_collect_modules(g_proj->root, mods, &mod_count, ANALYZE_MAX_MODS);
+    commands_analyze_code_lines(mods, mod_count);
+
+    /* 2. 圈复杂度 */
+    AnalyzeFunc funcs[ANALYZE_MAX_FUNCS];
+    int func_count = 0;
+    for (int i = 0; i < mod_count && func_count < ANALYZE_MAX_FUNCS; i++)
+        analyze_extract_functions(mods[i].name, mods[i].code, funcs, &func_count, ANALYZE_MAX_FUNCS);
+    commands_analyze_cyclomatic(funcs, func_count);
+
+    /* 3. 代码重复率 */
+    commands_analyze_duplication(funcs, func_count);
 
     printf("\n=== 分析完成 ===\n");
 
-    for (int i = 0; i < func_count; i++) {
-        free(all_toks[i]);
-        free(funcs[i].code);
-    }
-    free(all_toks);
-    free(tok_counts);
+    for (int i = 0; i < func_count; i++) free(funcs[i].code);
     return 0;
 }
 
@@ -1688,88 +1793,70 @@ int commands_cmd_adjust(void) {
  */
 
 /* Helper: recursively copy API items from src module to dst module */
+/* 克隆成员列表到目标域（仅复制 DOMAIN_MEMBER） */
+static void commands_copy_members(Domain *src, Domain *dst) {
+    for (int j = 0; j < src->child_count; j++) {
+        Domain *m = src->children[j];
+        if (m->type != DOMAIN_MEMBER) continue;
+        MemberDomain *mm = domain_member_domain_new(m->name, ((MemberDomain *)m)->type);
+        if (m->comment) domain_domain_set_comment((Domain *)mm, m->comment);
+        domain_domain_add_child(dst, (Domain *)mm);
+    }
+}
+
+/* 克隆单个 API 子域；返回克隆对象（已设置 comment/value/成员） */
+static Domain *commands_clone_api_child(Domain *child) {
+    Domain *clone = NULL;
+    switch (child->type) {
+        case DOMAIN_FUNCTION: {
+            FunctionDomain *f = domain_function_domain_new(child->name,
+                                                    ((FunctionDomain *)child)->return_type);
+            f->mode = API_MODE_API;
+            if (child->comment) domain_domain_set_comment((Domain *)f, child->comment);
+            commands_copy_members(child, (Domain *)f);
+            clone = (Domain *)f;
+            break;
+        }
+        case DOMAIN_STRUCT: {
+            StructDomain *s = domain_struct_domain_new(child->name);
+            s->mode = API_MODE_API;
+            if (child->comment) domain_domain_set_comment((Domain *)s, child->comment);
+            commands_copy_members(child, (Domain *)s);
+            clone = (Domain *)s;
+            break;
+        }
+        case DOMAIN_TYPE: {
+            TypeDomain *t = domain_type_domain_new(child->name);
+            TypeDomain *src_t = (TypeDomain *)child;
+            t->mode = src_t->mode;
+            if (src_t->value) domain_domain_set_value((Domain *)t, src_t->value);
+            if (child->comment) domain_domain_set_comment((Domain *)t, child->comment);
+            commands_copy_members(child, (Domain *)t);
+            clone = (Domain *)t;
+            break;
+        }
+        case DOMAIN_MACRO: {
+            MacroDomain *m = domain_macro_domain_new(child->name);
+            m->mode = API_MODE_API;
+            MacroDomain *src_m = (MacroDomain *)child;
+            if (src_m->value) domain_domain_set_value((Domain *)m, src_m->value);
+            if (child->comment) domain_domain_set_comment((Domain *)m, child->comment);
+            clone = (Domain *)m;
+            break;
+        }
+        default:
+            break;
+    }
+    return clone;
+}
+
 static void commands_copy_api_items(Domain *src_mod, Domain *dst_mod)
 {
     for (int i = 0; i < src_mod->child_count; i++) {
         Domain *child = src_mod->children[i];
-        if (!child) continue;
-
-        /* Only copy API items */
-        if (!domain_domain_is_api(child)) continue;
-
-        /* Clone the API item (shallow - no deep children for simplicity) */
-        Domain *clone = NULL;
-        switch (child->type) {
-            case DOMAIN_FUNCTION: {
-                FunctionDomain *f = domain_function_domain_new(child->name,
-                                                        ((FunctionDomain *)child)->return_type);
-                f->mode = API_MODE_API;
-                if (child->comment) domain_domain_set_comment((Domain *)f, child->comment);
-                /* Copy parameters */
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *p = child->children[j];
-                    if (p->type == DOMAIN_MEMBER) {
-                        MemberDomain *mp = domain_member_domain_new(p->name,
-                                                              ((MemberDomain *)p)->type);
-                        if (p->comment) domain_domain_set_comment((Domain *)mp, p->comment);
-                        domain_domain_add_child((Domain *)f, (Domain *)mp);
-                    }
-                }
-                clone = (Domain *)f;
-                break;
-            }
-            case DOMAIN_STRUCT: {
-                StructDomain *s = domain_struct_domain_new(child->name);
-                s->mode = API_MODE_API;
-                if (child->comment) domain_domain_set_comment((Domain *)s, child->comment);
-                /* Copy members */
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *m = child->children[j];
-                    if (m->type == DOMAIN_MEMBER) {
-                        MemberDomain *mm = domain_member_domain_new(m->name,
-                                                              ((MemberDomain *)m)->type);
-                        if (m->comment) domain_domain_set_comment((Domain *)mm, m->comment);
-                        domain_domain_add_child((Domain *)s, (Domain *)mm);
-                    }
-                }
-                clone = (Domain *)s;
-                break;
-            }
-            case DOMAIN_TYPE: {
-                TypeDomain *t = domain_type_domain_new(child->name);
-                TypeDomain *src_t = (TypeDomain *)child;
-                t->mode = src_t->mode;
-                if (src_t->value) domain_domain_set_value((Domain *)t, src_t->value);
-                if (child->comment) domain_domain_set_comment((Domain *)t, child->comment);
-                /* Copy members for struct-mode types */
-                for (int j = 0; j < child->child_count; j++) {
-                    Domain *m = child->children[j];
-                    if (m->type == DOMAIN_MEMBER) {
-                        MemberDomain *mm = domain_member_domain_new(m->name,
-                                                              ((MemberDomain *)m)->type);
-                        if (m->comment) domain_domain_set_comment((Domain *)mm, m->comment);
-                        domain_domain_add_child((Domain *)t, (Domain *)mm);
-                    }
-                }
-                clone = (Domain *)t;
-                break;
-            }
-            case DOMAIN_MACRO: {
-                MacroDomain *m = domain_macro_domain_new(child->name);
-                m->mode = API_MODE_API;
-                MacroDomain *src_m = (MacroDomain *)child;
-                if (src_m->value) domain_domain_set_value((Domain *)m, src_m->value);
-                if (child->comment) domain_domain_set_comment((Domain *)m, child->comment);
-                clone = (Domain *)m;
-                break;
-            }
-            default:
-                break;
-        }
-
-        if (clone) {
-            domain_domain_add_child(dst_mod, clone);
-        }
+        if (!child || !domain_domain_is_api(child)) continue;
+        Domain *clone = commands_clone_api_child(child);
+        if (clone) domain_domain_add_child(dst_mod, clone);
     }
 }
 
@@ -1791,103 +1878,69 @@ static void commands_copy_api_items_recursive(Domain *src_mod, Domain *dst_mod)
     }
 }
 
-int commands_cmd_im(const char *path) {
-    if (!path) {
-        printf("用法: im <模块名|.cboot 文件>\n");
-        return -1;
-    }
-
-    /* im 只能在模块作用域中使用 */
-    Domain *importer = g_proj->current;
-    if (importer->type != DOMAIN_MODULE) {
-        printf("错误: im 只能在模块作用域中使用\n");
-        return -1;
-    }
-
-    /* 获取导入者路径 */
-    char *importer_path = domain_domain_get_path(importer);
-
-    /* 判断是项目内模块名还是 .cboot 文件 */
-    int len = (int)strlen(path);
-    int is_cboot_file = (len > 6 && strcmp(path + len - 6, ".cboot") == 0);
-
-    if (!is_cboot_file) {
-        /* 项目内兄弟模块导入：im <模块名>
-         * 在当前模块的祖先链中查找同名兄弟模块，复制其 API 项 */
-        Domain *parent = importer->parent;
-        Domain *src_mod = NULL;
-
-        /* 向上遍历祖先，查找同名子模块 */
-        while (parent && !src_mod) {
-            for (int i = 0; i < parent->child_count; i++) {
-                Domain *child = parent->children[i];
-                if (child->type == DOMAIN_MODULE &&
-                    child != importer &&
-                    child->name && strcmp(child->name, path) == 0) {
-                    src_mod = child;
-                    break;
-                }
+/* 在祖先链中查找同名兄弟模块 */
+static Domain *commands_im_find_sibling(Domain *importer, const char *path) {
+    Domain *parent = importer->parent;
+    while (parent) {
+        for (int i = 0; i < parent->child_count; i++) {
+            Domain *child = parent->children[i];
+            if (child->type == DOMAIN_MODULE && child != importer &&
+                child->name && strcmp(child->name, path) == 0) {
+                return child;
             }
-            parent = parent->parent;
         }
+        parent = parent->parent;
+    }
+    return NULL;
+}
 
-        if (!src_mod) {
-            printf("错误: 未找到项目内模块 '%s'\n", path);
-            free(importer_path);
-            return -1;
-        }
-
-        /* 检查是否已导入 */
-        if (domain_domain_find_child(importer, path)) {
-            printf("提示: 模块 '%s' 已导入，跳过\n", path);
-            free(importer_path);
-            return 0;
-        }
-
-        /* 在当前模块下创建外部引用模块 */
-        ModuleDomain *api_ref = domain_module_domain_new(path);
-        api_ref->mode = MOD_MODE_EXTERNAL;
-        char cmt_buf[MAX_PATH_LEN];
-        snprintf(cmt_buf, sizeof(cmt_buf), "[API 引用] 从项目内模块 %s 导入", path);
-        domain_domain_set_comment((Domain *)api_ref, cmt_buf);
-
-        /* 复制 API 项 */
-        commands_copy_api_items_recursive(src_mod, (Domain *)api_ref);
-
-        /* 添加到当前模块 */
-        domain_domain_add_child(importer, (Domain *)api_ref);
-
-        /* 记录依赖链 */
-        char source_path_buf[MAX_PATH_LEN];
-        char *src_path = domain_domain_get_path(src_mod);
-        snprintf(source_path_buf, sizeof(source_path_buf), "%s", src_path);
-        domain_project_add_dependency(g_proj, importer_path, source_path_buf, path);
-        free(src_path);
-
-        printf("已从项目内模块 '%s' 导入 API 定义到 %s\n", path, importer_path);
+/* 项目内兄弟模块导入 */
+static int commands_im_internal(Domain *importer, const char *path, char *importer_path) {
+    Domain *src_mod = commands_im_find_sibling(importer, path);
+    if (!src_mod) {
+        printf("错误: 未找到项目内模块 '%s'\n", path);
+        free(importer_path);
+        return -1;
+    }
+    if (domain_domain_find_child(importer, path)) {
+        printf("提示: 模块 '%s' 已导入，跳过\n", path);
         free(importer_path);
         return 0;
     }
 
-    /* 外部 .cboot 文件导入（原有逻辑） */
+    ModuleDomain *api_ref = domain_module_domain_new(path);
+    api_ref->mode = MOD_MODE_EXTERNAL;
+    char cmt_buf[MAX_PATH_LEN];
+    snprintf(cmt_buf, sizeof(cmt_buf), "[API 引用] 从项目内模块 %s 导入", path);
+    domain_domain_set_comment((Domain *)api_ref, cmt_buf);
+
+    commands_copy_api_items_recursive(src_mod, (Domain *)api_ref);
+    domain_domain_add_child(importer, (Domain *)api_ref);
+
+    char source_path_buf[MAX_PATH_LEN];
+    char *src_path = domain_domain_get_path(src_mod);
+    snprintf(source_path_buf, sizeof(source_path_buf), "%s", src_path);
+    domain_project_add_dependency(g_proj, importer_path, source_path_buf, path);
+    free(src_path);
+
+    printf("已从项目内模块 '%s' 导入 API 定义到 %s\n", path, importer_path);
+    free(importer_path);
+    return 0;
+}
+
+/* 外部 .cboot 文件导入 */
+static int commands_im_external(Domain *importer, const char *path, char *importer_path) {
     if (!utils_file_exists(path)) {
         printf("错误: 文件 '%s' 不存在\n", path);
         free(importer_path);
         return -1;
     }
 
-    /* 解析 .cboot 文件到一个临时 Project */
     Project *tmp_proj = domain_project_new("_im_tmp");
-    if (!tmp_proj) {
-        free(importer_path);
-        printf("错误: 无法创建临时项目\n");
-        return -1;
-    }
+    if (!tmp_proj) { free(importer_path); printf("错误: 无法创建临时项目\n"); return -1; }
 
-    /* 保存当前项目状态，切换到临时项目解析 */
     Project *saved_proj = g_proj;
     g_proj = tmp_proj;
-
     if (parser_parse_cboot_script(path) != 0) {
         printf("错误: 解析 .cboot 文件失败\n");
         g_proj = saved_proj;
@@ -1895,28 +1948,20 @@ int commands_cmd_im(const char *path) {
         free(importer_path);
         return -1;
     }
-
     g_proj = saved_proj;
 
-    /* 获取源模块路径（使用项目名作为标识） */
     char source_path_buf[MAX_PATH_LEN];
     snprintf(source_path_buf, sizeof(source_path_buf), "/%s", tmp_proj->root->name);
     char *source_path = utils_str_dup(source_path_buf);
-    /* 获取源项目名 */
     const char *src_name = tmp_proj->root->name;
 
-    /* 检查依赖是否已存在 */
     if (domain_project_has_dependency(g_proj, importer_path, source_path)) {
         printf("提示: 依赖 '%s' -> '%s' 已存在，跳过\n", importer_path, source_path);
-        g_proj = saved_proj;
         domain_project_free(tmp_proj);
         free(importer_path);
         free(source_path);
         return 0;
     }
-
-    /* 在当前模块下创建一个子模块作为 API 引用占位 */
-    /* 模块名使用源项目名 */
     if (domain_domain_find_child(importer, src_name)) {
         printf("错误: 当前模块下已存在同名子域 '%s'\n", src_name);
         domain_project_free(tmp_proj);
@@ -1926,18 +1971,13 @@ int commands_cmd_im(const char *path) {
     }
 
     ModuleDomain *api_ref = domain_module_domain_new(src_name);
-    api_ref->mode = MOD_MODE_EXTERNAL;  /* 标记为外部模块 */
+    api_ref->mode = MOD_MODE_EXTERNAL;
     char cmt_buf[MAX_PATH_LEN];
     snprintf(cmt_buf, sizeof(cmt_buf), "[API 引用] 从 %s 导入", path);
     domain_domain_set_comment((Domain *)api_ref, cmt_buf);
 
-    /* 从 tmp_proj 复制 API 项到 api_ref */
     commands_copy_api_items_recursive(tmp_proj->root, (Domain *)api_ref);
-
-    /* 添加到当前模块 */
     domain_domain_add_child(importer, (Domain *)api_ref);
-
-    /* 记录依赖链 */
     domain_project_add_dependency(g_proj, importer_path, source_path, path);
 
     printf("已从 %s 导入 API 定义到 %s（作为外部引用模块 %s）\n",
@@ -1948,6 +1988,27 @@ int commands_cmd_im(const char *path) {
     free(importer_path);
     free(source_path);
     return 0;
+}
+
+int commands_cmd_im(const char *path) {
+    if (!path) {
+        printf("用法: im <模块名|.cboot 文件>\n");
+        return -1;
+    }
+
+    Domain *importer = g_proj->current;
+    if (importer->type != DOMAIN_MODULE) {
+        printf("错误: im 只能在模块作用域中使用\n");
+        return -1;
+    }
+
+    char *importer_path = domain_domain_get_path(importer);
+
+    int len = (int)strlen(path);
+    int is_cboot_file = (len > 6 && strcmp(path + len - 6, ".cboot") == 0);
+
+    if (!is_cboot_file) return commands_im_internal(importer, path, importer_path);
+    return commands_im_external(importer, path, importer_path);
 }
 
 /* ================================================================== */

@@ -12,51 +12,49 @@
 /* Tokenization                                                        */
 /* ================================================================== */
 
+/* 复制 [start, start+len) 为新字符串并存入 tokens[token_count++] */
+static void tokenize_emit(char **tokens, int *token_count, const char *start, int len) {
+    if (*token_count >= MAX_TOKEN_COUNT) return;
+    char *t = (char *)malloc(len + 1);
+    if (t) {
+        memcpy(t, start, len);
+        t[len] = '\0';
+    }
+    tokens[(*token_count)++] = t;
+}
+
+/* 从引号字符串中提取 token：跳过开引号，读到闭引号，返回闭引号位置 */
+static const char *tokenize_quoted(const char *p, char **tokens, int *count) {
+    p++;  /* skip opening quote */
+    const char *start = p;
+    while (*p && *p != '"') p++;
+    tokenize_emit(tokens, count, start, (int)(p - start));
+    return (*p == '"') ? p + 1 : p;
+}
+
+/* 从普通 token 中提取：读到空白或引号 */
+static const char *tokenize_plain(const char *p, char **tokens, int *count) {
+    const char *start = p;
+    while (*p && !isspace((unsigned char)*p) && *p != '"') p++;
+    tokenize_emit(tokens, count, start, (int)(p - start));
+    return p;
+}
+
 char **tokenize(const char *line, int *count)
 {
     if (!line || !count) return NULL;
 
     char **tokens = (char **)malloc(sizeof(char *) * MAX_TOKEN_COUNT);
-    if (!tokens) {
-        *count = 0;
-        return NULL;
-    }
+    if (!tokens) { *count = 0; return NULL; }
 
     int token_count = 0;
     const char *p = line;
 
     while (*p) {
-        /* Skip whitespace */
         while (*p && isspace((unsigned char)*p)) p++;
         if (!*p) break;
-
-        if (token_count >= MAX_TOKEN_COUNT) break;
-
-        if (*p == '"') {
-            /* Quoted string - capture as single token without quotes */
-            p++; /* skip opening quote */
-            const char *start = p;
-            while (*p && *p != '"') p++;
-            int len = (int)(p - start);
-            tokens[token_count] = (char *)malloc(len + 1);
-            if (tokens[token_count]) {
-                memcpy(tokens[token_count], start, len);
-                tokens[token_count][len] = '\0';
-            }
-            token_count++;
-            if (*p == '"') p++; /* skip closing quote */
-        } else {
-            /* Unquoted token */
-            const char *start = p;
-            while (*p && !isspace((unsigned char)*p) && *p != '"') p++;
-            int len = (int)(p - start);
-            tokens[token_count] = (char *)malloc(len + 1);
-            if (tokens[token_count]) {
-                memcpy(tokens[token_count], start, len);
-                tokens[token_count][len] = '\0';
-            }
-            token_count++;
-        }
+        p = (*p == '"') ? tokenize_quoted(p, tokens, &token_count)
+                        : tokenize_plain(p, tokens, &token_count);
     }
 
     *count = token_count;
