@@ -2,8 +2,8 @@
 /* Module: main */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
- * Main entry point (新规范 v0.3.1)
+ * CBoot - C Project Bootstrapping Tool v0.4.0
+ * Main entry point (新规范 v0.4.0)
  */
 
 #include "cboot.h"
@@ -145,6 +145,7 @@ static int main_run_batch_script(const char *script_file) {
         fprintf(stderr, "cboot: 未找到脚本文件 '%s'\n", script_file);
         return 1;
     }
+    g_mode = MODE_BATCH;
     g_proj = domain_project_new("cboot_project");
     printf("CBoot V%s - 批处理模式 (%s)\n", CBOOT_VERSION, script_file);
     if (parser_parse_cboot_script(script_file) != 0) {
@@ -906,7 +907,7 @@ static int main_dispatch_action(const char *cmd, char **tokens, int count) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Command dispatcher (新规范 v0.3.1)                                     */
+/* Command dispatcher (新规范 v0.4.0)                                     */
 /* ------------------------------------------------------------------ */
 
 static int main_dispatch_command(char **tokens, int count) {

@@ -1,5 +1,5 @@
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
+ * CBoot - C Project Bootstrapping Tool v0.4.0
  * Domain data model
  */
 
@@ -290,6 +290,12 @@ void     domain_project_add_dependency(Project *proj, const char *importer_path,
 /* Check if a dependency already exists (importer->source) */
 int      domain_project_has_dependency(Project *proj, const char *importer_path,
                                 const char *source_path);
+
+/* Check if adding importer->source would create a dependency cycle.
+ * Returns 1 if a cycle would be created, 0 otherwise.
+ * A cycle exists if source (transitively) already depends on importer. */
+int      domain_project_would_cycle(Project *proj, const char *importer_path,
+                             const char *source_path);
 
 /* ------------------------------------------------------------------ */
 /* Type detection                                                       */

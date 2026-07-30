@@ -1,5 +1,5 @@
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
+ * CBoot - C Project Bootstrapping Tool v0.4.0
  *
  * Copyright (c) 2026 CBoot Contributors
  *
@@ -35,7 +35,7 @@
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
 
-#define CBOOT_VERSION      "0.3.1"
+#define CBOOT_VERSION      "0.4.0"
 #define MAX_LINE_LEN       4096
 #define MAX_PATH_LEN       1024
 #define MAX_NAME_LEN       256

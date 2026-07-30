@@ -2,7 +2,7 @@
 /* Module: utils */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
+ * CBoot - C Project Bootstrapping Tool v0.4.0
  * Utility functions
  */
 

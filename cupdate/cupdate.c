@@ -2,7 +2,7 @@
 /* Module: cupdate */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
+ * CBoot - C Project Bootstrapping Tool v0.4.0
  * cboot update 主逻辑
  *
  * 功能：

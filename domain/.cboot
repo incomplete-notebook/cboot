@@ -7,7 +7,7 @@ cmode normal
 code <<EOF
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
+ * CBoot - C Project Bootstrapping Tool v0.4.0
  * Domain tree operations
  */
 
@@ -673,6 +673,68 @@ int domain_project_has_dependency(Project *proj, const char *importer_path,
 		}
 	}
 	return 0;
+}
+
+/* 检查添加 importer->source 是否会形成循环依赖。
+ * 思路：若 source 已（直接或间接）依赖 importer，则会形成环。
+ * 从 source 出发做 BFS：若能到达 importer，则返回 1。
+ * 也处理自环（importer == source）。 */
+int domain_project_would_cycle(Project *proj, const char *importer_path,
+                                const char *source_path)
+{
+	if (!proj || !importer_path || !source_path) return 0;
+	if (utils_str_eq(importer_path, source_path)) return 1;
+
+	/* visited: 已访问的 importer（避免重复访问导致死循环） */
+	int visited_count = 0;
+	int visited_cap = 16;
+	char **visited = (char **)calloc(visited_cap, sizeof(char *));
+	if (!visited) return 0;
+
+	/* 队列：待访问的节点（作为 importer 查找其依赖的 source） */
+	int q_head = 0, q_tail = 0, q_cap = 16;
+	char **queue = (char **)calloc(q_cap, sizeof(char *));
+	if (!queue) { free(visited); return 0; }
+
+	queue[q_tail++] = utils_str_dup(source_path);
+	visited[visited_count++] = utils_str_dup(source_path);
+
+	int cycle = 0;
+	while (q_head < q_tail && !cycle) {
+		char *cur = queue[q_head++];
+		/* cur 作为 importer，找到它依赖的所有 source */
+		for (int i = 0; i < proj->dep_count; i++) {
+			if (!utils_str_eq(proj->dependencies[i].importer, cur)) continue;
+			const char *next = proj->dependencies[i].source;
+			/* 若 next 即为 importer_path，则形成环 */
+			if (utils_str_eq(next, importer_path)) { cycle = 1; break; }
+			/* 检查是否已访问 */
+			int seen = 0;
+			for (int j = 0; j < visited_count; j++) {
+				if (utils_str_eq(visited[j], next)) { seen = 1; break; }
+			}
+			if (seen) continue;
+			/* 入队 */
+			if (q_tail >= q_cap) {
+				q_cap *= 2;
+				queue = (char **)realloc(queue, sizeof(char *) * q_cap);
+			}
+			queue[q_tail++] = utils_str_dup(next);
+			/* 标记访问 */
+			if (visited_count >= visited_cap) {
+				visited_cap *= 2;
+				visited = (char **)realloc(visited, sizeof(char *) * visited_cap);
+			}
+			visited[visited_count++] = utils_str_dup(next);
+		}
+	}
+
+	/* 释放内存 */
+	for (int i = 0; i < visited_count; i++) free(visited[i]);
+	for (int i = 0; i < q_tail; i++) free(queue[i]);
+	free(visited);
+	free(queue);
+	return cycle;
 }
 
 /* ================================================================== */

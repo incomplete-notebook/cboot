@@ -7,8 +7,8 @@ cmode normal
 code <<EOF
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
- * Command handlers (新规范 v0.3.1)
+ * CBoot - C Project Bootstrapping Tool v0.4.0
+ * Command handlers (新规范 v0.4.0)
  *
  * 命令体系:
  *   建立域: mod/struct/type/def <name>
@@ -777,13 +777,20 @@ int commands_cmd_rm(const char *name, int force) {
     }
 
     /* Confirm deletion */
+    /* 批处理模式下不进行交互确认：无 -f 时直接取消并返回错误，
+     * 避免在脚本中输出无意义的 (y/N) 提示。脚本如需删除请使用 rm -f。 */
+    if (g_mode == MODE_BATCH) {
+        printf("错误: 批处理模式下删除 '%s' 需使用 -f 强制确认\n", name);
+        return -1;
+    }
+
     printf("确认删除 %s '%s'? (y/N): ", commands_domain_type_name(child->type), name);
     fflush(stdout);
 
     char line[MAX_LINE_LEN];
     if (fgets(line, sizeof(line), stdin) == NULL) {
         printf("已取消。\n");
-        return 0;
+        return -1;
     }
 
     if (line[0] == 'y' || line[0] == 'Y') {
@@ -1896,6 +1903,12 @@ static Domain *commands_im_find_sibling(Domain *importer, const char *path) {
 
 /* 项目内兄弟模块导入 */
 static int commands_im_internal(Domain *importer, const char *path, char *importer_path) {
+    /* 自环检查：模块不能导入自身 */
+    if (importer->name && utils_str_eq(importer->name, path)) {
+        printf("错误: 循环依赖检测失败 — '%s' 不能导入自身\n", importer_path);
+        free(importer_path);
+        return -1;
+    }
     Domain *src_mod = commands_im_find_sibling(importer, path);
     if (!src_mod) {
         printf("错误: 未找到项目内模块 '%s'\n", path);
@@ -1908,6 +1921,19 @@ static int commands_im_internal(Domain *importer, const char *path, char *import
         return 0;
     }
 
+    char *src_path = domain_domain_get_path(src_mod);
+    char source_path_buf[MAX_PATH_LEN];
+    snprintf(source_path_buf, sizeof(source_path_buf), "%s", src_path);
+
+    /* 循环依赖检查：若 src_path 已（直接或间接）依赖 importer_path，则禁止 */
+    if (domain_project_would_cycle(g_proj, importer_path, source_path_buf)) {
+        printf("错误: 循环依赖检测失败 — '%s' -> '%s' 会形成依赖环\n",
+               importer_path, source_path_buf);
+        free(src_path);
+        free(importer_path);
+        return -1;
+    }
+
     ModuleDomain *api_ref = domain_module_domain_new(path);
     api_ref->mode = MOD_MODE_EXTERNAL;
     char cmt_buf[MAX_PATH_LEN];
@@ -1916,10 +1942,6 @@ static int commands_im_internal(Domain *importer, const char *path, char *import
 
     commands_copy_api_items_recursive(src_mod, (Domain *)api_ref);
     domain_domain_add_child(importer, (Domain *)api_ref);
-
-    char source_path_buf[MAX_PATH_LEN];
-    char *src_path = domain_domain_get_path(src_mod);
-    snprintf(source_path_buf, sizeof(source_path_buf), "%s", src_path);
     domain_project_add_dependency(g_proj, importer_path, source_path_buf, path);
     free(src_path);
 
@@ -1961,6 +1983,15 @@ static int commands_im_external(Domain *importer, const char *path, char *import
         free(importer_path);
         free(source_path);
         return 0;
+    }
+    /* 循环依赖检查：若 source_path 已（直接或间接）依赖 importer_path，则禁止 */
+    if (domain_project_would_cycle(g_proj, importer_path, source_path)) {
+        printf("错误: 循环依赖检测失败 — '%s' -> '%s' 会形成依赖环\n",
+               importer_path, source_path);
+        domain_project_free(tmp_proj);
+        free(importer_path);
+        free(source_path);
+        return -1;
     }
     if (domain_domain_find_child(importer, src_name)) {
         printf("错误: 当前模块下已存在同名子域 '%s'\n", src_name);
@@ -2103,9 +2134,10 @@ int commands_cmd_res(const char *file_path) {
         return -1;
     }
 
-    /* Check if source file exists */
+    /* Check if source file exists — 资源文件不存在则报错拒绝，避免生成时引用缺失 */
     if (!utils_file_exists(file_path)) {
-        printf("警告: 资源文件 '%s' 不存在\n", file_path);
+        printf("错误: 资源文件 '%s' 不存在\n", file_path);
+        return -1;
     }
 
     /* Get basename */
