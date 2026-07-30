@@ -6,23 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-// 目录路径
-void utils_ensure_dir(const char* path);
-
-// 字符串B
-int utils_str_eq(const char* a, const char* b);
-
-// 源字符串
-char* utils_str_dup(const char* str);
-
-// 待处理字符串
-void utils_strip_quotes(char* str);
-
 char** utils_tokenize(const char* line, int* count);
 
 void utils_free_tokens(char** tokens, int count);
 
 char* utils_trim(char* str);
+
+char* utils_str_dup(const char* str);
+
+int utils_str_eq(const char* a, const char* b);
 
 int utils_str_startswith(const char* str, const char* prefix);
 
@@ -36,6 +28,10 @@ char* utils_extract_name_from_decl(const char* decl);
 
 int utils_is_valid_identifier(const char* name);
 
+void utils_ensure_dir(const char* path);
+
 int utils_file_exists(const char* path);
+
+void utils_strip_quotes(char* str);
 
 #endif /* UTILS_H */

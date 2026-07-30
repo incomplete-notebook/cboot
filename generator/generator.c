@@ -168,6 +168,54 @@ int generator_generate_project(Project *proj) {
 }
 
 /* ================================================================== */
+/* generator_generate_cboot_only - 仅重新生成 .cboot 文件                  */
+/* ================================================================== */
+
+/* 递归辅助函数：仅生成模块的 .cboot 文件 */
+static void generator_generate_cboot_only_recursive(Domain *mod, const char *parent_dir) {
+    if (!mod || mod->type != DOMAIN_MODULE) return;
+
+    char mod_dir[MAX_PATH_LEN];
+    if (strcmp(parent_dir, ".") == 0) {
+        snprintf(mod_dir, sizeof(mod_dir), "%s", mod->name);
+    } else {
+        snprintf(mod_dir, sizeof(mod_dir), "%s/%s", parent_dir, mod->name);
+    }
+
+    /* 仅生成 .cboot 文件 */
+    generator_generate_mod_cboot(mod, mod_dir);
+
+    /* 递归处理子模块 */
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            ModuleDomain *cmd = (ModuleDomain *)child;
+            /* 跳过 EXTERNAL 模式模块（im 导入的 API 引用，无需生成 .cboot） */
+            if (cmd->mode != MOD_MODE_EXTERNAL) {
+                generator_generate_cboot_only_recursive(child, mod_dir);
+            }
+        }
+    }
+}
+
+int generator_generate_cboot_only(Project *proj) {
+    if (!proj || !proj->root) return -1;
+
+    /* 递归生成所有模块的 .cboot 文件 */
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            generator_generate_cboot_only_recursive(child, ".");
+        }
+    }
+
+    /* 生成项目级 .cboot */
+    generator_generate_project_cboot(proj);
+
+    return 0;
+}
+
+/* ================================================================== */
 /* generator_generate_module - recursively generate code for a module            */
 /* ================================================================== */
 
@@ -541,8 +589,19 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
             fprintf(f, "\n");
         }
         else if (child->type == DOMAIN_STRUCT && docgen_is_api(child)) {
+            /* API 结构体：输出完整定义（含成员），供调用方直接访问字段。
+             * 仅前向声明 (typedef struct X X;) 会导致调用方无法访问成员，
+             * 使依赖该结构体的 .c 编译失败。 */
             if (child->comment) fprintf(f, "// %s\n", child->comment);
-            fprintf(f, "typedef struct %s %s;\n\n", child->name, child->name);
+            fprintf(f, "typedef struct %s {\n", child->name);
+            for (int j = 0; j < child->child_count; j++) {
+                Domain *mem = child->children[j];
+                if (mem->type == DOMAIN_MEMBER) {
+                    MemberDomain *mb = (MemberDomain *)mem;
+                    fprintf(f, "    %s %s;\n", mb->type, mem->name);
+                }
+            }
+            fprintf(f, "} %s;\n\n", child->name);
         }
     }
 
@@ -955,16 +1014,25 @@ static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
         }
     }
 
-    /* 子模块引用：每个子模块通过 <name>/.cboot 引用 */
+    /* 子模块引用：每个子模块通过 <name>/.cboot 引用。
+     * EXTERNAL 模式模块（im 导入的 API 引用）输出为 im <name>，
+     * 不能输出为 <name>/.cboot，否则会被 parser 当作子模块引用，
+     * 创建多余的子模块并加载同名 .cboot 文件，导致结构混乱。 */
     int has_submods = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
         if (child->type == DOMAIN_MODULE) {
+            ModuleDomain *cmd = (ModuleDomain *)child;
             if (!has_submods) {
                 fprintf(f, "\n# 子模块引用\n");
                 has_submods = 1;
             }
-            fprintf(f, "%s/.cboot\n", child->name);
+            if (cmd->mode == MOD_MODE_EXTERNAL) {
+                /* im 导入的 API 引用：输出为 im <name> */
+                fprintf(f, "im %s\n", child->name);
+            } else {
+                fprintf(f, "%s/.cboot\n", child->name);
+            }
         }
     }
 
@@ -1186,10 +1254,8 @@ static void generator_generate_project_cboot(Project *proj) {
 
     /* 顶级模块通过 <mod>/.cboot 引用，不在此重复定义 */
     fprintf(f, "# 顶级模块引用\n");
-    fprintf(stderr, "DEBUG generator_generate_project_cboot: root->child_count=%d\n", proj->root->child_count);
     for (int i = 0; i < proj->root->child_count; i++) {
         Domain *child = proj->root->children[i];
-        fprintf(stderr, "  child[%d]: name='%s' type=%d\n", i, child->name ? child->name : "<null>", child->type);
         if (child->type == DOMAIN_MODULE) {
             fprintf(f, "%s/.cboot\n", child->name);
         }
@@ -1198,5 +1264,15 @@ static void generator_generate_project_cboot(Project *proj) {
     fprintf(f, "\ngen\n");
     fclose(f);
 }
+
+
+
+
+
+
+
+
+
+
 
 

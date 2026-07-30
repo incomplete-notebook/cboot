@@ -499,10 +499,7 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
 int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
 {
     if (!mod || mod->base.type != DOMAIN_MODULE) return -1;
-    fprintf(stderr, "DEBUG cupdate_run_module: mod='%s' mode=%d compiler=%d dir='%s'\n",
-            mod->base.name, mod->mode, mod->compiler, mod_dir);
     if (mod->mode != MOD_MODE_SRC) {
-        fprintf(stderr, "  SKIP: mode != MOD_MODE_SRC\n");
         return 0;  /* 非 src 模式跳过 */
     }
 
@@ -524,17 +521,6 @@ int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
     CUPResult result;
     cupdate_result_init(&result);
     cupdate_parse_source(source, cfile, &result);
-
-    /* 调试：打印解析结果 */
-    fprintf(stderr, "DEBUG cupdate: parsed %d decls from %s\n", result.decl_count, cfile);
-    for (int i = 0; i < result.decl_count; i++) {
-        CUPDecl *d = &result.decls[i];
-        fprintf(stderr, "  decl[%d]: kind=%d name='%s' return='%s' call='%s' func_def=%d\n",
-                i, d->kind, d->name ? d->name : "<null>",
-                d->return_type ? d->return_type : "<null>",
-                d->call ? d->call : "<null>",
-                d->is_function_def);
-    }
 
     /* 打印解析错误/警告 */
     for (int i = 0; i < result.error_count; i++) {
@@ -704,11 +690,8 @@ static int cup_update_recursive(Domain *dom, const char *dir,
                                  int *total_errors, int *total_warnings)
 {
     int rc = 0;
-    fprintf(stderr, "DEBUG cup_update_recursive: dom='%s' type=%d child_count=%d dir='%s'\n",
-            dom->name ? dom->name : "<null>", dom->type, dom->child_count, dir);
     if (dom->type == DOMAIN_MODULE) {
         ModuleDomain *mod = (ModuleDomain *)dom;
-        fprintf(stderr, "  module mode=%d\n", mod->mode);
         if (mod->mode == MOD_MODE_SRC) {
             int r = cupdate_run_module(mod, dir);
             if (r != 0) {
@@ -720,7 +703,6 @@ static int cup_update_recursive(Domain *dom, const char *dir,
     /* 递归子域：仅对模块类型递归（子模块） */
     for (int i = 0; i < dom->child_count; i++) {
         Domain *c = dom->children[i];
-        fprintf(stderr, "  child[%d]: name='%s' type=%d\n", i, c->name ? c->name : "<null>", c->type);
         if (c->type == DOMAIN_MODULE) {
             char subdir[MAX_PATH_LEN];
             snprintf(subdir, sizeof(subdir), "%s/%s", dir, c->name);
@@ -751,18 +733,26 @@ int cupdate_run_project(Project *proj, int *error_count_out, int *warning_count_
         printf("cboot update: 完成\n");
     }
 
-    /* 重新生成 .cboot 文件和 CMake 文件。
-     * 注意：generator_generate_project 会重新生成所有文件（.c/.h/.cboot/CMake），
-     * 但因为 src 模块的 code 字段已设置为用户源码，.c 文件会被原样输出，
-     * 不会丢失用户修改。 */
-    printf("cboot update: 重新生成项目文件...\n");
-    if (generator_generate_project(proj) != 0) {
-        fprintf(stderr, "cboot update: 项目文件重新生成失败\n");
+    /* 仅重新生成 .cboot 文件（不覆盖 .c/.h/CMake），
+     * 避免丢失用户手写的 .h 文件中的结构体定义等。
+     * 用户如需重新生成 .c/.h/CMake，可手动执行 gen 命令。 */
+    printf("cboot update: 重新生成 .cboot 描述文件...\n");
+    if (generator_generate_cboot_only(proj) != 0) {
+        fprintf(stderr, "cboot update: .cboot 文件重新生成失败\n");
         return -1;
     }
-    docgen_generate_docs(proj, ".");
 
     printf("cboot update: 项目已同步\n");
     return rc;
 }
+
+
+
+
+
+
+
+
+
+
 

@@ -1,26 +1,19 @@
 # main
 
-可执行入口模块 - CBoot的主程序入口
-
 ## 文档
 
 - [API 文档](API.md) — 公开接口定义
 - [开发文档](DEV.md) — 内部设计与实现
 
-## 子模块
-
-- [domain](domain/README.md): [API 引用] 从项目内模块 domain 导入
-- [cupdate](cupdate/README.md): [API 引用] 从项目内模块 cupdate 导入
-
 ## 内容概览
 
 | 名称 | 类型 | API | 说明 |
 |------|------|-----|------|
-| `main` | 函数 | ✓ | 命令行参数数组 |
 | `print_usage` | 函数 | — | - |
 | `repl_loop` | 函数 | — | - |
 | `dispatch_command` | 函数 | — | - |
 | `detect_fine_tune_mode` | 函数 | — | - |
+| `main` | 函数 | ✓ | - |
 | `try_complete` | 函数 | — | - |
 | `common_prefix_len` | 函数 | — | - |
 | `do_tab_complete` | 函数 | — | - |

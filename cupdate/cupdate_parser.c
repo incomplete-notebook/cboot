@@ -268,8 +268,6 @@ static char cup_parse_type_specifier(CuParser *p, SB *type_sb,
 
     while (1) {
         int k = CUR(p);
-        fprintf(stderr, "DEBUG cup_parse_type_specifier: k=%d '%s' saw_type=%d\n",
-                k, p->lex->cur.str ? p->lex->cur.str : "<null>", saw_type);
         if (k == CUP_TOK_STATIC) {
             if (is_static_out) *is_static_out = 1;
             NEXT(p);
@@ -337,11 +335,6 @@ static char cup_parse_type_specifier(CuParser *p, SB *type_sb,
                 saw_type = 1;
                 continue;
             }
-        }
-        /* 调试：如果 saw_type 为真但遇到了 CUP_TOK_ID，可能是调用约定或其他修饰符 */
-        if (k == CUP_TOK_ID && saw_type) {
-            fprintf(stderr, "DEBUG type_specifier: saw ID '%s' after type, saw_type=%d\n",
-                    p->lex->cur.str ? p->lex->cur.str : "<null>", saw_type);
         }
         break;
     }
@@ -1191,9 +1184,6 @@ static void cup_parse_function_or_var(CuParser *p, SB *base_type_sb,
 
         /* 尝试提取调用约定（在类型和函数名之间） */
         char *call_conv = cup_try_extract_calling_convention(p);
-        fprintf(stderr, "DEBUG cup_parse_function_or_var: call_conv=%p, CUR(p)=%d '%s'\n",
-                (void *)call_conv, CUR(p),
-                p->lex->cur.str ? p->lex->cur.str : "<null>");
 
         int is_func = 0, is_func_def = 0;
         CUParParam *params = NULL;

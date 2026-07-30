@@ -25,6 +25,13 @@
 build/
 build*/
 
+# Generated binaries (no extension)
+cboot_bin
+cboot_bin_*
+
+# Generated top-level entry point
+/main.c
+
 # CMake
 CMakeLists.txt.user
 CMakeCache.txt

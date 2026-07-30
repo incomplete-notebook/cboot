@@ -216,8 +216,6 @@ static void cu_skip_ws(CuLexer *lex)
 {
     while (lex->pos < lex->src_len) {
         char c = cu_peek_char(lex, 0);
-        fprintf(stderr, "DEBUG cu_skip_ws: checking pos=%zu c='%c'(%d)\n",
-                lex->pos, c, (unsigned char)c);
         if (c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v') {
             cu_read_char(lex);
             continue;
@@ -233,14 +231,12 @@ static void cu_skip_ws(CuLexer *lex)
         }
         if (c == '/' && cu_peek_char(lex, 1) == '/') {
             /* 行注释 */
-            fprintf(stderr, "DEBUG cu_skip_ws: skipping line comment at pos=%zu\n", lex->pos);
             while (lex->pos < lex->src_len && cu_peek_char(lex, 0) != '\n')
                 cu_read_char(lex);
             continue;
         }
         if (c == '/' && cu_peek_char(lex, 1) == '*') {
             /* 块注释 */
-            fprintf(stderr, "DEBUG cu_skip_ws: skipping block comment at pos=%zu\n", lex->pos);
             cu_read_char(lex);
             cu_read_char(lex);
             while (lex->pos < lex->src_len) {
@@ -255,9 +251,6 @@ static void cu_skip_ws(CuLexer *lex)
         }
         break;
     }
-    fprintf(stderr, "DEBUG cu_skip_ws: done, pos=%zu c='%c'(%d)\n",
-            lex->pos, lex->pos < lex->src_len ? cu_peek_char(lex, 0) : 'E',
-            lex->pos < lex->src_len ? (unsigned char)cu_peek_char(lex, 0) : -1);
 }
 
 /* 解析字符串/字符转义序列，返回字符值，p 指向反斜杠后第一个字符 */
@@ -491,8 +484,6 @@ static void cu_read_identifier(CuLexer *lex, CuToken *out)
     }
     buf[len] = '\0';
 
-    fprintf(stderr, "DEBUG cu_read_identifier: buf='%s' len=%zu\n", buf, len);
-
     int kw = cu_lookup_keyword(buf, (int)len);
     if (kw) {
         out->kind = kw;
@@ -562,9 +553,6 @@ void cu_lex_init(CuLexer *lex, const char *source, const char *filename,
     cu_token_init(&lex->peek);
     lex->result = result;
 
-    fprintf(stderr, "DEBUG cu_lex_init: src_len=%zu\n", lex->src_len);
-    fprintf(stderr, "DEBUG cu_lex_init: src=%.160s\n", source);
-
     /* 预扫描第一个 token 到 cur */
     cu_lex_scan(lex);
 }
@@ -595,16 +583,11 @@ static int cu_lex_scan(CuLexer *lex)
         char c2 = cu_peek_char(lex, 1);
         char c3 = cu_peek_char(lex, 2);
 
-        fprintf(stderr, "DEBUG lex_scan: pos=%zu c='%c'(%d) at_line_start=%d\n",
-                lex->pos, c, (unsigned char)c, lex->at_line_start);
-
         /* 行首的 #：预处理器指令 */
         if (lex->at_line_start && c == '#') {
             cu_read_pp_line(lex, &lex->cur);
             lex->cur.start_pos = token_start_pos;
             lex->at_line_start = 0;
-            fprintf(stderr, "DEBUG lex: PP token '%s' at line %d\n",
-                    lex->cur.str ? lex->cur.str : "<null>", lex->cur.line);
             return lex->cur.kind;
         }
 
@@ -621,8 +604,6 @@ static int cu_lex_scan(CuLexer *lex)
         if (isalpha((unsigned char)c) || c == '_' || (c & 0x80)) {
             cu_read_identifier(lex, &lex->cur);
             lex->cur.start_pos = token_start_pos;
-            fprintf(stderr, "DEBUG lex: ID token '%s' kind=%d at line %d\n",
-                    lex->cur.str ? lex->cur.str : "<null>", lex->cur.kind, lex->cur.line);
             return lex->cur.kind;
         }
 

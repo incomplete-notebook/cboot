@@ -1,4 +1,4 @@
-/* main.c - CBoot generated (compiler: exe) */
+/* main.c - CBoot generated (compiler: normal) */
 /* Module: main */
 
 /*
@@ -21,6 +21,7 @@ Project *g_proj   = NULL;
 RunMode  g_mode   = MODE_INTERACTIVE;
 int      g_force  = 0;
 int      g_running = 1;
+int      g_skip_gen = 0;  /* 加载 .cboot 时跳过 gen 命令 (analyze 使用) */
 
 /* ------------------------------------------------------------------ */
 /* Forward declarations                                               */
@@ -42,11 +43,14 @@ int main(int argc, char **argv) {
 
     /* 解析命令行参数 */
     int adjust_mode = 0;
+    int analyze_mode = 0;
     for (int i = 1; i < argc; i++) {
         if (utils_str_eq(argv[i], "-f") || utils_str_eq(argv[i], "--force")) {
             g_force = 1;
         } else if (utils_str_eq(argv[i], "adjust")) {
             adjust_mode = 1;
+        } else if (utils_str_eq(argv[i], "analyze")) {
+            analyze_mode = 1;
         } else if (utils_str_eq(argv[i], "-h") || utils_str_eq(argv[i], "--help")) {
             main_print_usage(argv[0]);
             return 0;
@@ -65,7 +69,7 @@ int main(int argc, char **argv) {
         } else {
             /* 判断是 .cboot 脚本文件还是项目名 */
             int len = (int)strlen(argv[i]);
-            if (len > 6 && strcmp(argv[i] + len - 6, ".cboot") == 0) {
+            if (len >= 6 && strcmp(argv[i] + len - 6, ".cboot") == 0) {
                 script_file = argv[i];
             } else {
                 proj_name = argv[i];
@@ -102,6 +106,22 @@ int main(int argc, char **argv) {
         printf("项目 '%s' 已加载。\n\n", g_proj->root->name);
         commands_cmd_adjust();
         main_repl_loop();
+        domain_project_free(g_proj);
+        return 0;
+    }
+
+    /* analyze 模式：加载已有项目，执行代码分析（加载时跳过 gen） */
+    if (analyze_mode) {
+        if (!utils_file_exists(".cboot")) {
+            fprintf(stderr, "cboot: 当前目录没有 .cboot 文件\n");
+            return 1;
+        }
+        g_mode = MODE_BATCH;
+        g_proj = domain_project_new("cboot_project");
+        g_skip_gen = 1;  /* 加载时跳过 gen，避免破坏源码 */
+        parser_parse_cboot_script(".cboot");
+        g_skip_gen = 0;
+        commands_cmd_analyze();
         domain_project_free(g_proj);
         return 0;
     }
@@ -208,6 +228,7 @@ static void main_print_usage(const char *prog) {
     printf("  %s <项目名> -f         交互模式，强制重建项目\n", prog);
     printf("  %s <file.cboot>        执行指定的 .cboot 脚本文件\n", prog);
     printf("  %s adjust              微调模式：update同步后进入交互式REPL\n", prog);
+    printf("  %s analyze              分析模式：统计代码行数/圈复杂度/重复率\n", prog);
     printf("  %s                     批处理模式，读取当前目录 .cboot\n", prog);
     printf("  %s -to_cboot <目录>    反向工程：将 C 项目转为 .cboot\n", prog);
     printf("  %s -v                  显示版本号\n", prog);
@@ -236,6 +257,8 @@ static void main_print_usage(const char *prog) {
     printf("  其他:\n");
     printf("    gen                    生成代码\n");
     printf("    update                 扫描源码同步 .cboot（更新 code 和 API 定义）\n");
+    printf("    analyze                统计代码行数/圈复杂度/代码重复率\n");
+    printf("    adjust                 update 同步后进入交互式 REPL\n");
     printf("    im <.cboot 文件>       导入脚本\n");
     printf("    res <文件>             添加资源\n");
     printf("    exit                   退出\n");
@@ -248,9 +271,9 @@ static void main_print_usage(const char *prog) {
 /* All command names for tab completion */
 static const char *g_cmd_names[] = {
     "mod", "struct", "type", "def", "void", "var", "mem", "enum",
-    "cmt", "value", "mode", "cmode", "code",
+    "cmt", "value", "call", "mode", "cmode", "code",
     "cd", "rm", "mv", "find", "ls",
-    "gen", "update", "im", "in", "res", "exit", "help", "?",
+    "gen", "update", "analyze", "adjust", "im", "in", "res", "exit", "help", "?",
     NULL
 };
 
@@ -847,7 +870,13 @@ static int main_dispatch_command(char **tokens, int count) {
 
     /* 生成 */
     if (utils_str_eq(cmd, "gen")) {
+        if (g_skip_gen) return 0;  /* 加载阶段跳过 gen */
         return commands_cmd_gen();
+    }
+
+    /* 分析：统计代码行数/圈复杂度/重复率 */
+    if (utils_str_eq(cmd, "analyze")) {
+        return commands_cmd_analyze();
     }
 
     /* 更新：扫描源码同步 .cboot */
@@ -886,4 +915,14 @@ static int main_dispatch_command(char **tokens, int count) {
     printf("未知命令: %s (输入 help 查看帮助)\n", cmd);
     return -1;
 }
+
+
+
+
+
+
+
+
+
+
 

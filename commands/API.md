@@ -11,24 +11,31 @@
 - [cmd_void](#cmd_void)
 - [cmd_var](#cmd_var)
 - [cmd_mem](#cmd_mem)
+- [cmd_enum](#cmd_enum)
 - [cmd_cmt](#cmd_cmt)
+- [cmd_value](#cmd_value)
+- [cmd_call](#cmd_call)
 - [cmd_mode](#cmd_mode)
 - [cmd_cmode](#cmd_cmode)
 - [cmd_cd](#cmd_cd)
-- [cmd_gen](#cmd_gen)
-- [cmd_im](#cmd_im)
-- [cmd_in](#cmd_in)
-- [cmd_help](#cmd_help)
-- [cmd_quit](#cmd_quit)
-- [cmd_enum](#cmd_enum)
-- [cmd_value](#cmd_value)
-- [cmd_call](#cmd_call)
 - [cmd_rm](#cmd_rm)
 - [cmd_find](#cmd_find)
 - [cmd_ls](#cmd_ls)
 - [cmd_mv](#cmd_mv)
 - [cmd_exit](#cmd_exit)
+- [cmd_gen](#cmd_gen)
 - [cmd_update](#cmd_update)
+- [ANALYZE_NGRAM_SIZE](#ANALYZE_NGRAM_SIZE)
+- [ANALYZE_MAX_MODS](#ANALYZE_MAX_MODS)
+- [ANALYZE_MAX_FUNCS](#ANALYZE_MAX_FUNCS)
+- [ANALYZE_MAX_TOKENS](#ANALYZE_MAX_TOKENS)
+- [AnalyzeMod](#AnalyzeMod)
+- [AnalyzeFunc](#AnalyzeFunc)
+- [AnalyzeToken](#AnalyzeToken)
+- [cmd_analyze](#cmd_analyze)
+- [cmd_adjust](#cmd_adjust)
+- [cmd_im](#cmd_im)
+- [cmd_in](#cmd_in)
 - [cmd_res](#cmd_res)
 
 ---
@@ -36,8 +43,6 @@
 ## 函数
 
 ### int cmd_mod()
-
-模块名称
 
 ```c
 int cmd_mod(const char* name)
@@ -51,8 +56,6 @@ int cmd_mod(const char* name)
 
 ### int cmd_struct()
 
-结构体名称
-
 ```c
 int cmd_struct(const char* name)
 ```
@@ -64,8 +67,6 @@ int cmd_struct(const char* name)
 | `name` | `const char*` | - |
 
 ### int cmd_type()
-
-类型名称
 
 ```c
 int cmd_type(const char* name)
@@ -79,8 +80,6 @@ int cmd_type(const char* name)
 
 ### int cmd_def()
 
-宏名称
-
 ```c
 int cmd_def(const char* name)
 ```
@@ -92,8 +91,6 @@ int cmd_def(const char* name)
 | `name` | `const char*` | - |
 
 ### int cmd_void()
-
-返回类型
 
 ```c
 int cmd_void(const char* name, const char* return_type)
@@ -108,8 +105,6 @@ int cmd_void(const char* name, const char* return_type)
 
 ### int cmd_var()
 
-变量类型
-
 ```c
 int cmd_var(const char* name, const char* type)
 ```
@@ -123,8 +118,6 @@ int cmd_var(const char* name, const char* type)
 
 ### int cmd_mem()
 
-类型
-
 ```c
 int cmd_mem(const char* name, const char* type)
 ```
@@ -135,114 +128,6 @@ int cmd_mem(const char* name, const char* type)
 |------|------|------|
 | `name` | `const char*` | - |
 | `type` | `const char*` | - |
-
-### int cmd_cmt()
-
-注释文本
-
-```c
-int cmd_cmt(const char* text)
-```
-
-**参数**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `text` | `const char*` | - |
-
-### int cmd_mode()
-
-模式值(api/normal/internal/external/static/rename/struct等)
-
-```c
-int cmd_mode(const char* text)
-```
-
-**参数**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `text` | `const char*` | - |
-
-### int cmd_cmode()
-
-编译器模式值(exe/sl/dl/normal)
-
-```c
-int cmd_cmode(const char* text)
-```
-
-**参数**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `text` | `const char*` | - |
-
-### int cmd_cd()
-
-目标路径(支持..和/前缀)
-
-```c
-int cmd_cd(const char* path)
-```
-
-**参数**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `path` | `const char*` | - |
-
-### int cmd_gen()
-
-生成项目代码命令
-
-```c
-int cmd_gen()
-```
-
-### int cmd_im()
-
-源.cboot文件路径
-
-```c
-int cmd_im(const char* path)
-```
-
-**参数**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `path` | `const char*` | - |
-
-### int cmd_in()
-
-源.cboot文件路径
-
-```c
-int cmd_in(const char* path)
-```
-
-**参数**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `path` | `const char*` | - |
-
-### int cmd_help()
-
-帮助命令
-
-```c
-int cmd_help()
-```
-
-### int cmd_quit()
-
-退出命令
-
-```c
-int cmd_quit()
-```
 
 ### int cmd_enum()
 
@@ -256,6 +141,18 @@ int cmd_enum(const char* defs, const char* start_num_str)
 |------|------|------|
 | `defs` | `const char*` | - |
 | `start_num_str` | `const char*` | - |
+
+### int cmd_cmt()
+
+```c
+int cmd_cmt(const char* text)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `text` | `const char*` | - |
 
 ### int cmd_value()
 
@@ -280,6 +177,42 @@ int cmd_call(const char* call_conv)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `call_conv` | `const char*` | - |
+
+### int cmd_mode()
+
+```c
+int cmd_mode(const char* text)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `text` | `const char*` | - |
+
+### int cmd_cmode()
+
+```c
+int cmd_cmode(const char* text)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `text` | `const char*` | - |
+
+### int cmd_cd()
+
+```c
+int cmd_cd(const char* path)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `path` | `const char*` | - |
 
 ### int cmd_rm()
 
@@ -339,11 +272,53 @@ int cmd_mv(const char* src, const char* target)
 int cmd_exit()
 ```
 
+### int cmd_gen()
+
+```c
+int cmd_gen()
+```
+
 ### int cmd_update()
 
 ```c
 int cmd_update()
 ```
+
+### int cmd_analyze()
+
+```c
+int cmd_analyze()
+```
+
+### int cmd_adjust()
+
+```c
+int cmd_adjust()
+```
+
+### int cmd_im()
+
+```c
+int cmd_im(const char* path)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `path` | `const char*` | - |
+
+### int cmd_in()
+
+```c
+int cmd_in(const char* path)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `path` | `const char*` | - |
 
 ### int cmd_res()
 
@@ -357,9 +332,50 @@ int cmd_res(const char* file_path)
 |------|------|------|
 | `file_path` | `const char*` | - |
 
-## 子模块
+## 类型
 
-- [domain API](domain/API.md)
-- [cupdate API](cupdate/API.md)
+### AnalyzeMod
+
+```c
+typedef struct AnalyzeMod;
+```
+
+### AnalyzeFunc
+
+```c
+typedef struct AnalyzeFunc;
+```
+
+### AnalyzeToken
+
+```c
+typedef struct AnalyzeToken;
+```
+
+## 宏
+
+### `ANALYZE_NGRAM_SIZE`
+
+```c
+#define ANALYZE_NGRAM_SIZE 8
+```
+
+### `ANALYZE_MAX_MODS`
+
+```c
+#define ANALYZE_MAX_MODS 256
+```
+
+### `ANALYZE_MAX_FUNCS`
+
+```c
+#define ANALYZE_MAX_FUNCS 2048
+```
+
+### `ANALYZE_MAX_TOKENS`
+
+```c
+#define ANALYZE_MAX_TOKENS 8192
+```
 
 *Generated by CBoot v0.3.1*

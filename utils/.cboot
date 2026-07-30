@@ -343,6 +343,17 @@ void utils_strip_quotes(char *str)
         str[len - 2] = '\0';
     }
 }
+
+
+
+
+
+
+
+
+
+
+
 EOF
 im domain
 void ensure_dir void
@@ -433,6 +444,6 @@ mem path const char*
 cd ..
 
 # 子模块引用
-domain/.cboot
+im domain
 
 # End of .cboot for utils

@@ -1,22 +1,14 @@
 # typecheck
 
-类型检查器 - 检查域类型一致性和符号冲突
-
 ## 文档
 
 - [API 文档](API.md) — 公开接口定义
 - [开发文档](DEV.md) — 内部设计与实现
 
-## 子模块
-
-- [domain](domain/README.md): [API 引用] 从项目内模块 domain 导入
-
 ## 内容概览
 
 | 名称 | 类型 | API | 说明 |
 |------|------|-----|------|
-| `typecheck_domain` | 函数 | ✓ | 待检查域 |
-| `typecheck_project` | 函数 | ✓ | 项目定义 |
 | `strip_pointer` | 函数 | — | - |
 | `strip_qualifiers` | 函数 | — | - |
 | `type_checker_is_builtin` | 函数 | ✓ | - |

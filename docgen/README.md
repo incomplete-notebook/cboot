@@ -1,22 +1,14 @@
 # docgen
 
-文档生成器 - 生成README.md/API.md/DEV.md三种文档
-
 ## 文档
 
 - [API 文档](API.md) — 公开接口定义
 - [开发文档](DEV.md) — 内部设计与实现
 
-## 子模块
-
-- [domain](domain/README.md): [API 引用] 从项目内模块 domain 导入
-
 ## 内容概览
 
 | 名称 | 类型 | API | 说明 |
 |------|------|-----|------|
-| `generate_docs` | 函数 | ✓ | 输出目录 |
-| `generate_module_docs` | 函数 | ✓ | 模块目录路径 |
 | `generate_mod_readme` | 函数 | — | - |
 | `generate_mod_api` | 函数 | — | - |
 | `generate_mod_dev` | 函数 | — | - |
@@ -25,6 +17,8 @@
 | `generate_dependencies_doc` | 函数 | — | - |
 | `is_api` | 函数 | — | - |
 | `domain_type_str` | 函数 | — | - |
+| `generate_docs` | 函数 | ✓ | - |
+| `generate_module_docs` | 函数 | ✓ | - |
 | `write_dev_functions` | 函数 | — | - |
 | `write_dev_types` | 函数 | — | - |
 | `write_dev_macros` | 函数 | — | - |

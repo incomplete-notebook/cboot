@@ -854,6 +854,17 @@ static void docgen_generate_mod_dev(Domain *mod, const char *dir) {
     fclose(f);
 }
 
+
+
+
+
+
+
+
+
+
+
+
 EOF
 im domain
 void generate_docs int
@@ -863,14 +874,6 @@ cmt "输出目录"
 value "生成README.md、DEV.md和DEPENDENCIES.md"
 mem proj Project*
 mem output_dir const char*
-cd ..
-void generate_module_docs void
-cd generate_module_docs
-mode api
-cmt "模块目录路径"
-value "生成README.md(模块说明+子模块链接)、API.md(仅API项)、DEV.md(所有项+业务逻辑)"
-mem mod Domain*
-mem dir const char*
 cd ..
 void generate_mod_readme void
 cd generate_mod_readme
@@ -910,6 +913,12 @@ void domain_type_str const char*
 cd domain_type_str
 mem type int
 cd ..
+void generate_module_docs void
+cd generate_module_docs
+mode api
+mem mod Domain*
+mem dir const char*
+cd ..
 void write_dev_functions void
 cd write_dev_functions
 mem mod Domain*
@@ -927,6 +936,6 @@ mem f FILE*
 cd ..
 
 # 子模块引用
-domain/.cboot
+im domain
 
 # End of .cboot for docgen

@@ -483,36 +483,30 @@ int typecheck_type_checker_validate_value(const char *type_name, const char *val
     /* For user-defined types (structs, typedefs, etc.), accept any value */
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
 EOF
 im domain
-void typecheck_domain int
-cd typecheck_domain
-mode api
-cmt "待检查域"
-value "检查类型引用是否有效、API名称是否与子模块冲突"
-mem domain struct Domain*
-cd ..
-void typecheck_project int
-cd typecheck_project
-mode api
-cmt "项目定义"
-value "递归遍历所有域，调用typecheck_domain，输出错误列表"
-mem proj struct Project*
-cd ..
 var builtin_types const char*[]
 cd builtin_types
 mode static
-value "{ void , char , short , int , long , float , double , signed , unsigned , size_t , ssize_t , int8_t , int16_t , int32_t , int64_t , uint8_t , uint16_t , uint32_t , uint64_t , bool , FILE , unsigned char , unsigned short , unsigned int , unsigned long , signed char , signed int , long int , long long , short int , long double , long unsigned int , NULL }"
 cd ..
 var integer_types const char*[]
 cd integer_types
 mode static
-value "{ char , short , int , long , signed , unsigned , size_t , ssize_t , int8_t , int16_t , int32_t , int64_t , uint8_t , uint16_t , uint32_t , uint64_t , NULL }"
 cd ..
 var float_types const char*[]
 cd float_types
 mode static
-value "{ float , double , NULL }"
 cd ..
 void strip_pointer char*
 cd strip_pointer
@@ -571,6 +565,6 @@ mem value const char*
 cd ..
 
 # 子模块引用
-domain/.cboot
+im domain
 
 # End of .cboot for typecheck

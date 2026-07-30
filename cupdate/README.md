@@ -10,24 +10,22 @@
 ## 子模块
 
 - [domain](domain/README.md): [API 引用] 从项目内模块 domain 导入
+- [commands](commands/README.md): 命令处理器 - 实现交互式和批处理模式的所有命令
+- [parser](parser/README.md): 脚本解析器 - 解析.cboot脚本文件为项目定义
+- [generator](generator/README.md): 代码生成器 - 将域树转换为C源代码、CMake构建系统和文档
 
 ## 内容概览
 
 | 名称 | 类型 | API | 说明 |
 |------|------|-----|------|
-| `CUPDeclKind` | 类型 | ✓ | 顶层声明种类枚举: function/struct/enum/typedef/macro/variable/include/other |
-| `CUParParam` | 类型 | ✓ | 参数名（可能为空） |
-| `CUParMember` | 类型 | ✓ | 位域宽度或初始值（可选） |
-| `CUPDecl` | 类型 | ✓ | 是否对外可见（非static） |
-| `CUPResult` | 类型 | ✓ | 警告数量 |
 | `run_project` | 函数 | ✓ | 输出参数：返回警告数量（可为NULL） |
-| `parse_source` | 函数 | ✓ | 解析结果输出（调用者负责初始化和释放） |
-| `result_init` | 函数 | ✓ | 要初始化的结果容器 |
-| `result_free` | 函数 | ✓ | 要释放的结果容器 |
-| `result_add_error` | 函数 | ✓ | 行号 |
-| `result_add_warning` | 函数 | ✓ | 行号 |
-| `result_add_decl` | 函数 | ✓ | 结果容器 |
+| `result_init` | 函数 | ✓ | - |
 | `cup_free_decl` | 函数 | — | - |
+| `result_free` | 函数 | ✓ | - |
+| `result_add_error` | 函数 | ✓ | - |
+| `result_add_warning` | 函数 | ✓ | - |
+| `result_add_decl` | 函数 | ✓ | - |
+| `parse_source` | 函数 | ✓ | - |
 | `cup_read_file` | 函数 | — | - |
 | `cup_get_module_prefix` | 函数 | — | - |
 | `cup_find_function` | 函数 | — | - |

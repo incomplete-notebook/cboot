@@ -1,34 +1,28 @@
 # generator
 
-代码生成器 - 将域树转换为C源代码、CMake构建系统和文档
-
 ## 文档
 
 - [API 文档](API.md) — 公开接口定义
 - [开发文档](DEV.md) — 内部设计与实现
 
-## 子模块
-
-- [domain](domain/README.md): [API 引用] 从项目内模块 domain 导入
-
 ## 内容概览
 
 | 名称 | 类型 | API | 说明 |
 |------|------|-----|------|
-| `generate_project` | 函数 | ✓ | 输出目录(项目根即为源码根) |
-| `generate_module` | 函数 | — | 父目录 |
-| `generate_mod_c` | 函数 | — | 模块目录路径 |
-| `generate_mod_h` | 函数 | — | 模块目录路径 |
-| `generate_mod_cmake` | 函数 | — | 模块目录路径 |
-| `generate_top_cmake` | 函数 | — | 项目定义 |
-| `generate_top_main` | 函数 | — | 项目定义 |
+| `generate_module` | 函数 | — | - |
+| `generate_mod_c` | 函数 | — | - |
+| `generate_mod_h` | 函数 | — | - |
+| `generate_mod_cmake` | 函数 | — | - |
 | `generate_mod_cboot` | 函数 | — | - |
+| `generate_top_cmake` | 函数 | — | - |
+| `generate_top_main` | 函数 | — | - |
 | `generate_project_cboot` | 函数 | — | - |
 | `find_exe_module` | 函数 | — | - |
 | `docgen_is_api` | 函数 | — | - |
 | `compiler_mode_str` | 函数 | — | - |
 | `get_module_prefix` | 函数 | — | - |
 | `make_abs_name` | 函数 | — | - |
+| `generate_project` | 函数 | ✓ | - |
 | `write_c_includes` | 函数 | — | - |
 | `write_c_defs` | 函数 | — | - |
 | `write_c_types` | 函数 | — | - |

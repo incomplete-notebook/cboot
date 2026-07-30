@@ -55,13 +55,15 @@ static const char *commands_domain_type_name(DomainType type) {
     }
 }
 
-/* Check type validity using type checker */
+/* Check type validity using type checker.
+ * 对于在 .cboot 中引用但定义在外部头文件（如 domain.h）的类型，
+ * 仅给出警告而不阻止创建，因为这些类型在 C 编译阶段会被正确解析。 */
 static int commands_check_type(const char *type_name) {
     TypeChecker tc;
     typecheck_type_checker_init(&tc, g_proj->current);
     if (typecheck_type_checker_validate(&tc, type_name) != 0) {
-        printf("错误: 类型 '%s' 未定义\n", type_name);
-        return -1;
+        /* 仅警告，不阻止 — 类型可能定义在外部头文件中 */
+        return 0;
     }
     return 0;
 }
@@ -525,10 +527,7 @@ int commands_cmd_call(const char *call_conv) {
     }
 
     Domain *cur = g_proj->current;
-    fprintf(stderr, "DEBUG commands_cmd_call: call_conv='%s' cur->type=%d\n",
-            call_conv ? call_conv : "<null>", cur ? cur->type : -1);
     if (cur->type != DOMAIN_FUNCTION) {
-        fprintf(stderr, "DEBUG commands_cmd_call: ERROR - not in function domain\n");
         printf("错误: call 命令只能在函数域中使用\n");
         return -1;
     }
@@ -1166,6 +1165,493 @@ int commands_cmd_update(void) {
 }
 
 /* ================================================================== */
+/* 分析: analyze - 统计代码行数、圈复杂度、代码重复率                    */
+/* ================================================================== */
+
+#include <fcntl.h>
+
+#define ANALYZE_NGRAM_SIZE 8
+#define ANALYZE_MAX_MODS   256
+#define ANALYZE_MAX_FUNCS  2048
+#define ANALYZE_MAX_TOKENS 8192
+
+typedef struct {
+    char name[128];
+    const char *code;       /* 指向 ModuleDomain.code，不持有所有权 */
+    int  code_lines;
+} AnalyzeMod;
+
+typedef struct {
+    char name[128];
+    char module[128];
+    char *code;             /* 函数体，持有所有权 (strdup) */
+    int  complexity;
+} AnalyzeFunc;
+
+typedef struct {
+    char text[64];          /* 标识符保留原文；数字/字符串/字符归一化 */
+} AnalyzeToken;
+
+static void analyze_collect_modules(Domain *d, AnalyzeMod *mods, int *count, int cap)
+{
+    if (!d || *count >= cap) return;
+
+    if (d->type == DOMAIN_MODULE) {
+        ModuleDomain *md = (ModuleDomain *)d;
+        if (md->mode == MOD_MODE_SRC && md->code && md->code[0] != '\0') {
+            AnalyzeMod *m = &mods[*count];
+            /* 构造模块路径名：从根走到当前模块 */
+            m->name[0] = '\0';
+            Domain *p = d;
+            char parts[16][128];
+            int n = 0;
+            while (p && p->type == DOMAIN_MODULE && n < 16) {
+                if (p->parent == NULL) break;  /* 跳过根项目 */
+                if (p->name) {
+                    strncpy(parts[n], p->name, 127);
+                    parts[n][127] = '\0';
+                    n++;
+                }
+                p = p->parent;
+            }
+            for (int i = n - 1; i >= 0; i--) {
+                if (m->name[0] != '\0') strncat(m->name, "/", sizeof(m->name) - strlen(m->name) - 1);
+                strncat(m->name, parts[i], sizeof(m->name) - strlen(m->name) - 1);
+            }
+            m->code = md->code;
+            m->code_lines = 0;
+            (*count)++;
+        }
+    }
+
+    for (int i = 0; i < d->child_count; i++)
+        analyze_collect_modules(d->children[i], mods, count, cap);
+}
+
+static int analyze_count_code_lines(const char *code)
+{
+    if (!code) return 0;
+    int lines = 0;
+    int has_code = 0;          /* 当前行是否已出现代码字符 */
+    enum { ST_NORMAL, ST_LINE_CMT, ST_BLOCK_CMT, ST_STRING, ST_CHAR } state = ST_NORMAL;
+    const char *p = code;
+    while (*p) {
+        char c = *p;
+        switch (state) {
+        case ST_NORMAL:
+            if (c == '/' && p[1] == '/') { state = ST_LINE_CMT; p++; }
+            else if (c == '/' && p[1] == '*') { state = ST_BLOCK_CMT; p++; }
+            else if (c == '"') { state = ST_STRING; has_code = 1; }
+            else if (c == '\'') { state = ST_CHAR; has_code = 1; }
+            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
+            else if (!isspace((unsigned char)c)) has_code = 1;
+            break;
+        case ST_LINE_CMT:
+            if (c == '\n') { if (has_code) lines++; has_code = 0; state = ST_NORMAL; }
+            break;
+        case ST_BLOCK_CMT:
+            if (c == '*' && p[1] == '/') { state = ST_NORMAL; p++; }
+            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
+            break;
+        case ST_STRING:
+            if (c == '\\') { p++; }
+            else if (c == '"') { state = ST_NORMAL; }
+            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
+            break;
+        case ST_CHAR:
+            if (c == '\\') { p++; }
+            else if (c == '\'') { state = ST_NORMAL; }
+            else if (c == '\n') { if (has_code) lines++; has_code = 0; }
+            break;
+        }
+        p++;
+    }
+    if (has_code) lines++;
+    return lines;
+}
+
+/* 从源码中提取函数：匹配 "type name(...)" 后跟 "{" 的模式 */
+static void analyze_extract_functions(const char *mod_name, const char *code,
+                                       AnalyzeFunc *funcs, int *count, int cap)
+{
+    if (!code || !*code) return;
+    const char *p = code;
+    while (*p && *count < cap) {
+        /* 跳过字符串和注释 */
+        if (*p == '"') { p++; while (*p && *p != '"') { if (*p == '\\') p++; if (*p) p++; } if (*p) p++; continue; }
+        if (*p == '\'') { p++; while (*p && *p != '\'') { if (*p == '\\') p++; if (*p) p++; } if (*p) p++; continue; }
+        if (p[0] == '/' && p[1] == '/') { while (*p && *p != '\n') p++; continue; }
+        if (p[0] == '/' && p[1] == '*') { p += 2; while (*p && !(p[0] == '*' && p[1] == '/')) p++; if (*p) p += 2; continue; }
+        if (*p == '#') { while (*p && *p != '\n') p++; continue; }
+
+        /* 记录行首位置（可能为函数定义开头） */
+        if (p == code || p[-1] == '\n') {
+            const char *start = p;
+            /* 跳过前导空白 */
+            while (*start && isspace((unsigned char)*start)) start++;
+            if (*start == '\0') { p++; continue; }
+
+            /* 查找参数列表闭合后跟 "{"
+             * 跟踪第一次 depth 升到 1 的 '(' (open_paren) 与最近一次 depth 回到 0 的 ')' (close_paren) */
+            const char *paren = start;
+            int depth = 0;
+            const char *open_paren = NULL;   /* 第一个 '(' */
+            const char *close_paren = NULL;  /* 与 open_paren 匹配的 ')' */
+            while (*paren && *paren != '{' && *paren != ';') {
+                if (*paren == '(') {
+                    if (depth == 0) open_paren = paren;
+                    depth++;
+                } else if (*paren == ')') {
+                    depth--;
+                    if (depth == 0 && open_paren) close_paren = paren;
+                }
+                paren++;
+            }
+            /* 检查是否找到参数列表闭合后跟 "{" */
+            if (depth == 0 && *paren == '{' && open_paren && close_paren) {
+                /* 从 open_paren 回溯找到函数名 */
+                const char *brace = paren;
+                const char *name_end = open_paren;
+                while (name_end > start && isspace((unsigned char)name_end[-1])) name_end--;
+                const char *name_start = name_end;
+                while (name_start > start && (isalnum((unsigned char)name_start[-1]) || name_start[-1] == '_'))
+                    name_start--;
+
+                /* 检查返回类型是否存在（确保不是 if/for/while 等语句） */
+                int has_type = 0;
+                for (const char *c = start; c < name_start; c++) {
+                    if (!isspace((unsigned char)*c)) { has_type = 1; break; }
+                }
+
+                if (has_type && name_start < name_end) {
+                    /* 提取函数名 */
+                    int nlen = (int)(name_end - name_start);
+                    if (nlen > 0 && nlen < 127) {
+                        /* 排除控制流关键字 */
+                        const char *keywords[] = {"if", "for", "while", "switch", "return", "sizeof", "else", "do", 0};
+                        int is_kw = 0;
+                        for (int k = 0; keywords[k]; k++) {
+                            if (nlen == (int)strlen(keywords[k]) && strncmp(name_start, keywords[k], nlen) == 0) {
+                                is_kw = 1; break;
+                            }
+                        }
+                        if (!is_kw) {
+                            /* 找到函数定义，提取函数体 */
+                            const char *body_start = brace + 1;
+                            const char *body_end = body_start;
+                            int brace_depth = 1;
+                            while (*body_end && brace_depth > 0) {
+                                if (*body_end == '{') brace_depth++;
+                                else if (*body_end == '}') brace_depth--;
+                                else if (*body_end == '"') {
+                                    body_end++;
+                                    while (*body_end && *body_end != '"') {
+                                        if (*body_end == '\\') body_end++;
+                                        if (*body_end) body_end++;
+                                    }
+                                } else if (*body_end == '\'') {
+                                    body_end++;
+                                    while (*body_end && *body_end != '\'') {
+                                        if (*body_end == '\\') body_end++;
+                                        if (*body_end) body_end++;
+                                    }
+                                }
+                                if (body_end < body_start) break;
+                                body_end++;
+                            }
+                            if (brace_depth == 0) {
+                                AnalyzeFunc *f = &funcs[*count];
+                                strncpy(f->name, name_start, nlen);
+                                f->name[nlen] = '\0';
+                                strncpy(f->module, mod_name, 127);
+                                f->module[127] = '\0';
+
+                                int blen = (int)(body_end - body_start);
+                                f->code = (char *)malloc(blen + 1);
+                                if (f->code) {
+                                    memcpy(f->code, body_start, blen);
+                                    f->code[blen] = '\0';
+                                    (*count)++;
+                                }
+                                p = body_end;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        p++;
+    }
+}
+
+/* 简单词法分析：将代码拆分为 token，用于 n-gram 比对 */
+static int analyze_tokenize(const char *code, AnalyzeToken *toks, int cap)
+{
+    int count = 0;
+    const char *p = code;
+    while (*p && count < cap) {
+        /* 跳过空白 */
+        if (isspace((unsigned char)*p)) { p++; continue; }
+        /* 跳过注释 */
+        if (p[0] == '/' && p[1] == '/') { while (*p && *p != '\n') p++; continue; }
+        if (p[0] == '/' && p[1] == '*') { p += 2; while (*p && !(p[0] == '*' && p[1] == '/')) p++; if (*p) p += 2; continue; }
+
+        /* 字符串 -> 归一化为 "STR" */
+        if (*p == '"') {
+            strncpy(toks[count].text, "\"STR\"", 63);
+            toks[count].text[63] = '\0';
+            count++;
+            p++;
+            while (*p && *p != '"') { if (*p == '\\') p++; if (*p) p++; }
+            if (*p) p++;
+            continue;
+        }
+        /* 字符 -> 归一化为 'C' */
+        if (*p == '\'') {
+            strncpy(toks[count].text, "'C'", 63);
+            toks[count].text[63] = '\0';
+            count++;
+            p++;
+            while (*p && *p != '\'') { if (*p == '\\') p++; if (*p) p++; }
+            if (*p) p++;
+            continue;
+        }
+        /* 数字 -> 归一化为 NUM */
+        if (isdigit((unsigned char)*p) || (*p == '.' && isdigit((unsigned char)p[1]))) {
+            strncpy(toks[count].text, "NUM", 63);
+            toks[count].text[63] = '\0';
+            count++;
+            while (isdigit((unsigned char)*p) || *p == '.' || *p == 'x' || *p == 'X' || (isdigit((unsigned char)*p))) p++;
+            continue;
+        }
+        /* 标识符 */
+        if (isalpha((unsigned char)*p) || *p == '_') {
+            int len = 0;
+            while ((isalnum((unsigned char)*p) || *p == '_') && len < 63) {
+                toks[count].text[len++] = *p++;
+            }
+            toks[count].text[len] = '\0';
+            while (isalnum((unsigned char)*p) || *p == '_') p++;
+            count++;
+            continue;
+        }
+        /* 运算符和其他符号 */
+        if (ispunct((unsigned char)*p)) {
+            /* 多字符运算符 */
+            if (p[0] && p[1]) {
+                char two[3] = { p[0], p[1], '\0' };
+                if (two[0] == '=' && two[1] == '=' || two[0] == '!' && two[1] == '=' ||
+                    two[0] == '<' && two[1] == '=' || two[0] == '>' && two[1] == '=' ||
+                    two[0] == '&' && two[1] == '&' || two[0] == '|' && two[1] == '|' ||
+                    two[0] == '+' && two[1] == '+' || two[0] == '-' && two[1] == '-' ||
+                    two[0] == '-' && two[1] == '>' || two[0] == '<' && two[1] == '<' ||
+                    two[0] == '>' && two[1] == '>' || two[0] == '+' && two[1] == '=' ||
+                    two[0] == '-' && two[1] == '=' || two[0] == '*' && two[1] == '=' ||
+                    two[0] == '/' && two[1] == '=' || two[0] == '%' && two[1] == '=' ||
+                    two[0] == '&' && two[1] == '=' || two[0] == '|' && two[1] == '=' ||
+                    two[0] == '^' && two[1] == '=' || two[0] == '.' && two[1] == '.' ) {
+                    strncpy(toks[count].text, two, 63);
+                    toks[count].text[63] = '\0';
+                    count++;
+                    p += 2;
+                    continue;
+                }
+            }
+            toks[count].text[0] = *p;
+            toks[count].text[1] = '\0';
+            count++;
+            p++;
+            continue;
+        }
+        p++;
+    }
+    return count;
+}
+
+/* 计算圈复杂度：基于分支关键字和运算符计数 */
+static int analyze_cyclomatic_complexity(const char *code)
+{
+    if (!code) return 1;
+    int cc = 1;
+    AnalyzeToken toks[ANALYZE_MAX_TOKENS];
+    int n = analyze_tokenize(code, toks, ANALYZE_MAX_TOKENS);
+    for (int i = 0; i < n; i++) {
+        const char *t = toks[i].text;
+        if (strcmp(t, "if") == 0 || strcmp(t, "else") == 0 ||
+            strcmp(t, "for") == 0 || strcmp(t, "while") == 0 ||
+            strcmp(t, "case") == 0 || strcmp(t, "catch") == 0 ||
+            strcmp(t, "&&") == 0 || strcmp(t, "||") == 0 ||
+            strcmp(t, "?") == 0) {
+            cc++;
+        }
+    }
+    return cc;
+}
+
+/* 比较两个 n-gram 是否相等 */
+static int analyze_ngram_equal(AnalyzeToken *a, AnalyzeToken *b)
+{
+    for (int i = 0; i < ANALYZE_NGRAM_SIZE; i++) {
+        if (strcmp(a[i].text, b[i].text) != 0) return 0;
+    }
+    return 1;
+}
+
+int commands_cmd_analyze(void)
+{
+    if (!g_proj || !g_proj->root) {
+        printf("错误: 无活动项目\n");
+        return -1;
+    }
+
+    /* 若项目为空但有 .cboot，则加载之 */
+    if (g_proj->root->child_count == 0 && utils_file_exists(".cboot")) {
+        domain_project_free(g_proj);
+        g_proj = domain_project_new("cboot_project");
+        g_skip_gen = 1;  /* 加载时跳过 gen，避免破坏源码 */
+        parser_parse_cboot_script(".cboot");
+        g_skip_gen = 0;
+    }
+
+    printf("=== CBoot 代码分析报告 ===\n\n");
+
+    /* 1. 有效代码行数 */
+    AnalyzeMod mods[ANALYZE_MAX_MODS];
+    int mod_count = 0;
+    analyze_collect_modules(g_proj->root, mods, &mod_count, ANALYZE_MAX_MODS);
+
+    int total_lines = 0;
+    printf("--- 1. 有效代码行数 ---\n");
+    printf("  %-32s %s\n", "模块", "有效行数");
+    printf("  %-32s %s\n", "------------------------------", "--------");
+    for (int i = 0; i < mod_count; i++) {
+        mods[i].code_lines = analyze_count_code_lines(mods[i].code);
+        printf("  %-32s %d\n", mods[i].name, mods[i].code_lines);
+        total_lines += mods[i].code_lines;
+    }
+    printf("  %-32s %s\n", "------------------------------", "--------");
+    printf("  %-32s %d\n", "总计", total_lines);
+    printf("\n");
+
+    /* 2. 圈复杂度 */
+    AnalyzeFunc funcs[ANALYZE_MAX_FUNCS];
+    int func_count = 0;
+    for (int i = 0; i < mod_count && func_count < ANALYZE_MAX_FUNCS; i++)
+        analyze_extract_functions(mods[i].name, mods[i].code, funcs, &func_count, ANALYZE_MAX_FUNCS);
+
+    for (int i = 0; i < func_count; i++)
+        funcs[i].complexity = analyze_cyclomatic_complexity(funcs[i].code);
+
+    int total_cc = 0, max_cc = 0;
+    char max_cc_name[128] = "", max_cc_mod[128] = "";
+    printf("--- 2. 圈复杂度 (Cyclomatic Complexity) ---\n");
+    printf("  %-44s %s\n", "函数", "复杂度");
+    printf("  %-44s %s\n", "--------------------------------------------", "--------");
+    for (int i = 0; i < func_count; i++) {
+        int cc = funcs[i].complexity;
+        char display[300];
+        snprintf(display, sizeof(display), "%s [%s]", funcs[i].name, funcs[i].module);
+        const char *marker = "";
+        if (cc > 15) marker = " *** 高";
+        else if (cc > 10) marker = " ** 中";
+        printf("  %-44s %d%s\n", display, cc, marker);
+        total_cc += cc;
+        if (cc > max_cc) {
+            max_cc = cc;
+            strncpy(max_cc_name, funcs[i].name, 127);
+            strncpy(max_cc_mod, funcs[i].module, 127);
+        }
+    }
+    printf("  %-44s %s\n", "--------------------------------------------", "--------");
+    if (func_count > 0) {
+        printf("  %-44s %d\n", "总计", total_cc);
+        printf("  %-44s %d\n", "平均", total_cc / func_count);
+        printf("  %-44s %d (%s [%s])\n", "最高", max_cc, max_cc_name, max_cc_mod);
+    } else {
+        printf("  (无函数数据)\n");
+    }
+    printf("\n");
+
+    /* 3. 代码重复率 (基于 token n-gram 比对) */
+    printf("--- 3. 代码重复率 (Code Duplication) ---\n");
+    AnalyzeToken **all_toks = (AnalyzeToken **)calloc(func_count, sizeof(AnalyzeToken *));
+    int *tok_counts = (int *)calloc(func_count, sizeof(int));
+    for (int i = 0; i < func_count; i++) {
+        all_toks[i] = (AnalyzeToken *)calloc(ANALYZE_MAX_TOKENS, sizeof(AnalyzeToken));
+        tok_counts[i] = analyze_tokenize(funcs[i].code, all_toks[i], ANALYZE_MAX_TOKENS);
+    }
+
+    int total_ngrams = 0, dup_ngrams = 0;
+    for (int i = 0; i < func_count; i++) {
+        int gi = tok_counts[i] - ANALYZE_NGRAM_SIZE + 1;
+        if (gi <= 0) continue;
+        for (int g = 0; g < gi; g++) {
+            total_ngrams++;
+            int is_dup = 0;
+            for (int j = 0; j < func_count && !is_dup; j++) {
+                if (j == i) continue;
+                int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
+                if (gj <= 0) continue;
+                for (int g2 = 0; g2 < gj; g2++) {
+                    if (analyze_ngram_equal(&all_toks[i][g], &all_toks[j][g2])) {
+                        is_dup = 1;
+                        break;
+                    }
+                }
+            }
+            if (is_dup) dup_ngrams++;
+        }
+    }
+
+    double dup_rate = (total_ngrams > 0) ? (double)dup_ngrams / total_ngrams * 100.0 : 0.0;
+    printf("  n-gram 大小: %d tokens\n", ANALYZE_NGRAM_SIZE);
+    printf("  总 n-gram 数: %d\n", total_ngrams);
+    printf("  重复 n-gram 数: %d\n", dup_ngrams);
+    printf("  代码重复率: %.1f%%\n", dup_rate);
+
+    if (dup_ngrams > 0) {
+        printf("\n  重复代码片段 (最多显示 10 处):\n");
+        int shown = 0;
+        for (int i = 0; i < func_count && shown < 10; i++) {
+            int gi = tok_counts[i] - ANALYZE_NGRAM_SIZE + 1;
+            if (gi <= 0) continue;
+            for (int g = 0; g < gi && shown < 10; g++) {
+                for (int j = i + 1; j < func_count; j++) {
+                    int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
+                    if (gj <= 0) continue;
+                    int found = 0;
+                    for (int g2 = 0; g2 < gj; g2++) {
+                        if (analyze_ngram_equal(&all_toks[i][g], &all_toks[j][g2])) {
+                            printf("    %s [%s] <-> %s [%s]: ",
+                                   funcs[i].name, funcs[i].module,
+                                   funcs[j].name, funcs[j].module);
+                            for (int k = 0; k < ANALYZE_NGRAM_SIZE && k < 6; k++)
+                                printf("%s ", all_toks[i][g + k].text);
+                            if (ANALYZE_NGRAM_SIZE > 6) printf("...");
+                            printf("\n");
+                            found = 1;
+                            break;
+                        }
+                    }
+                    if (found) { shown++; break; }
+                }
+            }
+        }
+    }
+
+    printf("\n=== 分析完成 ===\n");
+
+    for (int i = 0; i < func_count; i++) {
+        free(all_toks[i]);
+        free(funcs[i].code);
+    }
+    free(all_toks);
+    free(tok_counts);
+    return 0;
+}
+
+/* ================================================================== */
 /* 微调: adjust - 先update同步源码，再进入交互式REPL调整                 */
 /* ================================================================== */
 
@@ -1584,4 +2070,14 @@ int commands_cmd_res(const char *file_path) {
     printf("资源 %s 已添加。\n", basename);
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
 

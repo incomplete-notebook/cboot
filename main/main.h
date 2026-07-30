@@ -8,7 +8,6 @@
 
 #define CBOOT_HISTORY_MAX 100
 
-// 命令行参数数组
 int main(int argc, char** argv);
 
 #endif /* MAIN_H */

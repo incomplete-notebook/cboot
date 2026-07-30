@@ -529,18 +529,15 @@ void domain_domain_set_code(Domain *domain, const char *code)
 void domain_domain_set_call(Domain *domain, const char *call)
 {
     if (!domain) {
-        fprintf(stderr, "DEBUG domain_domain_set_call: domain is NULL\n");
         return;
     }
     if (domain->type != DOMAIN_FUNCTION) {
-        fprintf(stderr, "DEBUG domain_domain_set_call: type=%d != DOMAIN_FUNCTION\n", domain->type);
         return;
     }
 
     FunctionDomain *func = (FunctionDomain *)domain;
     free(func->call);
     func->call = call ? utils_str_dup(call) : NULL;
-    fprintf(stderr, "DEBUG domain_domain_set_call: call='%s'\n", func->call ? func->call : "<null>");
 }
 
 const char *domain_domain_get_call(Domain *domain)
@@ -746,4 +743,14 @@ int domain_is_builtin_type(const char *type_name)
 
 	return 0;
 }
+
+
+
+
+
+
+
+
+
+
 

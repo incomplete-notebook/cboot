@@ -327,12 +327,16 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
                     func->call = NULL;
                     changed = 1;
                 }
-                /* 比较参数列表 */
+                /* 函数体同步：定义时更新body，原型时清除body */
                 if (decl->is_function_def && decl->body) {
                     if (!func->code || strcmp(func->code, decl->body) != 0) {
                         domain_domain_set_code((Domain *)func, decl->body);
                         changed = 1;
                     }
+                } else if (!decl->is_function_def && func->code) {
+                    /* 源码中从定义改为声明：清除函数体 */
+                    domain_domain_set_code((Domain *)func, NULL);
+                    changed = 1;
                 }
                 /* API 模式：仅当源码中显式 static 时降级为 NORMAL，
                  * 非 static 时保留现有模式（因为 generator 对 API 和非 API
@@ -419,6 +423,10 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
                         domain_domain_set_value((Domain *)md, decl->value);
                         (*changes)++;
                     }
+                } else if (md->value) {
+                    /* 源码中宏变为无值（如 #define X vs #define X 1） */
+                    domain_domain_set_value((Domain *)md, NULL);
+                    (*changes)++;
                 }
             }
             break;
@@ -442,6 +450,10 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
                 }
                 if (decl->value && (!vd->value || strcmp(vd->value, decl->value) != 0)) {
                     domain_domain_set_value((Domain *)vd, decl->value);
+                    (*changes)++;
+                } else if (!decl->value && vd->value) {
+                    /* 源码中移除了初始值 */
+                    domain_domain_set_value((Domain *)vd, NULL);
                     (*changes)++;
                 }
             }
@@ -491,10 +503,7 @@ static void cup_sync_decl(ModuleDomain *mod, CUPDecl *decl, int *changes)
 int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
 {
     if (!mod || mod->base.type != DOMAIN_MODULE) return -1;
-    fprintf(stderr, "DEBUG cupdate_run_module: mod='%s' mode=%d compiler=%d dir='%s'\n",
-            mod->base.name, mod->mode, mod->compiler, mod_dir);
     if (mod->mode != MOD_MODE_SRC) {
-        fprintf(stderr, "  SKIP: mode != MOD_MODE_SRC\n");
         return 0;  /* 非 src 模式跳过 */
     }
 
@@ -516,17 +525,6 @@ int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
     CUPResult result;
     cupdate_result_init(&result);
     cupdate_parse_source(source, cfile, &result);
-
-    /* 调试：打印解析结果 */
-    fprintf(stderr, "DEBUG cupdate: parsed %d decls from %s\n", result.decl_count, cfile);
-    for (int i = 0; i < result.decl_count; i++) {
-        CUPDecl *d = &result.decls[i];
-        fprintf(stderr, "  decl[%d]: kind=%d name='%s' return='%s' call='%s' func_def=%d\n",
-                i, d->kind, d->name ? d->name : "<null>",
-                d->return_type ? d->return_type : "<null>",
-                d->call ? d->call : "<null>",
-                d->is_function_def);
-    }
 
     /* 打印解析错误/警告 */
     for (int i = 0; i < result.error_count; i++) {
@@ -565,6 +563,74 @@ int cupdate_run_module(ModuleDomain *mod, const char *mod_dir)
         }
 
         cup_sync_decl(mod, d, &changes);
+    }
+
+    /* 删除检测：检查 domain 树中哪些声明不在解析结果中，将其删除。
+     * 只检查函数、结构体、类型、宏、变量（不检查 member/include/other）。
+     * 对函数和变量，需要加回前缀后再比较。 */
+    {
+        /* 收集解析结果中的所有名称（按类型分组） */
+        Domain **to_remove = (Domain **)calloc(mod->base.child_count, sizeof(Domain *));
+        int remove_count = 0;
+
+        for (int i = 0; i < mod->base.child_count; i++) {
+            Domain *c = mod->base.children[i];
+            if (!c || !c->name) continue;
+
+            /* 只检查可删除的域类型 */
+            if (c->type != DOMAIN_FUNCTION && c->type != DOMAIN_STRUCT &&
+                c->type != DOMAIN_TYPE && c->type != DOMAIN_MACRO &&
+                c->type != DOMAIN_VARIABLE) continue;
+
+            /* main 函数不删除 */
+            if (c->type == DOMAIN_FUNCTION && strcmp(c->name, "main") == 0) continue;
+
+            /* 在解析结果中查找匹配 */
+            int found = 0;
+            for (int j = 0; j < result.decl_count; j++) {
+                CUPDecl *d = &result.decls[j];
+                if (!d->name) continue;
+
+                /* 类型匹配 */
+                int type_match = 0;
+                switch (c->type) {
+                    case DOMAIN_FUNCTION: type_match = (d->kind == CUP_DECL_FUNCTION); break;
+                    case DOMAIN_STRUCT:   type_match = (d->kind == CUP_DECL_STRUCT || d->kind == CUP_DECL_ENUM); break;
+                    case DOMAIN_TYPE:     type_match = (d->kind == CUP_DECL_TYPEDEF); break;
+                    case DOMAIN_MACRO:    type_match = (d->kind == CUP_DECL_MACRO); break;
+                    case DOMAIN_VARIABLE: type_match = (d->kind == CUP_DECL_VARIABLE); break;
+                }
+                if (!type_match) continue;
+
+                /* 名称匹配（考虑前缀） */
+                const char *decl_name = d->name;
+                /* 对函数/变量，可能需要加前缀比较 */
+                if (plen > 0 && (d->kind == CUP_DECL_FUNCTION || d->kind == CUP_DECL_VARIABLE) &&
+                    strcmp(d->name, "main") != 0) {
+                    /* d->name 已被剥离前缀，直接比较 */
+                    if (strcmp(c->name, decl_name) == 0) { found = 1; break; }
+                    /* 也尝试带前缀的匹配（以防未被剥离） */
+                    char full[MAX_NAME_LEN * 5];
+                    snprintf(full, sizeof(full), "%s_%s", prefix, c->name);
+                    if (strcmp(decl_name, full) == 0) { found = 1; break; }
+                } else {
+                    if (strcmp(c->name, decl_name) == 0) { found = 1; break; }
+                }
+            }
+
+            if (!found) {
+                to_remove[remove_count++] = c;
+            }
+        }
+
+        /* 执行删除 */
+        for (int i = 0; i < remove_count; i++) {
+            fprintf(stderr, "  删除: %s (type=%d)\n", to_remove[i]->name, to_remove[i]->type);
+            domain_domain_remove_child((Domain *)mod, to_remove[i]);
+            domain_domain_delete(to_remove[i]);
+            changes++;
+        }
+        free(to_remove);
     }
 
     /* 将整个 .c 文件内容设置为模块的 code 字段。
@@ -628,11 +694,8 @@ static int cup_update_recursive(Domain *dom, const char *dir,
                                  int *total_errors, int *total_warnings)
 {
     int rc = 0;
-    fprintf(stderr, "DEBUG cup_update_recursive: dom='%s' type=%d child_count=%d dir='%s'\n",
-            dom->name ? dom->name : "<null>", dom->type, dom->child_count, dir);
     if (dom->type == DOMAIN_MODULE) {
         ModuleDomain *mod = (ModuleDomain *)dom;
-        fprintf(stderr, "  module mode=%d\n", mod->mode);
         if (mod->mode == MOD_MODE_SRC) {
             int r = cupdate_run_module(mod, dir);
             if (r != 0) {
@@ -644,7 +707,6 @@ static int cup_update_recursive(Domain *dom, const char *dir,
     /* 递归子域：仅对模块类型递归（子模块） */
     for (int i = 0; i < dom->child_count; i++) {
         Domain *c = dom->children[i];
-        fprintf(stderr, "  child[%d]: name='%s' type=%d\n", i, c->name ? c->name : "<null>", c->type);
         if (c->type == DOMAIN_MODULE) {
             char subdir[MAX_PATH_LEN];
             snprintf(subdir, sizeof(subdir), "%s/%s", dir, c->name);
@@ -675,69 +737,31 @@ int cupdate_run_project(Project *proj, int *error_count_out, int *warning_count_
         printf("cboot update: 完成\n");
     }
 
-    /* 重新生成 .cboot 文件和 CMake 文件。
-     * 注意：generator_generate_project 会重新生成所有文件（.c/.h/.cboot/CMake），
-     * 但因为 src 模块的 code 字段已设置为用户源码，.c 文件会被原样输出，
-     * 不会丢失用户修改。 */
-    printf("cboot update: 重新生成项目文件...\n");
-    if (generator_generate_project(proj) != 0) {
-        fprintf(stderr, "cboot update: 项目文件重新生成失败\n");
+    /* 仅重新生成 .cboot 文件（不覆盖 .c/.h/CMake），
+     * 避免丢失用户手写的 .h 文件中的结构体定义等。
+     * 用户如需重新生成 .c/.h/CMake，可手动执行 gen 命令。 */
+    printf("cboot update: 重新生成 .cboot 描述文件...\n");
+    if (generator_generate_cboot_only(proj) != 0) {
+        fprintf(stderr, "cboot update: .cboot 文件重新生成失败\n");
         return -1;
     }
-    docgen_generate_docs(proj, ".");
 
     printf("cboot update: 项目已同步\n");
     return rc;
 }
+
+
+
+
+
+
+
+
+
+
+
 EOF
 im domain
-type CUPDeclKind
-cd CUPDeclKind
-mode api rename
-cmt "顶层声明种类枚举: function/struct/enum/typedef/macro/variable/include/other"
-value "int"
-cd ..
-type CUParParam
-cd CUParParam
-mode api struct
-cmt "参数名（可能为空）"
-mem type char*
-mem name char*
-cd ..
-type CUParMember
-cd CUParMember
-mode api struct
-cmt "位域宽度或初始值（可选）"
-mem type char*
-mem name char*
-mem value char*
-cd ..
-type CUPDecl
-cd CUPDecl
-mode api struct
-cmt "是否对外可见（非static）"
-mem kind int
-mem name char*
-mem return_type char*
-mem base_type char*
-mem value char*
-mem body char*
-mem call char*
-mem is_function_def int
-mem is_static int
-mem is_inline int
-mem is_api int
-cd ..
-type CUPResult
-cd CUPResult
-mode api struct
-cmt "警告数量"
-mem decls struct CUPDecl
-mem decl_count int
-mem decl_capacity int
-mem error_count int
-mem warning_count int
-cd ..
 void run_project int
 cd run_project
 mode api
@@ -747,31 +771,23 @@ mem proj Project*
 mem error_count_out int*
 mem warning_count_out int*
 cd ..
-void parse_source int
-cd parse_source
-mode api
-cmt "解析结果输出（调用者负责初始化和释放）"
-value "词法分析+语法分析，提取函数/结构体/typedef/宏/变量声明，检测语法错误"
-mem source const char*
-mem filename const char*
-mem r CUPResult*
-cd ..
 void result_init void
 cd result_init
 mode api
-cmt "要初始化的结果容器"
 mem r CUPResult*
+cd ..
+void cup_free_decl void
+cd cup_free_decl
+mem d CUPDecl*
 cd ..
 void result_free void
 cd result_free
 mode api
-cmt "要释放的结果容器"
 mem r CUPResult*
 cd ..
 void result_add_error void
 cd result_add_error
 mode api
-cmt "行号"
 mem r CUPResult*
 mem msg const char*
 mem line int
@@ -779,7 +795,6 @@ cd ..
 void result_add_warning void
 cd result_add_warning
 mode api
-cmt "行号"
 mem r CUPResult*
 mem msg const char*
 mem line int
@@ -787,12 +802,14 @@ cd ..
 void result_add_decl CUPDecl*
 cd result_add_decl
 mode api
-cmt "结果容器"
 mem r CUPResult*
 cd ..
-void cup_free_decl void
-cd cup_free_decl
-mem d CUPDecl*
+void parse_source int
+cd parse_source
+mode api
+mem source const char*
+mem filename const char*
+mem r CUPResult*
 cd ..
 void cup_read_file char*
 cd cup_read_file
@@ -860,6 +877,6 @@ mem total_warnings int*
 cd ..
 
 # 子模块引用
-domain/.cboot
+im domain
 
 # End of .cboot for cupdate

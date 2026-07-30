@@ -533,18 +533,15 @@ void domain_domain_set_code(Domain *domain, const char *code)
 void domain_domain_set_call(Domain *domain, const char *call)
 {
     if (!domain) {
-        fprintf(stderr, "DEBUG domain_domain_set_call: domain is NULL\n");
         return;
     }
     if (domain->type != DOMAIN_FUNCTION) {
-        fprintf(stderr, "DEBUG domain_domain_set_call: type=%d != DOMAIN_FUNCTION\n", domain->type);
         return;
     }
 
     FunctionDomain *func = (FunctionDomain *)domain;
     free(func->call);
     func->call = call ? utils_str_dup(call) : NULL;
-    fprintf(stderr, "DEBUG domain_domain_set_call: call='%s'\n", func->call ? func->call : "<null>");
 }
 
 const char *domain_domain_get_call(Domain *domain)
@@ -750,149 +747,21 @@ int domain_is_builtin_type(const char *type_name)
 
 	return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
 EOF
-type DomainType
-cd DomainType
-mode api rename
-cmt "域类型枚举: module/function/struct/type/macro/variable/member"
-value "int"
-cd ..
-type ModMode
-cd ModMode
-mode api rename
-cmt "模块模式: internal(正常编译)/external(外部API引用)"
-value "int"
-cd ..
-type CompilerMode
-cd CompilerMode
-mode api rename
-cmt "编译模式: normal(普通.o)/exe(可执行)/sl(静态库)/dl(动态库)"
-value "int"
-cd ..
-type ApiMode
-cd ApiMode
-mode api rename
-cmt "API模式: api(公开接口)/normal(私有实现)"
-value "int"
-cd ..
-type TypeMode
-cd TypeMode
-mode api rename
-cmt "类型模式: rename(别名)/struct(结构体)/api rename/api struct"
-value "int"
-cd ..
-type VarMode
-cd VarMode
-mode api rename
-cmt "变量模式: static/normal"
-value "int"
-cd ..
-struct Comment
-cd Comment
-mode api
-cmt "子域注释记录(参数/成员注释)"
-mem target char*
-mem text char*
-cd ..
-struct Domain
-cd Domain
-mode api
-cmt "子域数组容量"
-mem name char*
-mem type int
-mem comment char*
-mem parent struct Domain*
-mem children struct Domain**
-mem child_count int
-mem child_capacity int
-cd ..
-struct ModuleDomain
-cd ModuleDomain
-mode api
-cmt "依赖数量"
-mem base struct Domain
-mem mode int
-mem compiler int
-mem value char*
-mem includes char**
-mem include_count int
-mem dependencies char**
-mem dep_count int
-cd ..
-struct FunctionDomain
-cd FunctionDomain
-mode api
-cmt "业务逻辑描述"
-mem base struct Domain
-mem mode int
-mem return_type char*
-mem code char*
-mem value char*
-cd ..
-struct StructDomain
-cd StructDomain
-mode api
-cmt "API模式(ApiMode枚举)"
-mem base struct Domain
-mem mode int
-cd ..
-struct TypeDomain
-cd TypeDomain
-mode api
-cmt "底层类型(rename模式)或值"
-mem base struct Domain
-mem mode int
-mem value char*
-cd ..
-struct MacroDomain
-cd MacroDomain
-mode api
-cmt "宏值"
-mem base struct Domain
-mem mode int
-mem value char*
-cd ..
-struct VariableDomain
-cd VariableDomain
-mode api
-cmt "变量初始值"
-mem base struct Domain
-mem mode int
-mem type char*
-mem value char*
-cd ..
-struct MemberDomain
-cd MemberDomain
-mode api
-cmt "成员类型"
-mem base struct Domain
-mem type char*
-cd ..
-struct Dependency
-cd Dependency
-mode api
-cmt "源.cboot文件路径"
-mem importer char*
-mem source char*
-mem cboot_file char*
-cd ..
-struct Project
-cd Project
-mode api
-cmt "依赖数量"
-mem name char*
-mem root struct Domain*
-mem current struct Domain*
-mem has_generated int
-mem cboot_file char*
-mem dependencies struct Dependency*
-mem dep_count int
-cd ..
 void domain_new Domain*
 cd domain_new
 mode api
-cmt "结构体大小"
-value "分配内存，设置类型和名称，初始化子域数组，返回新指针"
 mem type DomainType
 mem name const char*
 mem struct_size size_t
@@ -900,135 +769,52 @@ cd ..
 void module_domain_new ModuleDomain*
 cd module_domain_new
 mode api
-cmt "模块名称"
-value "调用domain_new，设置默认模式为INTERNAL，默认编译模式为NORMAL"
 mem name const char*
 cd ..
 void function_domain_new FunctionDomain*
 cd function_domain_new
 mode api
-cmt "返回类型"
-value "调用domain_new，设置返回类型，默认API模式为NORMAL"
 mem name const char*
 mem return_type const char*
 cd ..
 void struct_domain_new StructDomain*
 cd struct_domain_new
 mode api
-cmt "结构体名称"
-value "调用domain_new，默认API模式为NORMAL"
 mem name const char*
 cd ..
 void type_domain_new TypeDomain*
 cd type_domain_new
 mode api
-cmt "类型名称"
-value "调用domain_new，默认类型模式为RENAME"
 mem name const char*
 cd ..
 void macro_domain_new MacroDomain*
 cd macro_domain_new
 mode api
-cmt "宏名称"
-value "调用domain_new，默认API模式为NORMAL"
 mem name const char*
 cd ..
 void variable_domain_new VariableDomain*
 cd variable_domain_new
 mode api
-cmt "变量类型"
-value "调用domain_new，设置类型，默认变量模式为NORMAL"
 mem name const char*
 mem type const char*
 cd ..
 void member_domain_new MemberDomain*
 cd member_domain_new
 mode api
-cmt "成员类型"
-value "调用domain_new，设置类型"
 mem name const char*
 mem type const char*
 cd ..
 void domain_add_child void
 cd domain_add_child
 mode api
-cmt "子域指针"
-value "检查容量，扩容数组，添加子域，设置parent"
 mem parent Domain*
 mem child Domain*
 cd ..
 void domain_find_child Domain*
 cd domain_find_child
 mode api
-cmt "目标名称"
-value "遍历子域数组，返回匹配名称的子域指针，未找到返回NULL"
 mem parent Domain*
 mem name const char*
-cd ..
-void domain_find_api_in_submodules Domain*
-cd domain_find_api_in_submodules
-mode api
-cmt "目标名称"
-value "先在直接子域中查找，再递归进入子模块查找API模式项"
-mem scope Domain*
-mem name const char*
-cd ..
-void domain_check_api_name_conflict Domain*
-cd domain_check_api_name_conflict
-mode api
-cmt "目标名称"
-value "调用domain_find_api_in_submodules，返回冲突域或NULL"
-mem scope Domain*
-mem name const char*
-cd ..
-void domain_get_path char*
-cd domain_get_path
-mode api
-cmt "目标域"
-value "从当前域向上遍历到根，拼接路径字符串"
-mem domain Domain*
-cd ..
-void domain_set_comment void
-cd domain_set_comment
-mode api
-cmt "注释文本"
-value "复制文本并设置到域的comment字段"
-mem domain Domain*
-mem text const char*
-cd ..
-void domain_set_mode void
-cd domain_set_mode
-mode api
-cmt "模式值"
-value "根据域类型设置对应的模式字段"
-mem domain Domain*
-mem mode int
-cd ..
-void project_new Project*
-cd project_new
-mode api
-cmt "项目名称"
-value "创建根模块域，初始化项目状态和依赖数组"
-mem name const char*
-cd ..
-void project_add_dependency void
-cd project_add_dependency
-mode api
-cmt "源.cboot文件路径"
-value "检查容量，扩容数组，添加新依赖记录"
-mem proj Project*
-mem importer_path const char*
-mem source_path const char*
-mem cboot_file const char*
-cd ..
-void project_has_dependency int
-cd project_has_dependency
-mode api
-cmt "源模块路径"
-value "遍历依赖数组，返回1(存在)或0(不存在)"
-mem proj Project*
-mem importer_path const char*
-mem source_path const char*
 cd ..
 void domain_find_child_by_type Domain*
 cd domain_find_child_by_type
@@ -1061,10 +847,33 @@ mem root Domain*
 mem type DomainType
 mem name const char*
 cd ..
+void domain_get_path char*
+cd domain_get_path
+mode api
+mem domain Domain*
+cd ..
 void domain_is_api int
 cd domain_is_api
 mode api
 mem domain Domain*
+cd ..
+void domain_find_api_in_submodules Domain*
+cd domain_find_api_in_submodules
+mode api
+mem scope Domain*
+mem name const char*
+cd ..
+void domain_check_api_name_conflict Domain*
+cd domain_check_api_name_conflict
+mode api
+mem scope Domain*
+mem name const char*
+cd ..
+void domain_set_comment void
+cd domain_set_comment
+mode api
+mem domain Domain*
+mem text const char*
 cd ..
 void domain_set_child_comment void
 cd domain_set_child_comment
@@ -1102,10 +911,36 @@ cd domain_get_call
 mode api
 mem domain Domain*
 cd ..
+void domain_set_mode void
+cd domain_set_mode
+mode api
+mem domain Domain*
+mem mode int
+cd ..
+void project_new Project*
+cd project_new
+mode api
+mem name const char*
+cd ..
 void project_free void
 cd project_free
 mode api
 mem proj Project*
+cd ..
+void project_add_dependency void
+cd project_add_dependency
+mode api
+mem proj Project*
+mem importer_path const char*
+mem source_path const char*
+mem cboot_file const char*
+cd ..
+void project_has_dependency int
+cd project_has_dependency
+mode api
+mem proj Project*
+mem importer_path const char*
+mem source_path const char*
 cd ..
 void is_builtin_type int
 cd is_builtin_type

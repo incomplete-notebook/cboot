@@ -51,6 +51,7 @@ extern Project *g_proj;
 extern RunMode  g_mode;
 extern int      g_force;       /* -f flag */
 extern int      g_running;     /* REPL running flag */
+extern int      g_skip_gen;    /* 加载 .cboot 时跳过 gen 命令 (analyze 使用) */
 extern char     g_script_dir[]; /* 当前脚本文件所在目录，用于 .cboot 引用解析 */
 
 /* ------------------------------------------------------------------ */
@@ -120,6 +121,9 @@ int commands_cmd_gen(void);
 /* 更新: update - 扫描源码同步 .cboot */
 int commands_cmd_update(void);
 
+/* 分析: analyze - 统计有效代码行数、圈复杂度、代码重复率 */
+int commands_cmd_analyze(void);
+
 /* 微调: adjust - 先update再进入交互式REPL调整 */
 int commands_cmd_adjust(void);
 
@@ -147,6 +151,9 @@ int parser_try_cboot_ref(const char *token);
 /* ------------------------------------------------------------------ */
 
 int generator_generate_project(Project *proj);
+
+/* 仅重新生成 .cboot 文件（不覆盖 .c/.h/CMake） */
+int generator_generate_cboot_only(Project *proj);
 
 /* ------------------------------------------------------------------ */
 /* docgen.c - Documentation generator (4种.md)                          */

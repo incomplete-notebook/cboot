@@ -49,7 +49,8 @@ int parser_try_cboot_ref(const char *token) {
 static int parser_exec_cboot_ref(const char *ref) {
     if (!ref) return -1;
 
-    fprintf(stderr, "DEBUG parser_exec_cboot_ref: ref='%s'\n", ref);
+    /* 保存当前作用域，确保无论脚本如何改变作用域都能恢复 */
+    Domain *saved_scope = g_proj->current;
 
     /* Extract directory part and file part */
     char buf[MAX_PATH_LEN];
@@ -62,8 +63,10 @@ static int parser_exec_cboot_ref(const char *ref) {
         /* No directory — just parse the file in current scope */
         char full_path[MAX_PATH_LEN];
         snprintf(full_path, sizeof(full_path), "%s/%s", g_script_dir, ref);
-        fprintf(stderr, "DEBUG parser_exec_cboot_ref: no dir, full_path='%s'\n", full_path);
-        return parser_parse_cboot_script(full_path);
+        int ret = parser_parse_cboot_script(full_path);
+        /* 恢复作用域（脚本可能通过 cd 命令改变了它） */
+        g_proj->current = saved_scope;
+        return ret;
     }
 
     /* Split: dir part = everything before last '/', file = last_slash+1 */
@@ -74,8 +77,6 @@ static int parser_exec_cboot_ref(const char *ref) {
     /* Resolve the full file path relative to current script dir */
     char full_path[MAX_PATH_LEN];
     snprintf(full_path, sizeof(full_path), "%s/%s/%s", g_script_dir, dir_part, file_part);
-    fprintf(stderr, "DEBUG parser_exec_cboot_ref: dir_part='%s' file_part='%s' full_path='%s'\n",
-            dir_part, file_part, full_path);
 
     /* Navigate into modules: split dir_part by '/' */
     int depth_entered = 0;
@@ -90,14 +91,14 @@ static int parser_exec_cboot_ref(const char *ref) {
         Domain *existing = domain_domain_find_child(g_proj->current, seg);
         if (!existing) {
             if (commands_cmd_mod(seg) != 0) {
-                /* Rollback: cd back out */
-                for (int i = 0; i < depth_entered; i++) commands_cmd_cd("..");
+                /* Rollback: restore scope */
+                g_proj->current = saved_scope;
                 return -1;
             }
         }
         /* cd into the module */
         if (commands_cmd_cd(seg) != 0) {
-            for (int i = 0; i < depth_entered; i++) commands_cmd_cd("..");
+            g_proj->current = saved_scope;
             return -1;
         }
         depth_entered++;
@@ -107,10 +108,10 @@ static int parser_exec_cboot_ref(const char *ref) {
     /* Parse the referenced .cboot file (parser_parse_cboot_script manages g_script_dir) */
     int ret = parser_parse_cboot_script(full_path);
 
-    /* Navigate back */
-    for (int i = 0; i < depth_entered; i++) {
-        commands_cmd_cd("..");
-    }
+    /* 恢复作用域：无论脚本如何 cd，都回到调用前的状态。
+     * 之前用 depth_entered 次 cd(..) 的方式在脚本中途出错时
+     * 会因 depth 不匹配而恢复到错误的位置。 */
+    g_proj->current = saved_scope;
 
     return ret;
 }
@@ -371,7 +372,13 @@ static int parser_dispatch_script_line(char **tokens, int count) {
 
     /* 生成: gen */
     if (utils_str_eq(cmd, "gen")) {
+        if (g_skip_gen) return 0;  /* 加载阶段跳过 gen (analyze 使用) */
         return commands_cmd_gen();
+    }
+
+    /* 分析: analyze - 统计代码行数、圈复杂度、代码重复率 */
+    if (utils_str_eq(cmd, "analyze")) {
+        return commands_cmd_analyze();
     }
 
     /* 更新: update - 扫描源码同步 .cboot
@@ -411,9 +418,15 @@ static int parser_dispatch_script_line(char **tokens, int count) {
         return commands_cmd_res(tokens[1]);
     }
 
-    /* .cboot 文件引用: <dir>/.cboot 或 .cboot */
+    /* .cboot 文件引用: <dir>/.cboot 或 .cboot
+     * 引用失败（如文件不存在或子脚本有错误）视为非致命错误，仅警告并继续，
+     * 以免阻断同一脚本中后续模块的加载。 */
     if (parser_is_cboot_ref(cmd)) {
-        return parser_exec_cboot_ref(cmd);
+        int rc = parser_exec_cboot_ref(cmd);
+        if (rc != 0) {
+            fprintf(stderr, "parser: 警告: .cboot 引用 '%s' 失败，已跳过\n", cmd);
+        }
+        return 0;
     }
 
     /* Unknown command */
@@ -475,8 +488,6 @@ int parser_parse_cboot_script(const char *filename) {
 
         /* Dispatch */
         int ret = parser_dispatch_script_line(tokens, token_count);
-        fprintf(stderr, "DEBUG parser_parse_cboot_script: line %d cmd='%s' ret=%d\n",
-                line_no, tokens[0] ? tokens[0] : "<null>", ret);
         utils_free_tokens(tokens, token_count);
 
         if (ret == 1) {
@@ -540,4 +551,14 @@ int parser_parse_cboot_script(const char *filename) {
     strcpy(g_script_dir, saved_script_dir);
     return 0;
 }
+
+
+
+
+
+
+
+
+
+
 
