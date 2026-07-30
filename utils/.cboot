@@ -343,17 +343,6 @@ void utils_strip_quotes(char *str)
         str[len - 2] = '\0';
     }
 }
-
-
-
-
-
-
-
-
-
-
-
 EOF
 im domain
 void ensure_dir void

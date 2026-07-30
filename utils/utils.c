@@ -339,14 +339,3 @@ void utils_strip_quotes(char *str)
         str[len - 2] = '\0';
     }
 }
-
-
-
-
-
-
-
-
-
-
-

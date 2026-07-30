@@ -11,35 +11,44 @@
 | 依赖方 | 被依赖方 | 来源文件 |
 |--------|----------|----------|
 | `/cupdate` | `/domain` | domain |
-| `/cupdate/commands` | `/cupdate/domain` | domain |
-| `/cupdate/commands` | `/cupdate` | cupdate |
-| `/cupdate/parser` | `/cupdate/domain` | domain |
-| `/cupdate/generator` | `/cupdate/domain` | domain |
-| `/cupdate/generator/docgen` | `/cupdate/generator/domain` | domain |
-| `/cupdate/generator/docgen/typecheck` | `/cupdate/generator/docgen/domain` | domain |
+| `/commands` | `/domain` | domain |
+| `/commands` | `/cupdate` | cupdate |
+| `/parser` | `/domain` | domain |
+| `/generator` | `/domain` | domain |
+| `/docgen` | `/domain` | domain |
+| `/typecheck` | `/domain` | domain |
+| `/utils` | `/domain` | domain |
+| `/main` | `/domain` | domain |
+| `/main` | `/cupdate` | cupdate |
 
 ### 被依赖视图
 
 | 被依赖方 | 依赖方 | 来源文件 |
 |----------|--------|----------|
 | `/domain` | `/cupdate` | domain |
-| `/cupdate/domain` | `/cupdate/commands` | domain |
-| `/cupdate` | `/cupdate/commands` | cupdate |
-| `/cupdate/domain` | `/cupdate/parser` | domain |
-| `/cupdate/domain` | `/cupdate/generator` | domain |
-| `/cupdate/generator/domain` | `/cupdate/generator/docgen` | domain |
-| `/cupdate/generator/docgen/domain` | `/cupdate/generator/docgen/typecheck` | domain |
+| `/domain` | `/commands` | domain |
+| `/cupdate` | `/commands` | cupdate |
+| `/domain` | `/parser` | domain |
+| `/domain` | `/generator` | domain |
+| `/domain` | `/docgen` | domain |
+| `/domain` | `/typecheck` | domain |
+| `/domain` | `/utils` | domain |
+| `/domain` | `/main` | domain |
+| `/cupdate` | `/main` | cupdate |
 
 ### 依赖链
 
 ```
 /cupdate --> /domain  (domain)
-/cupdate/commands --> /cupdate/domain  (domain)
-/cupdate/commands --> /cupdate  (cupdate)
-/cupdate/parser --> /cupdate/domain  (domain)
-/cupdate/generator --> /cupdate/domain  (domain)
-/cupdate/generator/docgen --> /cupdate/generator/domain  (domain)
-/cupdate/generator/docgen/typecheck --> /cupdate/generator/docgen/domain  (domain)
+/commands --> /domain  (domain)
+/commands --> /cupdate  (cupdate)
+/parser --> /domain  (domain)
+/generator --> /domain  (domain)
+/docgen --> /domain  (domain)
+/typecheck --> /domain  (domain)
+/utils --> /domain  (domain)
+/main --> /domain  (domain)
+/main --> /cupdate  (cupdate)
 ```
 
 ## 完整项目导入 (in 导入)

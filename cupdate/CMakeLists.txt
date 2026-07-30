@@ -2,8 +2,8 @@
 
 set(cupdate_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/cupdate.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/cupdate_lexer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cupdate_parser.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/cupdate_lexer.c
 )
 
 

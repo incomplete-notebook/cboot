@@ -1,4 +1,4 @@
-/* main.c - CBoot generated (compiler: normal) */
+/* main.c - CBoot generated (compiler: exe) */
 /* Module: main */
 
 /*
@@ -454,217 +454,216 @@ static int main_do_tab_complete(char *line, int *pos, const char *prompt)
 }
 
 /* ------------------------------------------------------------------ */
-/* REPL loop                                                          */
+/* REPL history helpers                                               */
 /* ------------------------------------------------------------------ */
 
 #define CBOOT_HISTORY_MAX 100
 
+static void main_repl_history_up(char *line, int *pos, const char *prompt,
+                                  char **history, int hist_count,
+                                  int *hist_pos, int *hist_browsing, char *saved_line)
+{
+    if (hist_count <= 0) return;
+    if (!*hist_browsing) {
+        strcpy(saved_line, line);
+        *hist_browsing = 1;
+        *hist_pos = hist_count;
+    }
+    if (*hist_pos > 0) {
+        (*hist_pos)--;
+        strcpy(line, history[*hist_pos]);
+        printf("\r\033[K%s%s", prompt, line);
+        fflush(stdout);
+        *pos = (int)strlen(line);
+    }
+}
+
+static void main_repl_history_down(char *line, int *pos, const char *prompt,
+                                    char **history, int hist_count,
+                                    int *hist_pos, int *hist_browsing, char *saved_line)
+{
+    if (!*hist_browsing) return;
+    if (*hist_pos < hist_count - 1) {
+        (*hist_pos)++;
+        strcpy(line, history[*hist_pos]);
+    } else {
+        *hist_pos = hist_count;
+        strcpy(line, saved_line);
+        *hist_browsing = 0;
+    }
+    printf("\r\033[K%s%s", prompt, line);
+    fflush(stdout);
+    *pos = (int)strlen(line);
+}
+
+/* ------------------------------------------------------------------ */
+/* REPL escape sequence helpers                                       */
+/* ------------------------------------------------------------------ */
+
+static void main_repl_consume_extended_esc(void) {
+    char c;
+    while (1) {
+        if (read(STDIN_FILENO, &c, 1) != 1) break;
+        if (c == '~' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) break;
+    }
+}
+
+static void main_repl_consume_bracketed_paste(void) {
+    char c;
+    while (1) {
+        if (read(STDIN_FILENO, &c, 1) != 1) break;
+        if (c == '~' || c == 'h' || c == 'l') break;
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* REPL input line reader                                             */
+/* ------------------------------------------------------------------ */
+
+static int main_repl_read_line(char *line, const char *prompt,
+                                char **history, int hist_count,
+                                int *hist_pos, int *hist_browsing, char *saved_line)
+{
+    int pos = 0;
+    int esc_state = 0;   /* 0=normal, 1=saw ESC, 2=saw ESC[, 3=saw ESC[? */
+    line[0] = '\0';
+
+    while (1) {
+        char c;
+        if (read(STDIN_FILENO, &c, 1) != 1) {
+            g_running = 0;
+            return 0;
+        }
+
+        /* ESC sequence state machine */
+        if (esc_state == 0 && c == '\033') {
+            esc_state = 1;
+            continue;
+        }
+        if (esc_state == 1) {
+            esc_state = (c == '[') ? 2 : 0;
+            continue;
+        }
+        if (esc_state == 2) {
+            if (c == 'A') {
+                main_repl_history_up(line, &pos, prompt, history, hist_count,
+                                     hist_pos, hist_browsing, saved_line);
+            } else if (c == 'B') {
+                main_repl_history_down(line, &pos, prompt, history, hist_count,
+                                       hist_pos, hist_browsing, saved_line);
+            } else if (c == '?' ) {
+                esc_state = 3; continue;
+            } else if (c >= '0' && c <= '9') {
+                main_repl_consume_extended_esc();
+            }
+            esc_state = 0;
+            continue;
+        }
+        if (esc_state == 3) {
+            if (c >= '0' && c <= '9') main_repl_consume_bracketed_paste();
+            esc_state = 0;
+            continue;
+        }
+
+        /* Tab */
+        if (c == '\t') {
+            if (pos > 0) main_do_tab_complete(line, &pos, prompt);
+            continue;
+        }
+
+        /* Enter */
+        if (c == '\n' || c == '\r') {
+            line[pos] = '\0';
+            printf("\n");
+            return 1;
+        }
+
+        /* Ctrl+C - clear line */
+        if (c == 3) {
+            line[0] = '\0'; pos = 0;
+            printf("^C\n%s", prompt);
+            fflush(stdout);
+            continue;
+        }
+
+        /* Ctrl+D - exit on empty line */
+        if (c == 4) {
+            if (pos == 0) {
+                printf("\n");
+                g_running = 0;
+                return 0;
+            }
+            continue;
+        }
+
+        /* Ctrl+L - clear screen */
+        if (c == 12) {
+            printf("\033[2J\033[H%s%s", prompt, line);
+            fflush(stdout);
+            continue;
+        }
+
+        /* Backspace */
+        if (c == 127 || c == '\b') {
+            if (pos > 0) {
+                pos--;
+                line[pos] = '\0';
+                printf("\b \b");
+                fflush(stdout);
+            }
+            continue;
+        }
+
+        /* Regular characters */
+        if (pos < MAX_LINE_LEN - 1 && c >= 32) {
+            line[pos++] = c;
+            line[pos] = '\0';
+            putchar(c);
+            fflush(stdout);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* REPL loop                                                          */
+/* ------------------------------------------------------------------ */
+
 static void main_repl_loop(void) {
     char line[MAX_LINE_LEN];
-    char saved_line[MAX_LINE_LEN]; /* saves in-progress line when browsing history */
+    char saved_line[MAX_LINE_LEN];
     char prompt[MAX_PATH_LEN];
     char *history[CBOOT_HISTORY_MAX] = {0};
     int hist_count = 0;
     int hist_pos = 0;
-    int hist_browsing = 0; /* whether we are browsing history */
+    int hist_browsing = 0;
 
-    /* 保存并设置终端为 raw 模式 */
     struct termios old_term, new_term;
     tcgetattr(STDIN_FILENO, &old_term);
     new_term = old_term;
     new_term.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSANOW, &new_term);
 
-    /* 启用 bracketed paste mode */
     printf("\033[?2004h");
     fflush(stdout);
 
     while (g_running) {
-        /* 构建提示符 */
         char *path = domain_domain_get_path(g_proj->current);
         snprintf(prompt, sizeof(prompt), "CBoot%s> ", path);
         free(path);
 
-        /* 显示提示符 */
         printf("%s", prompt);
         fflush(stdout);
 
-        /* 逐字符读取输入 */
-        int pos = 0;
-        int esc_state = 0;   /* 0=normal, 1=saw ESC, 2=saw ESC[, 3=saw ESC[? (bracketed paste) */
-        line[0] = '\0';
+        if (!main_repl_read_line(line, prompt, history, hist_count,
+                                 &hist_pos, &hist_browsing, saved_line))
+            break;
 
-        while (1) {
-            char c;
-            if (read(STDIN_FILENO, &c, 1) != 1) {
-                g_running = 0;
-                break;
-            }
-
-            /* 处理转义序列 */
-            if (esc_state == 0 && c == '\033') {
-                esc_state = 1;
-                continue;
-            }
-            if (esc_state == 1) {
-                if (c == '[') {
-                    esc_state = 2;
-                    continue;
-                }
-                /* Lone ESC */
-                esc_state = 0;
-                continue;
-            }
-            if (esc_state == 2) {
-                if (c == 'A') {
-                    /* 上箭头 - 命令回滚 */
-                    if (hist_count > 0) {
-                        if (!hist_browsing) {
-                            /* Save current in-progress line */
-                            strcpy(saved_line, line);
-                            hist_browsing = 1;
-                            hist_pos = hist_count; /* will be decremented below */
-                        }
-                        if (hist_pos > 0) {
-                            hist_pos--;
-                            strcpy(line, history[hist_pos]);
-                            printf("\r\033[K%s%s", prompt, line);
-                            fflush(stdout);
-                            pos = (int)strlen(line);
-                        }
-                    }
-                    esc_state = 0;
-                    continue;
-                } else if (c == 'B') {
-                    /* 下箭头 - 命令回滚 */
-                    if (hist_browsing) {
-                        if (hist_pos < hist_count - 1) {
-                            hist_pos++;
-                            strcpy(line, history[hist_pos]);
-                        } else {
-                            /* Past the last history entry - restore saved line */
-                            hist_pos = hist_count;
-                            strcpy(line, saved_line);
-                            hist_browsing = 0;
-                        }
-                        printf("\r\033[K%s%s", prompt, line);
-                        fflush(stdout);
-                        pos = (int)strlen(line);
-                    }
-                    esc_state = 0;
-                    continue;
-                } else if (c == 'C') {
-                    /* 右箭头 - 忽略，清除esc状态 */
-                    esc_state = 0;
-                    continue;
-                } else if (c == 'D') {
-                    /* 左箭头 - 忽略，清除esc状态 */
-                    esc_state = 0;
-                    continue;
-                } else if (c == '?') {
-                    /* Bracketed paste start prefix: ESC[? */
-                    esc_state = 3;
-                    continue;
-                } else if (c >= '0' && c <= '9') {
-                    /* Extended escape sequence like ESC[1~ or ESC[200~ */
-                    /* Read the rest until '~' or letter */
-                    while (1) {
-                        if (read(STDIN_FILENO, &c, 1) != 1) break;
-                        if (c == '~' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
-                            break;
-                    }
-                    /* Bracketed paste ESC[200~/ESC[201~ and others are consumed silently */
-                    esc_state = 0;
-                    continue;
-                } else {
-                    /* Unknown ESC[ sequence */
-                    esc_state = 0;
-                    continue;
-                }
-            }
-            if (esc_state == 3) {
-                /* After ESC[?, consume digits then ~ (e.g. ESC[?2004h reply) */
-                if (c >= '0' && c <= '9') {
-                    while (1) {
-                        if (read(STDIN_FILENO, &c, 1) != 1) break;
-                        if (c == '~' || c == 'h' || c == 'l') break;
-                    }
-                }
-                esc_state = 0;
-                continue;
-            }
-
-            /* Tab - command completion */
-            if (c == '\t') {
-                if (pos > 0) {
-                    main_do_tab_complete(line, &pos, prompt);
-                }
-                continue;
-            }
-
-            /* Enter */
-            if (c == '\n' || c == '\r') {
-                line[pos] = '\0';
-                printf("\n");
-                break;
-            }
-
-            /* Ctrl+C - clear line */
-            if (c == 3) {
-                line[0] = '\0';
-                pos = 0;
-                printf("^C\n%s", prompt);
-                fflush(stdout);
-                continue;
-            }
-
-            /* Ctrl+D - exit on empty line */
-            if (c == 4) {
-                if (pos == 0) {
-                    printf("\n");
-                    g_running = 0;
-                    break;
-                }
-                continue;
-            }
-
-            /* Ctrl+L - clear screen */
-            if (c == 12) {
-                printf("\033[2J\033[H%s%s", prompt, line);
-                fflush(stdout);
-                continue;
-            }
-
-            /* Backspace */
-            if (c == 127 || c == '\b') {
-                if (pos > 0) {
-                    pos--;
-                    line[pos] = '\0';
-                    printf("\b \b");
-                    fflush(stdout);
-                }
-                continue;
-            }
-
-            /* 普通字符 (including pasted text) */
-            if (pos < MAX_LINE_LEN - 1 && c >= 32) {
-                line[pos++] = c;
-                line[pos] = '\0';
-                putchar(c);
-                fflush(stdout);
-            }
-        }
-
-        if (!g_running) break;
-
-        /* Reset history browsing state */
         hist_browsing = 0;
 
-        /* 跳过空行 */
         char *trimmed = trim(line);
         if (trimmed[0] == '\0') continue;
 
-        /* 添加到历史 */
+        /* Add to history */
         if (hist_count == 0 || strcmp(line, history[hist_count - 1]) != 0) {
             if (hist_count < CBOOT_HISTORY_MAX) {
                 history[hist_count] = strdup(line);
@@ -678,42 +677,42 @@ static void main_repl_loop(void) {
         }
         hist_pos = hist_count;
 
-        /* 分词并分发 */
+        /* Tokenize and dispatch */
         int token_count = 0;
         char **tokens = tokenize(trimmed, &token_count);
         if (!tokens || token_count == 0) {
             utils_free_tokens(tokens, token_count);
             continue;
         }
-
         main_dispatch_command(tokens, token_count);
         utils_free_tokens(tokens, token_count);
     }
 
-    /* 禁用 bracketed paste mode 并恢复终端 */
     printf("\033[?2004l");
     fflush(stdout);
     tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
 
-    /* 释放历史 */
     for (int i = 0; i < hist_count; i++)
         free(history[i]);
 }
 
 /* ------------------------------------------------------------------ */
-/* Command dispatcher (新规范 v0.3.1)                                     */
+/* Helpers: join tokens[1..] into a single string                     */
 /* ------------------------------------------------------------------ */
 
-static int main_dispatch_command(char **tokens, int count) {
-    const char *cmd = tokens[0];
-
-    /* 帮助 */
-    if (utils_str_eq(cmd, "help") || utils_str_eq(cmd, "?")) {
-        main_print_usage("cboot");
-        return 0;
+static void main_join_rest(char *buf, size_t size, char **tokens, int count) {
+    buf[0] = '\0';
+    for (int i = 1; i < count; i++) {
+        if (i > 1) strncat(buf, " ", size - strlen(buf) - 1);
+        strncat(buf, tokens[i], size - strlen(buf) - 1);
     }
+}
 
-    /* 建立域: <op> <name> */
+/* ------------------------------------------------------------------ */
+/* Command dispatchers by category                                    */
+/* ------------------------------------------------------------------ */
+
+static int main_dispatch_build(const char *cmd, char **tokens, int count) {
     if (utils_str_eq(cmd, "mod")) {
         if (count < 2) { printf("用法: mod <名称>\n"); return -1; }
         return commands_cmd_mod(tokens[1]);
@@ -730,8 +729,6 @@ static int main_dispatch_command(char **tokens, int count) {
         if (count < 2) { printf("用法: def <名称>\n"); return -1; }
         return commands_cmd_def(tokens[1]);
     }
-
-    /* 带类型建立域: <op> <name> <type> */
     if (utils_str_eq(cmd, "void")) {
         if (count < 3) { printf("用法: void <名称> <返回类型>\n"); return -1; }
         return commands_cmd_void(tokens[1], tokens[2]);
@@ -744,24 +741,20 @@ static int main_dispatch_command(char **tokens, int count) {
         if (count < 3) { printf("用法: mem <名称> <类型>\n"); return -1; }
         return commands_cmd_mem(tokens[1], tokens[2]);
     }
-
-    /* 枚举式def */
     if (utils_str_eq(cmd, "enum")) {
         if (count < 3) { printf("用法: enum <def1>,<def2>,... <start_num>\n"); return -1; }
         return commands_cmd_enum(tokens[1], tokens[2]);
     }
+    return -2;
+}
 
-    /* 修改字段 */
+static int main_dispatch_modify(const char *cmd, char **tokens, int count) {
     if (utils_str_eq(cmd, "cmt")) {
         if (count < 2) { printf("用法: cmt \"文本\"\n"); return -1; }
-        /* Join rest */
-        char cmt_buf[MAX_LINE_LEN] = {0};
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(cmt_buf, " ");
-            strcat(cmt_buf, tokens[i]);
-        }
-        utils_strip_quotes(cmt_buf);
-        return commands_cmd_cmt(cmt_buf);
+        char buf[MAX_LINE_LEN] = {0};
+        main_join_rest(buf, sizeof(buf), tokens, count);
+        utils_strip_quotes(buf);
+        return commands_cmd_cmt(buf);
     }
     if (utils_str_eq(cmd, "value")) {
         if (count < 2) { printf("用法: value <值>\n"); return -1; }
@@ -769,31 +762,22 @@ static int main_dispatch_command(char **tokens, int count) {
     }
     if (utils_str_eq(cmd, "call")) {
         if (count < 2) { printf("用法: call <调用约定>\n"); return -1; }
-        char call_buf[MAX_LINE_LEN] = {0};
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(call_buf, " ");
-            strcat(call_buf, tokens[i]);
-        }
-        return commands_cmd_call(call_buf);
+        char buf[MAX_LINE_LEN] = {0};
+        main_join_rest(buf, sizeof(buf), tokens, count);
+        return commands_cmd_call(buf);
     }
     if (utils_str_eq(cmd, "mode")) {
         if (count < 2) { printf("用法: mode <模式>\n"); return -1; }
-        char mode_buf[MAX_LINE_LEN] = {0};
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(mode_buf, " ");
-            strcat(mode_buf, tokens[i]);
-        }
-        return commands_cmd_mode(mode_buf);
+        char buf[MAX_LINE_LEN] = {0};
+        main_join_rest(buf, sizeof(buf), tokens, count);
+        return commands_cmd_mode(buf);
     }
     if (utils_str_eq(cmd, "cmode")) {
         if (count < 2) { printf("用法: cmode <exe|sl|dl|normal>\n"); return -1; }
         return commands_cmd_cmode(tokens[1]);
     }
-
-    /* 修改字段: code — 设置模块/函数的实现代码 */
     if (utils_str_eq(cmd, "code")) {
         if (count < 2) {
-            /* 交互模式: 进入多行代码输入 */
             printf("输入代码，以 Ctrl+D 或 EOF 结束:\n");
             char code_buf[MAX_LINE_LEN * 64];
             code_buf[0] = '\0';
@@ -812,18 +796,16 @@ static int main_dispatch_command(char **tokens, int count) {
             printf("code 已设置。\n");
             return 0;
         }
-        /* 单行 code */
-        char code_buf[MAX_LINE_LEN] = {0};
-        for (int i = 1; i < count; i++) {
-            if (i > 1) strcat(code_buf, " ");
-            strcat(code_buf, tokens[i]);
-        }
-        domain_domain_set_code(g_proj->current, code_buf);
+        char buf[MAX_LINE_LEN] = {0};
+        main_join_rest(buf, sizeof(buf), tokens, count);
+        domain_domain_set_code(g_proj->current, buf);
         printf("code 已设置。\n");
         return 0;
     }
+    return -2;
+}
 
-    /* 控制 */
+static int main_dispatch_control(const char *cmd, char **tokens, int count) {
     if (utils_str_eq(cmd, "cd")) {
         return commands_cmd_cd(count >= 2 ? tokens[1] : NULL);
     }
@@ -837,8 +819,6 @@ static int main_dispatch_command(char **tokens, int count) {
         if (!name) { printf("用法: rm <名称> [-f]\n"); return -1; }
         return commands_cmd_rm(name, force);
     }
-
-    /* 查找 */
     if (utils_str_eq(cmd, "find")) {
         if (count < 3) {
             printf("用法: find <类型> <字符> [-a|-an]\n");
@@ -851,63 +831,74 @@ static int main_dispatch_command(char **tokens, int count) {
         }
         return commands_cmd_find(tokens[1], tokens[2], flags);
     }
-
-    /* 查看 */
     if (utils_str_eq(cmd, "ls")) {
         return commands_cmd_ls(count >= 2 ? tokens[1] : NULL);
     }
-
-    /* 移动 */
     if (utils_str_eq(cmd, "mv")) {
         if (count < 3) { printf("用法: mv <src> <target>\n"); return -1; }
         return commands_cmd_mv(tokens[1], tokens[2]);
     }
-
-    /* 退出 */
     if (utils_str_eq(cmd, "exit")) {
         return commands_cmd_exit();
     }
+    return -2;
+}
 
-    /* 生成 */
+static int main_dispatch_action(const char *cmd, char **tokens, int count) {
+    (void)tokens;
     if (utils_str_eq(cmd, "gen")) {
-        if (g_skip_gen) return 0;  /* 加载阶段跳过 gen */
+        if (g_skip_gen) return 0;
         return commands_cmd_gen();
     }
-
-    /* 分析：统计代码行数/圈复杂度/重复率 */
     if (utils_str_eq(cmd, "analyze")) {
         return commands_cmd_analyze();
     }
-
-    /* 更新：扫描源码同步 .cboot */
     if (utils_str_eq(cmd, "update")) {
         return commands_cmd_update();
     }
-
-    /* 微调：先update再进入交互式调整 */
     if (utils_str_eq(cmd, "adjust")) {
         return commands_cmd_adjust();
     }
-
-    /* 导入: im - 仅API定义 */
     if (utils_str_eq(cmd, "im")) {
         if (count < 2) { printf("用法: im <.cboot 文件>\n"); return -1; }
         return commands_cmd_im(tokens[1]);
     }
-
-    /* 导入: in - 完整项目作为子模块 */
     if (utils_str_eq(cmd, "in")) {
         if (count < 2) { printf("用法: in <.cboot 文件>\n"); return -1; }
         return commands_cmd_in(tokens[1]);
     }
-
-    /* 资源 */
     if (utils_str_eq(cmd, "res")) {
         if (count < 2) { printf("用法: res <资源文件>\n"); return -1; }
         return commands_cmd_res(tokens[1]);
     }
+    return -2;
+}
 
-    /* .cboot 文件引用: <dir>/.cboot 或 .cboot */
+/* ------------------------------------------------------------------ */
+/* Command dispatcher (新规范 v0.3.1)                                     */
+/* ------------------------------------------------------------------ */
+
+static int main_dispatch_command(char **tokens, int count) {
+    const char *cmd = tokens[0];
+    int rc;
+
+    if (utils_str_eq(cmd, "help") || utils_str_eq(cmd, "?")) {
+        main_print_usage("cboot");
+        return 0;
+    }
+
+    rc = main_dispatch_build(cmd, tokens, count);
+    if (rc != -2) return rc;
+
+    rc = main_dispatch_modify(cmd, tokens, count);
+    if (rc != -2) return rc;
+
+    rc = main_dispatch_control(cmd, tokens, count);
+    if (rc != -2) return rc;
+
+    rc = main_dispatch_action(cmd, tokens, count);
+    if (rc != -2) return rc;
+
     if (parser_try_cboot_ref(cmd)) {
         return 0;
     }
@@ -915,14 +906,3 @@ static int main_dispatch_command(char **tokens, int count) {
     printf("未知命令: %s (输入 help 查看帮助)\n", cmd);
     return -1;
 }
-
-
-
-
-
-
-
-
-
-
-

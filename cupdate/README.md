@@ -10,9 +10,6 @@
 ## 子模块
 
 - [domain](domain/README.md): [API 引用] 从项目内模块 domain 导入
-- [commands](commands/README.md): 命令处理器 - 实现交互式和批处理模式的所有命令
-- [parser](parser/README.md): 脚本解析器 - 解析.cboot脚本文件为项目定义
-- [generator](generator/README.md): 代码生成器 - 将域树转换为C源代码、CMake构建系统和文档
 
 ## 内容概览
 

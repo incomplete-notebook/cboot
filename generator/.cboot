@@ -44,6 +44,8 @@ static void generator_generate_top_cmake(Project *proj);
 static void generator_generate_top_main(Project *proj);
 static void generator_generate_project_cboot(Project *proj);
 static Domain *generator_find_exe_module(Project *proj);
+static void generator_write_dllexport_macro(FILE *f, const char *mod_name);
+static void generator_write_function_params(Domain *func_domain, FILE *f);
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -427,17 +429,7 @@ static void generator_write_c_functions(Domain *mod, FILE *f) {
         } else {
             fprintf(f, "%s %s(", func->return_type, abs_name);
         }
-
-        int first = 1;
-        for (int j = 0; j < child->child_count; j++) {
-            Domain *param = child->children[j];
-            if (param->type == DOMAIN_MEMBER) {
-                MemberDomain *mb = (MemberDomain *)param;
-                if (!first) fprintf(f, ", ");
-                fprintf(f, "%s %s", mb->type, param->name);
-                first = 0;
-            }
-        }
+        generator_write_function_params(child, f);
         fprintf(f, ") {\n");
 
         int has_vars = 0;
@@ -499,15 +491,7 @@ static void generator_generate_mod_c(Domain *mod, const char *dir) {
 
     /* For dl mode, add export macro */
     if (cmode == COMPILER_DL) {
-        fprintf(f, "#ifdef _WIN32\n");
-        fprintf(f, "#  ifdef %s_EXPORTS\n", mod->name);
-        fprintf(f, "#    define %s_API __declspec(dllexport)\n", mod->name);
-        fprintf(f, "#  else\n");
-        fprintf(f, "#    define %s_API __declspec(dllimport)\n", mod->name);
-        fprintf(f, "#  endif\n");
-        fprintf(f, "#else\n");
-        fprintf(f, "#  define %s_API\n", mod->name);
-        fprintf(f, "#endif\n\n");
+        generator_write_dllexport_macro(f, mod->name);
     }
 
     generator_write_c_includes(mod, f);
@@ -519,47 +503,45 @@ static void generator_generate_mod_c(Domain *mod, const char *dir) {
     fclose(f);
 }
 
-/* ================================================================== */
-/* generator_generate_mod_h - write <mod>.h file (API only)                      */
-/* ================================================================== */
+/* ------------------------------------------------------------------ */
+/* generator_write_h_guard - write include guard start/end            */
+/* ------------------------------------------------------------------ */
 
-static void generator_generate_mod_h(Domain *mod, const char *dir) {
-    char file_path[MAX_PATH_LEN];
-    snprintf(file_path, sizeof(file_path), "%s/%s.h", dir, mod->name);
+static void generator_write_h_guard_begin(FILE *f, const char *mod_name, char *guard_out, size_t guard_size) {
+    snprintf(guard_out, guard_size, "%s_H", mod_name);
+    for (int i = 0; guard_out[i]; i++)
+        guard_out[i] = (char)toupper((unsigned char)guard_out[i]);
 
-    FILE *f = fopen(file_path, "w");
-    if (!f) {
-        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
-        return;
-    }
+    fprintf(f, "/* %s.h - CBoot generated (API declarations only) */\n", mod_name);
+    fprintf(f, "#ifndef %s\n", guard_out);
+    fprintf(f, "#define %s\n\n", guard_out);
+}
 
-    char guard[MAX_NAME_LEN * 2];
-    snprintf(guard, sizeof(guard), "%s_H", mod->name);
-    for (int i = 0; guard[i]; i++)
-        guard[i] = (char)toupper((unsigned char)guard[i]);
+static void generator_write_h_guard_end(FILE *f, const char *guard) {
+    fprintf(f, "#endif /* %s */\n", guard);
+}
 
-    fprintf(f, "/* %s.h - CBoot generated (API declarations only) */\n", mod->name);
-    fprintf(f, "#ifndef %s\n", guard);
-    fprintf(f, "#define %s\n\n", guard);
+/* ------------------------------------------------------------------ */
+/* generator_write_dllexport_macro - shared dllexport/dllimport block */
+/* ------------------------------------------------------------------ */
 
-    /* dllexport/dllimport macro */
-    ModuleDomain *md = (ModuleDomain *)mod;
-    if (md->compiler == COMPILER_DL) {
-        fprintf(f, "#ifdef _WIN32\n");
-        fprintf(f, "#  ifdef %s_EXPORTS\n", mod->name);
-        fprintf(f, "#    define %s_API __declspec(dllexport)\n", mod->name);
-        fprintf(f, "#  else\n");
-        fprintf(f, "#    define %s_API __declspec(dllimport)\n", mod->name);
-        fprintf(f, "#  endif\n");
-        fprintf(f, "#else\n");
-        fprintf(f, "#  define %s_API\n", mod->name);
-        fprintf(f, "#endif\n\n");
-    }
+static void generator_write_dllexport_macro(FILE *f, const char *mod_name) {
+    fprintf(f, "#ifdef _WIN32\n");
+    fprintf(f, "#  ifdef %s_EXPORTS\n", mod_name);
+    fprintf(f, "#    define %s_API __declspec(dllexport)\n", mod_name);
+    fprintf(f, "#  else\n");
+    fprintf(f, "#    define %s_API __declspec(dllimport)\n", mod_name);
+    fprintf(f, "#  endif\n");
+    fprintf(f, "#else\n");
+    fprintf(f, "#  define %s_API\n", mod_name);
+    fprintf(f, "#endif\n\n");
+}
 
-    fprintf(f, "#include <stdio.h>\n");
-    fprintf(f, "#include <stdlib.h>\n");
-    fprintf(f, "#include <string.h>\n\n");
+/* ------------------------------------------------------------------ */
+/* generator_write_h_api_macros - API macro definitions               */
+/* ------------------------------------------------------------------ */
 
+static void generator_write_h_api_macros(Domain *mod, FILE *f) {
     int has_api = 0;
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
@@ -575,7 +557,13 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
         }
     }
     if (has_api) fprintf(f, "\n");
+}
 
+/* ------------------------------------------------------------------ */
+/* generator_write_h_api_types - API struct/type declarations         */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_h_api_types(Domain *mod, FILE *f) {
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
         if (child->type == DOMAIN_TYPE && docgen_is_api(child)) {
@@ -608,119 +596,167 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
             fprintf(f, "} %s;\n\n", child->name);
         }
     }
+}
 
-    /* Forward declarations for struct types used in API function params
-     * and return types but not defined in this module's API.
-     * This must come BEFORE the function declarations to avoid the
-     * "struct declared inside parameter list" warning/error. */
-    {
-        char fwd_decls[32][MAX_NAME_LEN];
-        int fwd_count = 0;
+/* ------------------------------------------------------------------ */
+/* generator_write_h_fwd_decls - forward decls for struct param types */
+/* ------------------------------------------------------------------ */
 
-        /* Collect candidate struct names from return types and params */
-        for (int i = 0; i < mod->child_count; i++) {
-            Domain *child = mod->children[i];
-            if (child->type != DOMAIN_FUNCTION || !docgen_is_api(child)) continue;
-            FunctionDomain *func = (FunctionDomain *)child;
+static void generator_write_h_fwd_decls(Domain *mod, FILE *f) {
+    char fwd_decls[32][MAX_NAME_LEN];
+    int fwd_count = 0;
 
-            /* Gather candidate type strings for this function */
-            const char *cand_types[64];
-            int cand_count = 0;
-            if (func->return_type && cand_count < 64)
-                cand_types[cand_count++] = func->return_type;
-            for (int j = 0; j < child->child_count && cand_count < 64; j++) {
-                Domain *param = child->children[j];
-                if (param->type == DOMAIN_MEMBER)
-                    cand_types[cand_count++] = ((MemberDomain *)param)->type;
-            }
+    /* Collect candidate struct names from return types and params */
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION || !docgen_is_api(child)) continue;
+        FunctionDomain *func = (FunctionDomain *)child;
 
-            for (int c = 0; c < cand_count; c++) {
-                const char *ts = cand_types[c];
-                if (!ts || strncmp(ts, "struct ", 7) != 0) continue;
-
-                char sname[MAX_NAME_LEN];
-                strncpy(sname, ts + 7, MAX_NAME_LEN - 1);
-                sname[MAX_NAME_LEN - 1] = '\0';
-                int slen = (int)strlen(sname);
-                while (slen > 0 && (sname[slen-1] == '*' || isspace((unsigned char)sname[slen-1])))
-                    sname[--slen] = '\0';
-                if (slen == 0) continue;
-
-                /* Skip if already collected */
-                int found = 0;
-                for (int k = 0; k < fwd_count; k++) {
-                    if (strcmp(fwd_decls[k], sname) == 0) { found = 1; break; }
-                }
-                if (found) continue;
-
-                /* Skip if defined as an API struct/type in this module */
-                int defined_here = 0;
-                for (int k = 0; k < mod->child_count; k++) {
-                    Domain *tc = mod->children[k];
-                    if ((tc->type == DOMAIN_STRUCT || tc->type == DOMAIN_TYPE) &&
-                        docgen_is_api(tc) && strcmp(tc->name, sname) == 0) {
-                        defined_here = 1; break;
-                    }
-                }
-                if (defined_here) continue;
-
-                if (fwd_count < 32) {
-                    strncpy(fwd_decls[fwd_count], sname, MAX_NAME_LEN - 1);
-                    fwd_decls[fwd_count][MAX_NAME_LEN - 1] = '\0';
-                    fwd_count++;
-                }
-            }
+        /* Gather candidate type strings for this function */
+        const char *cand_types[64];
+        int cand_count = 0;
+        if (func->return_type && cand_count < 64)
+            cand_types[cand_count++] = func->return_type;
+        for (int j = 0; j < child->child_count && cand_count < 64; j++) {
+            Domain *param = child->children[j];
+            if (param->type == DOMAIN_MEMBER)
+                cand_types[cand_count++] = ((MemberDomain *)param)->type;
         }
 
-        if (fwd_count > 0) {
-            fprintf(f, "/* Forward declarations for struct types used in API signatures */\n");
+        for (int c = 0; c < cand_count; c++) {
+            const char *ts = cand_types[c];
+            if (!ts || strncmp(ts, "struct ", 7) != 0) continue;
+
+            char sname[MAX_NAME_LEN];
+            strncpy(sname, ts + 7, MAX_NAME_LEN - 1);
+            sname[MAX_NAME_LEN - 1] = '\0';
+            int slen = (int)strlen(sname);
+            while (slen > 0 && (sname[slen-1] == '*' || isspace((unsigned char)sname[slen-1])))
+                sname[--slen] = '\0';
+            if (slen == 0) continue;
+
+            /* Skip if already collected */
+            int found = 0;
             for (int k = 0; k < fwd_count; k++) {
-                fprintf(f, "typedef struct %s %s;\n", fwd_decls[k], fwd_decls[k]);
+                if (strcmp(fwd_decls[k], sname) == 0) { found = 1; break; }
             }
-            fprintf(f, "\n");
+            if (found) continue;
+
+            /* Skip if defined as an API struct/type in this module */
+            int defined_here = 0;
+            for (int k = 0; k < mod->child_count; k++) {
+                Domain *tc = mod->children[k];
+                if ((tc->type == DOMAIN_STRUCT || tc->type == DOMAIN_TYPE) &&
+                    docgen_is_api(tc) && strcmp(tc->name, sname) == 0) {
+                    defined_here = 1; break;
+                }
+            }
+            if (defined_here) continue;
+
+            if (fwd_count < 32) {
+                strncpy(fwd_decls[fwd_count], sname, MAX_NAME_LEN - 1);
+                fwd_decls[fwd_count][MAX_NAME_LEN - 1] = '\0';
+                fwd_count++;
+            }
         }
     }
 
-    /* API function declarations (使用绝对符号名) */
+    if (fwd_count > 0) {
+        fprintf(f, "/* Forward declarations for struct types used in API signatures */\n");
+        for (int k = 0; k < fwd_count; k++) {
+            fprintf(f, "typedef struct %s %s;\n", fwd_decls[k], fwd_decls[k]);
+        }
+        fprintf(f, "\n");
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_function_params - write parameter list to FILE     */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_function_params(Domain *func_domain, FILE *f) {
+    int first = 1;
+    for (int j = 0; j < func_domain->child_count; j++) {
+        Domain *param = func_domain->children[j];
+        if (param->type == DOMAIN_MEMBER) {
+            MemberDomain *mb = (MemberDomain *)param;
+            if (!first) fprintf(f, ", ");
+            fprintf(f, "%s %s", mb->type, param->name);
+            first = 0;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_h_api_functions - API function declarations        */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_h_api_functions(Domain *mod, FILE *f) {
+    ModuleDomain *md = (ModuleDomain *)mod;
     char h_prefix[MAX_NAME_LEN * 4];
     generator_get_module_prefix(mod, h_prefix, sizeof(h_prefix));
 
     for (int i = 0; i < mod->child_count; i++) {
         Domain *child = mod->children[i];
-        if (child->type == DOMAIN_FUNCTION && docgen_is_api(child)) {
-            FunctionDomain *func = (FunctionDomain *)child;
-            char abs_name[MAX_NAME_LEN * 5];
-            generator_make_abs_name(h_prefix, child->name, abs_name, sizeof(abs_name));
+        if (child->type != DOMAIN_FUNCTION || !docgen_is_api(child)) continue;
 
-            if (child->comment) fprintf(f, "// %s\n", child->comment);
-            if (md->compiler == COMPILER_DL) {
-                if (func->call) {
-                    fprintf(f, "%s_API %s %s %s(", mod->name, func->return_type, func->call, abs_name);
-                } else {
-                    fprintf(f, "%s_API %s %s(", mod->name, func->return_type, abs_name);
-                }
+        FunctionDomain *func = (FunctionDomain *)child;
+        char abs_name[MAX_NAME_LEN * 5];
+        generator_make_abs_name(h_prefix, child->name, abs_name, sizeof(abs_name));
+
+        if (child->comment) fprintf(f, "// %s\n", child->comment);
+
+        const char *api_prefix = (md->compiler == COMPILER_DL) ? mod->name : NULL;
+        if (api_prefix) {
+            if (func->call) {
+                fprintf(f, "%s_API %s %s %s(", api_prefix, func->return_type, func->call, abs_name);
             } else {
-                if (func->call) {
-                    fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
-                } else {
-                    fprintf(f, "%s %s(", func->return_type, abs_name);
-                }
+                fprintf(f, "%s_API %s %s(", api_prefix, func->return_type, abs_name);
             }
-            int first = 1;
-            for (int j = 0; j < child->child_count; j++) {
-                Domain *param = child->children[j];
-                if (param->type == DOMAIN_MEMBER) {
-                    MemberDomain *mb = (MemberDomain *)param;
-                    if (!first) fprintf(f, ", ");
-                    fprintf(f, "%s %s", mb->type, param->name);
-                    first = 0;
-                }
+        } else {
+            if (func->call) {
+                fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
+            } else {
+                fprintf(f, "%s %s(", func->return_type, abs_name);
             }
-            fprintf(f, ");\n\n");
         }
+        generator_write_function_params(child, f);
+        fprintf(f, ");\n\n");
+    }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_h - write <mod>.h file (API only)                      */
+/* ================================================================== */
+
+static void generator_generate_mod_h(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/%s.h", dir, mod->name);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
     }
 
-    fprintf(f, "#endif /* %s */\n", guard);
+    char guard[MAX_NAME_LEN * 2];
+    generator_write_h_guard_begin(f, mod->name, guard, sizeof(guard));
+
+    ModuleDomain *md = (ModuleDomain *)mod;
+    if (md->compiler == COMPILER_DL) {
+        generator_write_dllexport_macro(f, mod->name);
+    }
+
+    fprintf(f, "#include <stdio.h>\n");
+    fprintf(f, "#include <stdlib.h>\n");
+    fprintf(f, "#include <string.h>\n\n");
+
+    generator_write_h_api_macros(mod, f);
+    generator_write_h_api_types(mod, f);
+    generator_write_h_fwd_decls(mod, f);
+    generator_write_h_api_functions(mod, f);
+
+    generator_write_h_guard_end(f, guard);
     fclose(f);
 }
 
@@ -1268,18 +1304,6 @@ static void generator_generate_project_cboot(Project *proj) {
     fprintf(f, "\ngen\n");
     fclose(f);
 }
-
-
-
-
-
-
-
-
-
-
-
-
 EOF
 im domain
 void generate_project int
@@ -1383,6 +1407,48 @@ mem f FILE*
 cd ..
 void write_c_functions void
 cd write_c_functions
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_dllexport_macro void
+cd write_dllexport_macro
+mem f FILE*
+mem mod_name const char*
+cd ..
+void write_function_params void
+cd write_function_params
+mem func_domain Domain*
+mem f FILE*
+cd ..
+void write_h_guard_begin void
+cd write_h_guard_begin
+mem f FILE*
+mem mod_name const char*
+mem guard_out char*
+mem guard_size size_t
+cd ..
+void write_h_guard_end void
+cd write_h_guard_end
+mem f FILE*
+mem guard const char*
+cd ..
+void write_h_api_macros void
+cd write_h_api_macros
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_h_api_types void
+cd write_h_api_types
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_h_fwd_decls void
+cd write_h_fwd_decls
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_h_api_functions void
+cd write_h_api_functions
 mem mod Domain*
 mem f FILE*
 cd ..

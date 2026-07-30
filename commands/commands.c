@@ -2070,14 +2070,3 @@ int commands_cmd_res(const char *file_path) {
     printf("资源 %s 已添加。\n", basename);
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-

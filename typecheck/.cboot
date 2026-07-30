@@ -379,6 +379,61 @@ const char *type_checker_resolve_typedef(TypeChecker *tc, const char *type_name)
 }
 
 /* ================================================================== */
+/* Value validation helpers                                           */
+/* ================================================================== */
+
+static int typecheck_validate_integer_value(const char *value)
+{
+    const char *p = value;
+    while (isspace((unsigned char)*p)) p++;
+
+    /* Hex: 0x or 0X prefix */
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+        p += 2;
+        if (!isxdigit((unsigned char)*p)) return -1;
+        while (isxdigit((unsigned char)*p)) p++;
+        while (isspace((unsigned char)*p)) p++;
+        return (*p == '\0') ? 0 : -1;
+    }
+
+    /* Optional sign */
+    if (*p == '+' || *p == '-') p++;
+    if (!isdigit((unsigned char)*p)) return -1;
+    while (isdigit((unsigned char)*p)) p++;
+    while (isspace((unsigned char)*p)) p++;
+    return (*p == '\0') ? 0 : -1;
+}
+
+static int typecheck_validate_float_value(const char *value)
+{
+    const char *p = value;
+    while (isspace((unsigned char)*p)) p++;
+
+    if (*p == '+' || *p == '-') p++;
+
+    int has_digits = 0;
+    while (isdigit((unsigned char)*p)) { has_digits = 1; p++; }
+
+    if (*p == '.') {
+        p++;
+        while (isdigit((unsigned char)*p)) { has_digits = 1; p++; }
+    }
+
+    if (!has_digits) return -1;
+
+    if (*p == 'e' || *p == 'E') {
+        p++;
+        if (*p == '+' || *p == '-') p++;
+        if (!isdigit((unsigned char)*p)) return -1;
+        while (isdigit((unsigned char)*p)) p++;
+    }
+
+    if (*p == 'f' || *p == 'F') p++;
+    while (isspace((unsigned char)*p)) p++;
+    return (*p == '\0') ? 0 : -1;
+}
+
+/* ================================================================== */
 /* typecheck_type_checker_validate_value                                          */
 /* ================================================================== */
 
@@ -386,7 +441,6 @@ int typecheck_type_checker_validate_value(const char *type_name, const char *val
 {
     if (!type_name || !value) return -1;
 
-    /* Copy and strip to base type */
     char buf[256];
     int len = (int)strlen(type_name);
     if (len >= 256) len = 255;
@@ -394,106 +448,13 @@ int typecheck_type_checker_validate_value(const char *type_name, const char *val
     buf[len] = '\0';
     typecheck_strip_pointer(buf, len);
 
-    /* Types that accept any value */
-    if (typecheck_is_accept_any_value(buf)) {
-        return 0;
-    }
+    if (typecheck_is_accept_any_value(buf)) return 0;
+    if (typecheck_is_integer_type(buf)) return typecheck_validate_integer_value(value);
+    if (typecheck_is_float_type(buf)) return typecheck_validate_float_value(value);
 
-    /* Integer types - check for valid number format */
-    if (typecheck_is_integer_type(buf)) {
-        const char *p = value;
-
-        /* Skip leading whitespace */
-        while (isspace((unsigned char)*p)) p++;
-
-        /* Handle hex: 0x or 0X prefix */
-        if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-            p += 2;
-            if (!isxdigit((unsigned char)*p)) {
-                return -1; /* Must have at least one hex digit */
-            }
-            while (isxdigit((unsigned char)*p)) p++;
-            /* Skip trailing whitespace */
-            while (isspace((unsigned char)*p)) p++;
-            if (*p != '\0') return -1; /* Extra characters */
-            return 0;
-        }
-
-        /* Handle optional sign */
-        if (*p == '+' || *p == '-') p++;
-
-        /* Must have at least one digit */
-        if (!isdigit((unsigned char)*p)) {
-            return -1;
-        }
-        while (isdigit((unsigned char)*p)) p++;
-
-        /* Skip trailing whitespace */
-        while (isspace((unsigned char)*p)) p++;
-
-        if (*p != '\0') return -1; /* Extra characters */
-        return 0;
-    }
-
-    /* Float types - check for valid float format */
-    if (typecheck_is_float_type(buf)) {
-        const char *p = value;
-
-        /* Skip leading whitespace */
-        while (isspace((unsigned char)*p)) p++;
-
-        /* Handle optional sign */
-        if (*p == '+' || *p == '-') p++;
-
-        /* Must have digits before or after decimal point */
-        int has_digits = 0;
-        while (isdigit((unsigned char)*p)) {
-            has_digits = 1;
-            p++;
-        }
-
-        if (*p == '.') {
-            p++;
-            while (isdigit((unsigned char)*p)) {
-                has_digits = 1;
-                p++;
-            }
-        }
-
-        if (!has_digits) return -1;
-
-        /* Optional exponent */
-        if (*p == 'e' || *p == 'E') {
-            p++;
-            if (*p == '+' || *p == '-') p++;
-            if (!isdigit((unsigned char)*p)) return -1;
-            while (isdigit((unsigned char)*p)) p++;
-        }
-
-        /* Optional f/F suffix */
-        if (*p == 'f' || *p == 'F') p++;
-
-        /* Skip trailing whitespace */
-        while (isspace((unsigned char)*p)) p++;
-
-        if (*p != '\0') return -1;
-        return 0;
-    }
-
-    /* For user-defined types (structs, typedefs, etc.), accept any value */
+    /* User-defined types accept any value */
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
 EOF
 im domain
 var builtin_types const char*[]
@@ -561,6 +522,14 @@ void type_checker_validate_value int
 cd type_checker_validate_value
 mode api
 mem type_name const char*
+mem value const char*
+cd ..
+void validate_integer_value int
+cd validate_integer_value
+mem value const char*
+cd ..
+void validate_float_value int
+cd validate_float_value
 mem value const char*
 cd ..
 

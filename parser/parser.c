@@ -551,14 +551,3 @@ int parser_parse_cboot_script(const char *filename) {
     strcpy(g_script_dir, saved_script_dir);
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-

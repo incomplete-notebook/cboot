@@ -1,7 +1,5 @@
 # cboot
 
-本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。
-
 ## 文档
 
 - [开发文档](DEV.md)
@@ -11,13 +9,13 @@
 
 - [domain](domain/README.md): 域数据模型 - 定义所有域类型、域树结构和项目容器
 - [cupdate](cupdate/README.md): 代码更新模块 - 解析C源码并同步.cboot描述文件
-- [commands](commands/README.md)
-- [parser](parser/README.md)
-- [generator](generator/README.md)
-- [docgen](docgen/README.md)
-- [typecheck](typecheck/README.md)
-- [utils](utils/README.md)
-- [main](main/README.md)
+- [commands](commands/README.md): 命令处理器 - 实现交互式和批处理模式的所有命令
+- [parser](parser/README.md): 脚本解析器 - 解析.cboot脚本文件为项目定义
+- [generator](generator/README.md): 代码生成器 - 将域树转换为C源代码、CMake构建系统和文档
+- [docgen](docgen/README.md): 文档生成器 - 生成README.md/API.md/DEV.md三种文档
+- [typecheck](typecheck/README.md): 类型检查器 - 检查域类型一致性和符号冲突
+- [utils](utils/README.md): 工具函数 - 通用辅助功能
+- [main](main/README.md): 可执行入口模块 - CBoot的主程序入口
 
 ## 目录结构
 
