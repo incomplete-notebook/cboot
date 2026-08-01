@@ -65,7 +65,6 @@ typedef enum {
 	MODE_INTERACTIVE,
 	MODE_BATCH,
 	MODE_FINE_TUNE,
-	MODE_TO_CBOOT,
 	MODE_HELP
 } RunMode;
 

@@ -1213,7 +1213,6 @@ static void cup_parse_function_or_var(CuParser *p, SB *base_type_sb,
                 d->body = cup_capture_braced_body(p);
                 /* 函数定义后通常 ; 可选 */
                 if (CUR(p) == ';') NEXT(p);
-                processed_func_def = 1;
             } else {
                 /* 函数原型：; 结束 */
                 if (CUR(p) == ';') NEXT(p);
@@ -1222,6 +1221,7 @@ static void cup_parse_function_or_var(CuParser *p, SB *base_type_sb,
                     if (CUR(p) == ';') NEXT(p);
                 }
             }
+            processed_func_def = 1;  /* 函数（原型或定义）均已处理完毕，无需再消费 ; */
             free(name);
             sb_free(&dtype);
             break;  /* 函数定义/原型后不能有多个 declarator */
@@ -1402,6 +1402,11 @@ static void cup_check_duplicates(CUPResult *r)
             if (!dj->name || dj->kind == CUP_DECL_INCLUDE || dj->kind == CUP_DECL_OTHER) continue;
 
             if (di->kind == dj->kind && strcmp(di->name, dj->name) == 0) {
+                /* 函数：只有两个都是定义（is_function_def=1）才算重复；
+                 * 多个原型（前向声明）在 C 中合法，不报重复 */
+                if (di->kind == CUP_DECL_FUNCTION &&
+                    !(di->is_function_def && dj->is_function_def))
+                    continue;
                 char buf[256];
                 snprintf(buf, sizeof(buf), "重复定义: '%s' 已在第 %d 行定义",
                          di->name, di->line);

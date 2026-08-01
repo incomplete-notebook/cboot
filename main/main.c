@@ -34,8 +34,10 @@ static int  main_detect_fine_tune_mode(void);
 
 /* 解析命令行参数；返回 0 表示继续，非 0 表示已处理（应直接退出）。 */
 /* 处理无值标志参数：返回 1 表示已处理，0 表示未匹配 */
-static int main_parse_flag(const char *arg, int *adjust_mode, int *analyze_mode) {
+static int main_parse_flag(const char *arg, int *adjust_mode, int *analyze_mode,
+                           int *update_mode) {
     if (utils_str_eq(arg, "-f") || utils_str_eq(arg, "--force")) { g_force = 1; return 1; }
+    if (utils_str_eq(arg, "-update")) { *update_mode = 1; return 1; }
     if (utils_str_eq(arg, "adjust")) { *adjust_mode = 1; return 1; }
     if (utils_str_eq(arg, "analyze")) { *analyze_mode = 1; return 1; }
     return 0;
@@ -66,20 +68,15 @@ static void main_parse_positional(const char *arg,
 }
 
 static int main_parse_args(int argc, char **argv,
-                           const char **proj_name, const char **to_cboot_dir,
+                           const char **proj_name,
                            const char **script_file,
-                           int *adjust_mode, int *analyze_mode) {
+                           int *adjust_mode, int *analyze_mode, int *update_mode) {
     for (int i = 1; i < argc; i++) {
         const char *arg = argv[i];
 
-        if (main_parse_flag(arg, adjust_mode, analyze_mode)) continue;
+        if (main_parse_flag(arg, adjust_mode, analyze_mode, update_mode)) continue;
         if (main_parse_info_flag(arg, argv[0])) return 1;
 
-        if (utils_str_eq(arg, "-to_cboot")) {
-            g_mode = MODE_TO_CBOOT;
-            if (i + 1 < argc) *to_cboot_dir = argv[++i];
-            continue;
-        }
         if (arg[0] == '-') {
             fprintf(stderr, "cboot: 未知选项 '%s'\n", arg);
             main_print_usage(argv[0]);
@@ -90,17 +87,27 @@ static int main_parse_args(int argc, char **argv,
     return 0;
 }
 
-/* to_cboot 模式：将 C 项目反向工程为 .cboot（暂未实现） */
-static int main_run_to_cboot(const char *to_cboot_dir) {
-    if (!to_cboot_dir) {
-        fprintf(stderr, "cboot: -to_cboot 需要指定目录\n");
-        fprintf(stderr, "用法: cboot -to_cboot <目录>\n");
+/* update 模式：自动识别 .cboot，加载项目，执行 update 同步后自动 analyze */
+static int main_run_update(void) {
+    if (!utils_file_exists(".cboot")) {
+        fprintf(stderr, "cboot: 当前目录没有 .cboot 文件\n");
         return 1;
     }
-    printf("CBoot V%s - to_cboot 模式\n", CBOOT_VERSION);
-    printf("目标目录: %s\n", to_cboot_dir);
-    printf("(to_cboot 功能尚未实现)\n");
-    return 0;
+    g_mode = MODE_BATCH;
+    g_proj = domain_project_new("cboot_project");
+    g_skip_gen = 1;  /* 加载阶段跳过 gen，仅同步已有源码 */
+    if (parser_parse_cboot_script(".cboot") != 0) {
+        fprintf(stderr, "cboot: 无法加载 .cboot 文件\n");
+        return 1;
+    }
+    g_skip_gen = 0;
+    printf("CBoot V%s - update 模式 (自动识别 .cboot)\n", CBOOT_VERSION);
+    int rc = commands_cmd_update();
+    /* update 后自动执行 analyze */
+    printf("\n===== 代码分析 =====\n");
+    commands_cmd_analyze();
+    domain_project_free(g_proj);
+    return rc;
 }
 
 /* adjust 模式：加载已有项目，update 同步后进入交互式 REPL */
@@ -201,18 +208,17 @@ static int main_run_interactive(const char *proj_name, const char *prog) {
 
 int main(int argc, char **argv) {
     const char *proj_name = NULL;
-    const char *to_cboot_dir = NULL;
     const char *script_file = NULL;
-    int adjust_mode = 0, analyze_mode = 0;
+    int adjust_mode = 0, analyze_mode = 0, update_mode = 0;
 
-    int rc = main_parse_args(argc, argv, &proj_name, &to_cboot_dir,
-                             &script_file, &adjust_mode, &analyze_mode);
+    int rc = main_parse_args(argc, argv, &proj_name,
+                             &script_file, &adjust_mode, &analyze_mode, &update_mode);
     if (rc != 0) return rc < 0 ? 1 : 0;
 
-    if (g_mode == MODE_TO_CBOOT) return main_run_to_cboot(to_cboot_dir);
-    if (adjust_mode)             return main_run_adjust();
-    if (analyze_mode)            return main_run_analyze();
-    if (script_file)             return main_run_batch_script(script_file);
+    if (update_mode)            return main_run_update();
+    if (adjust_mode)            return main_run_adjust();
+    if (analyze_mode)           return main_run_analyze();
+    if (script_file)            return main_run_batch_script(script_file);
     if (!proj_name) {
         rc = main_run_default_cboot();
         if (rc != -1) return rc;
@@ -247,10 +253,10 @@ static void main_print_usage(const char *prog) {
     printf("  %s <项目名>            交互模式，创建项目并进入 REPL\n", prog);
     printf("  %s <项目名> -f         交互模式，强制重建项目\n", prog);
     printf("  %s <file.cboot>        执行指定的 .cboot 脚本文件\n", prog);
+    printf("  %s -update             更新模式：自动识别 .cboot，同步源码后执行代码分析\n", prog);
     printf("  %s adjust              微调模式：update同步后进入交互式REPL\n", prog);
-    printf("  %s analyze              分析模式：统计代码行数/圈复杂度/重复率\n", prog);
+    printf("  %s analyze             分析模式：统计代码行数/圈复杂度/重复率\n", prog);
     printf("  %s                     批处理模式，读取当前目录 .cboot\n", prog);
-    printf("  %s -to_cboot <目录>    反向工程：将 C 项目转为 .cboot\n", prog);
     printf("  %s -v                  显示版本号\n", prog);
     printf("  %s -h                  显示帮助\n", prog);
     printf("\n交互模式命令:\n");
