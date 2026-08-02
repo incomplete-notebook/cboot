@@ -1,0 +1,1309 @@
+/* generator.c - CBoot generated (compiler: normal) */
+/* Module: generator */
+
+/*
+ * CBoot - C Project Bootstrapping Tool v0.3.1
+ * Code generator (v0.3.1 - no-src-dir, hierarchical CMake, compiler modes)
+ *
+ * 生成规则:
+ *  - 项目根即为源码根目录，不再有 src/ 子目录
+ *  - 每个 mod 一个目录，同级存放 .c/.h/CMakeLists.txt
+ *  - .h 只放 api 项的声明
+ *  - .c 中: API 项用外部链接，非 API 项用 static 链接（避免符号冲突）
+ *  - CMakeLists.txt 层级化:
+ *      顶层: 收集所有模块源文件
+ *      模块级: 处理自己的 .c，通过 add_subdirectory 引入子模块
+ *      子模块独立编译，可被多次 im 导入但只编译一次
+ *  - compiler 模式:
+ *      normal: 普通 .o，被父级收集
+ *      exe:    生成可执行文件，模块代码放在 main.c
+ *      sl:     静态库
+ *      dl:     动态库
+ */
+
+#include "cboot.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+/* ------------------------------------------------------------------ */
+/* Forward declarations                                               */
+/* ------------------------------------------------------------------ */
+
+static void generator_generate_module(Domain *mod, const char *parent_dir);
+static void generator_generate_mod_c(Domain *mod, const char *dir);
+static void generator_generate_mod_h(Domain *mod, const char *dir);
+static void generator_generate_mod_cmake(Domain *mod, const char *dir);
+static void generator_generate_mod_cboot(Domain *mod, const char *dir);
+static void generator_generate_top_cmake(Project *proj);
+static void generator_generate_top_main(Project *proj);
+static void generator_generate_project_cboot(Project *proj);
+static Domain *generator_find_exe_module(Project *proj);
+static void generator_write_dllexport_macro(FILE *f, const char *mod_name);
+static void generator_write_function_params(Domain *func_domain, FILE *f);
+static void generator_cboot_write_header(Domain *mod, FILE *f);
+static void generator_cboot_write_children(Domain *mod, FILE *f);
+static void generator_cboot_write_submodule_refs(Domain *mod, FILE *f);
+static void generator_cmake_write_prebuilt_lib(Domain *mod, FILE *f);
+static void generator_cmake_write_submodule_sources(Domain *mod, FILE *f);
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+static int docgen_is_api(Domain *d) {
+    if (!d) return 0;
+    switch (d->type) {
+        case DOMAIN_FUNCTION:
+            return ((FunctionDomain *)d)->mode == API_MODE_API;
+        case DOMAIN_STRUCT:
+            return ((StructDomain *)d)->mode == API_MODE_API;
+        case DOMAIN_TYPE:
+            return ((TypeDomain *)d)->mode == TYPE_MODE_API_RENAME ||
+                   ((TypeDomain *)d)->mode == TYPE_MODE_API_STRUCT;
+        case DOMAIN_MACRO:
+            return ((MacroDomain *)d)->mode == API_MODE_API;
+        default:
+            return 0;
+    }
+}
+
+static const char *generator_compiler_mode_str(CompilerMode c) {
+    switch (c) {
+        case COMPILER_EXE:    return "exe";
+        case COMPILER_SL:     return "sl";
+        case COMPILER_DL:     return "dl";
+        case COMPILER_NORMAL: return "normal";
+        default:              return "normal";
+    }
+}
+
+/* generator_get_module_prefix - 生成模块路径前缀（绝对名称的一部分）
+ * 例如：cboot/domain → "domain"
+ *      cboot/a/b → "a_b"
+ * 从当前模块向上走到根项目，收集模块名（不含项目名），用下划线连接
+ *
+ * 符号命名规则：
+ * - src/static/external: 使用绝对符号名（模块前缀_函数名）
+ * - dynamic: 使用原始函数名（不加前缀，动态链接调用方直接用原始名）
+ */
+static void generator_get_module_prefix(Domain *mod, char *buf, size_t size) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+
+    /* dynamic/static 预编译库模式：使用空前缀，函数名保持原样
+     *（预编译库中的符号已经是原始名，调用方直接使用原始名） */
+    if (md->mode == MOD_MODE_DYNAMIC || md->mode == MOD_MODE_STATIC) {
+        buf[0] = '\0';
+        return;
+    }
+
+    /* 外部模块(im 导入): 使用模块名作为前缀，与源模块符号一致 */
+    if (md->mode == MOD_MODE_EXTERNAL) {
+        strncpy(buf, mod->name, size - 1);
+        buf[size - 1] = '\0';
+        return;
+    }
+
+    char parts[16][MAX_NAME_LEN];
+    int count = 0;
+
+    Domain *d = mod;
+    while (d && d->type == DOMAIN_MODULE && count < 16) {
+        /* 跳过根项目（没有 parent 的模块就是根项目）*/
+        if (d->parent == NULL) break;
+        if (d->name) {
+            strncpy(parts[count], d->name, MAX_NAME_LEN - 1);
+            parts[count][MAX_NAME_LEN - 1] = '\0';
+            count++;
+        }
+        d = d->parent;
+    }
+
+    buf[0] = '\0';
+    for (int i = count - 1; i >= 0; i--) {
+        if (buf[0] != '\0') strncat(buf, "_", size - strlen(buf) - 1);
+        strncat(buf, parts[i], size - strlen(buf) - 1);
+    }
+}
+
+/* generator_make_abs_name - 生成绝对符号名（模块路径_函数名）
+ * main 函数保持原名，其余函数加前缀
+ * 当 prefix 为空时（dynamic 模式），使用原始函数名
+ */
+static void generator_make_abs_name(const char *prefix, const char *name, char *buf, size_t size) {
+    if (strcmp(name, "main") == 0) {
+        strncpy(buf, "main", size - 1);
+        buf[size - 1] = '\0';
+    } else if (prefix[0] == '\0') {
+        /* dynamic 模式：prefix 为空，使用原始函数名 */
+        strncpy(buf, name, size - 1);
+        buf[size - 1] = '\0';
+    } else {
+        snprintf(buf, size, "%s_%s", prefix, name);
+    }
+}
+
+/* ================================================================== */
+/* generator_generate_project - top-level code generator                         */
+/* ================================================================== */
+
+int generator_generate_project(Project *proj) {
+    if (!proj || !proj->root) return -1;
+
+    /* Project root IS the source root - no src/ directory */
+
+    /* Root module is just a container - generate its child modules directly */
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            generator_generate_module(child, ".");
+        }
+    }
+
+    /* Generate top-level CMakeLists.txt */
+    generator_generate_top_cmake(proj);
+
+    /* Generate top-level main.c if no exe module exists */
+    generator_generate_top_main(proj);
+
+    /* Generate .cboot for the project */
+    generator_generate_project_cboot(proj);
+
+    proj->has_generated = 1;
+    return 0;
+}
+
+/* ================================================================== */
+/* generator_generate_cboot_only - 仅重新生成 .cboot 文件                  */
+/* ================================================================== */
+
+/* 递归辅助函数：仅生成模块的 .cboot 文件 */
+static void generator_generate_cboot_only_recursive(Domain *mod, const char *parent_dir) {
+    if (!mod || mod->type != DOMAIN_MODULE) return;
+
+    char mod_dir[MAX_PATH_LEN];
+    if (strcmp(parent_dir, ".") == 0) {
+        snprintf(mod_dir, sizeof(mod_dir), "%s", mod->name);
+    } else {
+        snprintf(mod_dir, sizeof(mod_dir), "%s/%s", parent_dir, mod->name);
+    }
+
+    /* 仅生成 .cboot 文件 */
+    generator_generate_mod_cboot(mod, mod_dir);
+
+    /* 递归处理子模块 */
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            ModuleDomain *cmd = (ModuleDomain *)child;
+            /* 跳过 EXTERNAL 模式模块（im 导入的 API 引用，无需生成 .cboot） */
+            if (cmd->mode != MOD_MODE_EXTERNAL) {
+                generator_generate_cboot_only_recursive(child, mod_dir);
+            }
+        }
+    }
+}
+
+int generator_generate_cboot_only(Project *proj) {
+    if (!proj || !proj->root) return -1;
+
+    /* 递归生成所有模块的 .cboot 文件 */
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            generator_generate_cboot_only_recursive(child, ".");
+        }
+    }
+
+    /* 生成项目级 .cboot */
+    generator_generate_project_cboot(proj);
+
+    return 0;
+}
+
+/* ================================================================== */
+/* generator_generate_module - recursively generate code for a module            */
+/* ================================================================== */
+
+static void generator_generate_module(Domain *mod, const char *parent_dir) {
+    if (!mod || mod->type != DOMAIN_MODULE) return;
+
+    char mod_dir[MAX_PATH_LEN];
+
+    if (strcmp(parent_dir, ".") == 0) {
+        snprintf(mod_dir, sizeof(mod_dir), "%s", mod->name);
+    } else {
+        snprintf(mod_dir, sizeof(mod_dir), "%s/%s", parent_dir, mod->name);
+    }
+    utils_ensure_dir(mod_dir);
+
+    ModuleDomain *md = (ModuleDomain *)mod;
+
+    if (md->mode == MOD_MODE_EXTERNAL) {
+        /* External API-reference module (from im command):
+         * Only generate .h file (API declarations), no .c, no CMakeLists.txt */
+        generator_generate_mod_h(mod, mod_dir);
+        generator_generate_mod_cboot(mod, mod_dir);
+        docgen_generate_module_docs(mod, mod_dir);
+    } else if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
+        /* 预编译库模式：只生成 .h、.md、CMakeLists.txt
+         * - static: .h 用绝对符号名（静态链接进去，重命名函数名）
+         * - dynamic: .h 用原始函数名（动态链接，调用方直接用原始名） */
+        generator_generate_mod_h(mod, mod_dir);
+        generator_generate_mod_cmake(mod, mod_dir);
+        generator_generate_mod_cboot(mod, mod_dir);
+        docgen_generate_module_docs(mod, mod_dir);
+    } else {
+        /* MOD_MODE_SRC: 生成 .c (或 main.c for exe) 和 .h */
+        generator_generate_mod_c(mod, mod_dir);
+        generator_generate_mod_h(mod, mod_dir);
+
+        /* Generate CMakeLists.txt */
+        generator_generate_mod_cmake(mod, mod_dir);
+
+        /* Generate minimal .cboot */
+        generator_generate_mod_cboot(mod, mod_dir);
+
+        /* Generate markdown docs */
+        docgen_generate_module_docs(mod, mod_dir);
+    }
+
+    /* Process child modules */
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            generator_generate_module(child, mod_dir);
+        }
+    }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_c - write <mod>.c file                                 */
+/* ================================================================== */
+
+static void generator_write_c_includes(Domain *mod, FILE *f) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+
+    /* 1. 包含本模块的 .h (cboot 依据 API 自动生成) */
+    fprintf(f, "#include \"%s.h\"\n", mod->name);
+
+    /* 2. 包含子模块的 .h — 依据依赖关系自动生成
+     *   - 内部子模块: 父模块可以见到子模块的 API
+     *   - 外部子模块(im 导入): 模块可以见到 im 后的其他模块的 API
+     * 两种子模块的 .h 都在 <child_name>/<child_name>.h 路径下 */
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            fprintf(f, "#include \"%s/%s.h\"\n", child->name, child->name);
+        }
+    }
+
+    /* 3. 额外的依赖和包含(由用户通过 dependencies/includes 字段指定) */
+    for (int i = 0; i < md->dep_count; i++) {
+        fprintf(f, "#include \"%s.h\"\n", md->dependencies[i]);
+    }
+
+    for (int i = 0; i < md->include_count; i++) {
+        fprintf(f, "#include %s\n", md->includes[i]);
+    }
+
+    fprintf(f, "\n");
+}
+
+static void generator_write_c_defs(Domain *mod, FILE *f) {
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MACRO) {
+            MacroDomain *md = (MacroDomain *)child;
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+            if (md->value) {
+                fprintf(f, "#define %s %s\n", child->name, md->value);
+            } else {
+                fprintf(f, "#define %s\n", child->name);
+            }
+            fprintf(f, "\n");
+        }
+    }
+}
+
+/* 输出结构体成员列表（带可选注释） */
+static void generator_write_struct_members(Domain *parent, FILE *f) {
+    for (int j = 0; j < parent->child_count; j++) {
+        Domain *mem = parent->children[j];
+        if (mem->type != DOMAIN_MEMBER) continue;
+        MemberDomain *mb = (MemberDomain *)mem;
+        if (mem->comment) {
+            fprintf(f, "    %s %s;  // %s\n", mb->type, mem->name, mem->comment);
+        } else {
+            fprintf(f, "    %s %s;\n", mb->type, mem->name);
+        }
+    }
+}
+
+static void generator_write_c_types(Domain *mod, FILE *f) {
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+
+        if (child->type == DOMAIN_STRUCT) {
+            /* Non-API structs: use static to avoid symbol collision */
+            if (!docgen_is_api(child)) {
+                fprintf(f, "/* non-API struct - static to avoid symbol collision */\n");
+            }
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+            fprintf(f, "typedef struct %s {\n", child->name);
+            generator_write_struct_members(child, f);
+            fprintf(f, "} %s;\n\n", child->name);
+        }
+        else if (child->type == DOMAIN_TYPE) {
+            TypeDomain *td = (TypeDomain *)child;
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+            if (td->mode == TYPE_MODE_RENAME || td->mode == TYPE_MODE_API_RENAME) {
+                fprintf(f, "typedef %s %s;\n", td->value ? td->value : "int", child->name);
+            } else {
+                fprintf(f, "typedef struct %s {\n", child->name);
+                generator_write_struct_members(child, f);
+                fprintf(f, "} %s;\n", child->name);
+            }
+            fprintf(f, "\n");
+        }
+    }
+}
+
+static void generator_write_c_variables(Domain *mod, FILE *f) {
+    char prefix[MAX_NAME_LEN * 4];
+    generator_get_module_prefix(mod, prefix, sizeof(prefix));
+
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_VARIABLE) {
+            VariableDomain *v = (VariableDomain *)child;
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+
+            /* 符号重命名：变量名用绝对名称，不再用static隔离 */
+            char abs_name[MAX_NAME_LEN * 5];
+            generator_make_abs_name(prefix, child->name, abs_name, sizeof(abs_name));
+
+            if (v->mode == VAR_MODE_STATIC) {
+                fprintf(f, "static %s %s", v->type, abs_name);
+            } else {
+                fprintf(f, "%s %s", v->type, abs_name);
+            }
+            if (v->value) {
+                fprintf(f, " = %s", v->value);
+            }
+            fprintf(f, ";\n\n");
+        }
+    }
+}
+
+/* 写入函数签名（含可选调用约定） */
+static void generator_write_func_signature(FunctionDomain *func, const char *abs_name, FILE *f) {
+    if (func->call) {
+        fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
+    } else {
+        fprintf(f, "%s %s(", func->return_type, abs_name);
+    }
+}
+
+/* 写入函数局部变量声明 */
+static void generator_write_func_vars(Domain *child, FILE *f) {
+    int has_vars = 0;
+    for (int j = 0; j < child->child_count; j++) {
+        Domain *var = child->children[j];
+        if (var->type != DOMAIN_VARIABLE) continue;
+        VariableDomain *v = (VariableDomain *)var;
+        if (var->comment) fprintf(f, "    // %s\n", var->comment);
+        fprintf(f, "    %s%s %s", v->mode == VAR_MODE_STATIC ? "static " : "", v->type, var->name);
+        if (v->value) fprintf(f, " = %s", v->value);
+        fprintf(f, ";\n");
+        has_vars = 1;
+    }
+    if (has_vars) fprintf(f, "\n");
+}
+
+static void generator_write_c_functions(Domain *mod, FILE *f) {
+    char prefix[MAX_NAME_LEN * 4];
+    generator_get_module_prefix(mod, prefix, sizeof(prefix));
+
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION) continue;
+
+        FunctionDomain *func = (FunctionDomain *)child;
+        if (child->comment) fprintf(f, "// %s\n", child->comment);
+        if (func->value) fprintf(f, "// 业务逻辑: %s\n", func->value);
+
+        char abs_name[MAX_NAME_LEN * 5];
+        generator_make_abs_name(prefix, child->name, abs_name, sizeof(abs_name));
+
+        generator_write_func_signature(func, abs_name, f);
+        generator_write_function_params(child, f);
+        fprintf(f, ") {\n");
+
+        generator_write_func_vars(child, f);
+
+        fprintf(f, "%s\n}\n\n", func->code ? func->code : "    // TODO: implement");
+    }
+}
+
+static void generator_generate_mod_c(Domain *mod, const char *dir) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+    CompilerMode cmode = md->compiler;
+
+    char file_path[MAX_PATH_LEN];
+    if (cmode == COMPILER_EXE) {
+        snprintf(file_path, sizeof(file_path), "%s/main.c", dir);
+    } else {
+        snprintf(file_path, sizeof(file_path), "%s/%s.c", dir, mod->name);
+    }
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    /* 如果模块有 code 字段，直接使用原始代码 */
+    if (md->code && md->code[0] != '\0') {
+        fprintf(f, "/* %s.c - CBoot generated (compiler: %s) */\n", mod->name, generator_compiler_mode_str(cmode));
+        fprintf(f, "/* Module: %s */\n\n", mod->name);
+        fprintf(f, "%s\n", md->code);
+        fclose(f);
+        return;
+    }
+
+    fprintf(f, "/* %s.c - CBoot generated (compiler: %s) */\n", mod->name, generator_compiler_mode_str(cmode));
+    fprintf(f, "/* Module: %s */\n\n", mod->name);
+
+    /* For dl mode, add export macro */
+    if (cmode == COMPILER_DL) {
+        generator_write_dllexport_macro(f, mod->name);
+    }
+
+    generator_write_c_includes(mod, f);
+    generator_write_c_defs(mod, f);
+    generator_write_c_types(mod, f);
+    generator_write_c_variables(mod, f);
+    generator_write_c_functions(mod, f);
+
+    fclose(f);
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_h_guard - write include guard start/end            */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_h_guard_begin(FILE *f, const char *mod_name, char *guard_out, size_t guard_size) {
+    snprintf(guard_out, guard_size, "%s_H", mod_name);
+    for (int i = 0; guard_out[i]; i++)
+        guard_out[i] = (char)toupper((unsigned char)guard_out[i]);
+
+    fprintf(f, "/* %s.h - CBoot generated (API declarations only) */\n", mod_name);
+    fprintf(f, "#ifndef %s\n", guard_out);
+    fprintf(f, "#define %s\n\n", guard_out);
+}
+
+static void generator_write_h_guard_end(FILE *f, const char *guard) {
+    fprintf(f, "#endif /* %s */\n", guard);
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_dllexport_macro - shared dllexport/dllimport block */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_dllexport_macro(FILE *f, const char *mod_name) {
+    fprintf(f, "#ifdef _WIN32\n");
+    fprintf(f, "#  ifdef %s_EXPORTS\n", mod_name);
+    fprintf(f, "#    define %s_API __declspec(dllexport)\n", mod_name);
+    fprintf(f, "#  else\n");
+    fprintf(f, "#    define %s_API __declspec(dllimport)\n", mod_name);
+    fprintf(f, "#  endif\n");
+    fprintf(f, "#else\n");
+    fprintf(f, "#  define %s_API\n", mod_name);
+    fprintf(f, "#endif\n\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_h_api_macros - API macro definitions               */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_h_api_macros(Domain *mod, FILE *f) {
+    int has_api = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MACRO && docgen_is_api(child)) {
+            MacroDomain *m = (MacroDomain *)child;
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+            if (m->value) {
+                fprintf(f, "#define %s %s\n", child->name, m->value);
+            } else {
+                fprintf(f, "#define %s\n", child->name);
+            }
+            has_api = 1;
+        }
+    }
+    if (has_api) fprintf(f, "\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_h_api_types - API struct/type declarations         */
+/* ------------------------------------------------------------------ */
+
+/* 输出 API rename 类型的 typedef */
+static void generator_write_api_rename_type(TypeDomain *td, Domain *child, FILE *f) {
+    if (td->mode == TYPE_MODE_API_RENAME) {
+        fprintf(f, "typedef %s %s;\n", td->value ? td->value : "int", child->name);
+    } else {
+        fprintf(f, "typedef struct %s %s;\n", child->name, child->name);
+    }
+}
+
+static void generator_write_h_api_types(Domain *mod, FILE *f) {
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (!docgen_is_api(child)) continue;
+
+        if (child->type == DOMAIN_TYPE) {
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+            generator_write_api_rename_type((TypeDomain *)child, child, f);
+            fprintf(f, "\n");
+        } else if (child->type == DOMAIN_STRUCT) {
+            /* API 结构体：输出完整定义（含成员），供调用方直接访问字段 */
+            if (child->comment) fprintf(f, "// %s\n", child->comment);
+            fprintf(f, "typedef struct %s {\n", child->name);
+            generator_write_struct_members(child, f);
+            fprintf(f, "} %s;\n\n", child->name);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_h_fwd_decls - forward decls for struct param types */
+/* ------------------------------------------------------------------ */
+
+/* 从 "struct Name *" 提取 Name；成功返回 1，结果存入 sname */
+static int generator_extract_struct_name(const char *ts, char *sname, size_t size) {
+    if (!ts || strncmp(ts, "struct ", 7) != 0) return 0;
+    strncpy(sname, ts + 7, size - 1);
+    sname[size - 1] = '\0';
+    int slen = (int)strlen(sname);
+    while (slen > 0 && (sname[slen-1] == '*' || isspace((unsigned char)sname[slen-1])))
+        sname[--slen] = '\0';
+    return slen > 0 ? 1 : 0;
+}
+
+/* 检查名称是否已在 fwd_decls 列表中 */
+static int generator_fwd_list_contains(char arr[][MAX_NAME_LEN], int count, const char *name) {
+    for (int k = 0; k < count; k++) {
+        if (strcmp(arr[k], name) == 0) return 1;
+    }
+    return 0;
+}
+
+/* 检查名称是否作为 API struct/type 定义在模块中 */
+static int generator_defined_in_module(Domain *mod, const char *sname) {
+    for (int k = 0; k < mod->child_count; k++) {
+        Domain *tc = mod->children[k];
+        if ((tc->type == DOMAIN_STRUCT || tc->type == DOMAIN_TYPE) &&
+            docgen_is_api(tc) && strcmp(tc->name, sname) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+/* 收集函数签名中的候选类型字符串（返回类型 + 参数类型） */
+static int generator_collect_func_types(FunctionDomain *func, Domain *child,
+                                        const char *out[], int cap) {
+    int n = 0;
+    if (func->return_type && n < cap) out[n++] = func->return_type;
+    for (int j = 0; j < child->child_count && n < cap; j++) {
+        Domain *param = child->children[j];
+        if (param->type == DOMAIN_MEMBER) out[n++] = ((MemberDomain *)param)->type;
+    }
+    return n;
+}
+
+/* 尝试将候选类型加入前向声明列表（去重 + 排除本模块已定义） */
+static void generator_fwd_try_add(const char *type, Domain *mod,
+                                  char fwd_decls[][MAX_NAME_LEN], int *fwd_count, int cap) {
+    char sname[MAX_NAME_LEN];
+    if (!generator_extract_struct_name(type, sname, sizeof(sname))) return;
+    if (generator_fwd_list_contains(fwd_decls, *fwd_count, sname)) return;
+    if (generator_defined_in_module(mod, sname)) return;
+    if (*fwd_count < cap) {
+        strncpy(fwd_decls[*fwd_count], sname, MAX_NAME_LEN - 1);
+        fwd_decls[*fwd_count][MAX_NAME_LEN - 1] = '\0';
+        (*fwd_count)++;
+    }
+}
+
+static void generator_write_h_fwd_decls(Domain *mod, FILE *f) {
+    char fwd_decls[32][MAX_NAME_LEN];
+    int fwd_count = 0;
+
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION || !docgen_is_api(child)) continue;
+
+        const char *cand_types[64];
+        int cand_count = generator_collect_func_types((FunctionDomain *)child, child,
+                                                      cand_types, 64);
+        for (int c = 0; c < cand_count; c++) {
+            generator_fwd_try_add(cand_types[c], mod, fwd_decls, &fwd_count, 32);
+        }
+    }
+
+    if (fwd_count == 0) return;
+    fprintf(f, "/* Forward declarations for struct types used in API signatures */\n");
+    for (int k = 0; k < fwd_count; k++) {
+        fprintf(f, "typedef struct %s %s;\n", fwd_decls[k], fwd_decls[k]);
+    }
+    fprintf(f, "\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_function_params - write parameter list to FILE     */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_function_params(Domain *func_domain, FILE *f) {
+    int first = 1;
+    for (int j = 0; j < func_domain->child_count; j++) {
+        Domain *param = func_domain->children[j];
+        if (param->type == DOMAIN_MEMBER) {
+            MemberDomain *mb = (MemberDomain *)param;
+            if (!first) fprintf(f, ", ");
+            fprintf(f, "%s %s", mb->type, param->name);
+            first = 0;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_write_h_api_functions - API function declarations        */
+/* ------------------------------------------------------------------ */
+
+static void generator_write_h_api_functions(Domain *mod, FILE *f) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+    char h_prefix[MAX_NAME_LEN * 4];
+    generator_get_module_prefix(mod, h_prefix, sizeof(h_prefix));
+
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION || !docgen_is_api(child)) continue;
+
+        FunctionDomain *func = (FunctionDomain *)child;
+        char abs_name[MAX_NAME_LEN * 5];
+        generator_make_abs_name(h_prefix, child->name, abs_name, sizeof(abs_name));
+
+        if (child->comment) fprintf(f, "// %s\n", child->comment);
+
+        const char *api_prefix = (md->compiler == COMPILER_DL) ? mod->name : NULL;
+        if (api_prefix) {
+            if (func->call) {
+                fprintf(f, "%s_API %s %s %s(", api_prefix, func->return_type, func->call, abs_name);
+            } else {
+                fprintf(f, "%s_API %s %s(", api_prefix, func->return_type, abs_name);
+            }
+        } else {
+            if (func->call) {
+                fprintf(f, "%s %s %s(", func->return_type, func->call, abs_name);
+            } else {
+                fprintf(f, "%s %s(", func->return_type, abs_name);
+            }
+        }
+        generator_write_function_params(child, f);
+        fprintf(f, ");\n\n");
+    }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_h - write <mod>.h file (API only)                      */
+/* ================================================================== */
+
+static void generator_generate_mod_h(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/%s.h", dir, mod->name);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    char guard[MAX_NAME_LEN * 2];
+    generator_write_h_guard_begin(f, mod->name, guard, sizeof(guard));
+
+    ModuleDomain *md = (ModuleDomain *)mod;
+    if (md->compiler == COMPILER_DL) {
+        generator_write_dllexport_macro(f, mod->name);
+    }
+
+    fprintf(f, "#include <stdio.h>\n");
+    fprintf(f, "#include <stdlib.h>\n");
+    fprintf(f, "#include <string.h>\n\n");
+
+    generator_write_h_api_macros(mod, f);
+    generator_write_h_api_types(mod, f);
+    generator_write_h_fwd_decls(mod, f);
+    generator_write_h_api_functions(mod, f);
+
+    generator_write_h_guard_end(f, guard);
+    fclose(f);
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_cmake_write_prebuilt_lib - write CMake for static/dynamic */
+/* prebuilt library modules (IMPORTED target)                          */
+/* ------------------------------------------------------------------ */
+
+static void generator_cmake_write_prebuilt_lib(Domain *mod, FILE *f) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+    const char *lib_type = (md->mode == MOD_MODE_STATIC) ? "STATIC" : "SHARED";
+    const char *mode_str = (md->mode == MOD_MODE_STATIC) ? "static" : "dynamic";
+    const char *lib_path = md->value ? md->value : "";
+
+    fprintf(f, "# CMakeLists.txt for module %s (CBoot generated, mode: %s)\n\n",
+            mod->name, mode_str);
+
+    fprintf(f, "# 预编译%s库：value 字段指定库文件路径\n",
+            md->mode == MOD_MODE_STATIC ? "静态" : "动态");
+    fprintf(f, "add_library(%s %s IMPORTED GLOBAL)\n", mod->name, lib_type);
+    fprintf(f, "set_target_properties(%s PROPERTIES\n", mod->name);
+    fprintf(f, "    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/%s\n", lib_path);
+    fprintf(f, "    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}\n");
+    fprintf(f, ")\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_cmake_write_submodule_sources - write add_subdirectory    */
+/* calls and append child sources for non-prebuilt child modules       */
+/* ------------------------------------------------------------------ */
+
+static void generator_cmake_write_submodule_sources(Domain *mod, FILE *f) {
+    int has_subdirs = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        if (mod->children[i]->type == DOMAIN_MODULE) {
+            ModuleDomain *child_md = (ModuleDomain *)mod->children[i];
+            if (child_md->mode == MOD_MODE_EXTERNAL ||
+                child_md->mode == MOD_MODE_STATIC ||
+                child_md->mode == MOD_MODE_DYNAMIC) continue;
+            if (!has_subdirs) {
+                fprintf(f, "# Sub-modules\n");
+                has_subdirs = 1;
+            }
+            fprintf(f, "add_subdirectory(%s)\n", mod->children[i]->name);
+            fprintf(f, "list(APPEND %s_SOURCES ${%s_SOURCES})\n",
+                    mod->name, mod->children[i]->name);
+        }
+    }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_cmake - write CMakeLists.txt for a module              */
+/* ================================================================== */
+
+static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+    CompilerMode cmode = md->compiler;
+
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/CMakeLists.txt", dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    /* 预编译库模式（static/dynamic）：链接 value 指定的 .a/.so */
+    if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
+        generator_cmake_write_prebuilt_lib(mod, f);
+        fclose(f);
+        return;
+    }
+
+    fprintf(f, "# CMakeLists.txt for module %s (CBoot generated, compiler: %s)\n\n",
+            mod->name, generator_compiler_mode_str(cmode));
+
+    if (cmode == COMPILER_EXE) {
+        /* exe mode: module code goes into main.c (not <mod>.c) */
+        fprintf(f, "set(%s_SOURCES\n", mod->name);
+        fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/main.c\n");
+        fprintf(f, ")\n\n");
+
+        /* Collect sub-module sources */
+        generator_cmake_write_submodule_sources(mod, f);
+
+        fprintf(f, "\n# Executable target\n");
+        fprintf(f, "add_executable(%s ${%s_SOURCES})\n\n", mod->name, mod->name);
+        fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})\n", mod->name);
+
+    } else if (cmode == COMPILER_SL) {
+        /* Static library */
+        fprintf(f, "set(%s_SOURCES\n", mod->name);
+        fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/%s.c\n", mod->name);
+        fprintf(f, ")\n\n");
+
+        generator_cmake_write_submodule_sources(mod, f);
+
+        fprintf(f, "\n# Static library target\n");
+        fprintf(f, "add_library(%s STATIC ${%s_SOURCES})\n\n", mod->name, mod->name);
+        fprintf(f, "target_include_directories(%s PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})\n", mod->name);
+
+    } else if (cmode == COMPILER_DL) {
+        /* Dynamic library */
+        fprintf(f, "set(%s_SOURCES\n", mod->name);
+        fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/%s.c\n", mod->name);
+        fprintf(f, ")\n\n");
+
+        generator_cmake_write_submodule_sources(mod, f);
+
+        fprintf(f, "\n# Dynamic library target\n");
+        fprintf(f, "add_library(%s SHARED ${%s_SOURCES})\n", mod->name, mod->name);
+        fprintf(f, "target_include_directories(%s PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})\n", mod->name);
+        fprintf(f, "target_compile_definitions(%s PRIVATE %s_EXPORTS)\n\n", mod->name, mod->name);
+
+    } else {
+        /* COMPILER_NORMAL: just collect sources, no standalone target */
+        fprintf(f, "set(%s_SOURCES\n", mod->name);
+        fprintf(f, "    ${CMAKE_CURRENT_SOURCE_DIR}/%s.c\n", mod->name);
+        fprintf(f, ")\n\n");
+
+        generator_cmake_write_submodule_sources(mod, f);
+
+        fprintf(f, "\n# Export sources to parent scope\n");
+        fprintf(f, "set(%s_SOURCES ${%s_SOURCES} PARENT_SCOPE)\n\n", mod->name, mod->name);
+    }
+
+    fclose(f);
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_cboot_write_header - write .cboot header: comments,      */
+/* mode, value, cmode, and code fields                                */
+/* ------------------------------------------------------------------ */
+
+/* 输出模块模式行 */
+static void generator_write_mod_mode(ModuleDomain *md, FILE *f) {
+    static const char *mode_str[] = {"src", "static", "dynamic", "external"};
+    int m = md->mode;
+    if (m >= 0 && m < 4) fprintf(f, "mode %s\n", mode_str[m]);
+}
+
+static void generator_cboot_write_header(Domain *mod, FILE *f) {
+    ModuleDomain *md = (ModuleDomain *)mod;
+
+    /* 模块级 .cboot 假设已在模块作用域内执行（由父级 .cboot 引用创建并 cd 进入）*/
+    fprintf(f, "# CBoot minimal file for module %s\n", mod->name);
+    fprintf(f, "# 此文件在模块 %s 作用域下执行，不需要 mod %s\n\n", mod->name, mod->name);
+
+    if (mod->comment) {
+        fprintf(f, "cmt \"%s\"\n", mod->comment);
+    }
+
+    /* 输出模块模式 */
+    generator_write_mod_mode(md, f);
+
+    /* static/dynamic 模式：输出 value（库文件路径） */
+    if ((md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) && md->value) {
+        fprintf(f, "value \"%s\"\n", md->value);
+    }
+
+    /* 编译器模式始终输出（包括 normal，确保信息完整）*/
+    fprintf(f, "cmode %s\n", generator_compiler_mode_str(md->compiler));
+
+    /* src 模式且有 code 字段：输出模块实现代码 */
+    if (md->mode == MOD_MODE_SRC && md->code && md->code[0] != '\0') {
+        fprintf(f, "code <<EOF\n");
+        fprintf(f, "%s", md->code);
+        if (md->code[strlen(md->code) - 1] != '\n') fprintf(f, "\n");
+        fprintf(f, "EOF\n");
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_cboot_write_children - write function/struct/type/macro/ */
+/* variable definitions to .cboot                                     */
+/* ------------------------------------------------------------------ */
+
+static void generator_cboot_write_children(Domain *mod, FILE *f);
+
+/* 写入成员列表（用于函数参数/结构体成员/类型成员） */
+static void generator_cboot_write_members(Domain *parent, FILE *f) {
+    for (int j = 0; j < parent->child_count; j++) {
+        Domain *mem = parent->children[j];
+        if (mem->type != DOMAIN_MEMBER) continue;
+        MemberDomain *mb = (MemberDomain *)mem;
+        fprintf(f, "mem %s %s\n", mem->name, mb->type);
+        if (mem->comment) fprintf(f, "cmt \"%s\"\n", mem->comment);
+    }
+}
+
+/* 写入函数子域 */
+static void generator_cboot_write_function(Domain *child, FILE *f) {
+    FunctionDomain *func = (FunctionDomain *)child;
+    fprintf(f, "void %s %s\n", child->name, func->return_type);
+    fprintf(f, "cd %s\n", child->name);
+    if (func->mode == API_MODE_API) fprintf(f, "mode api\n");
+    if (func->call) fprintf(f, "call %s\n", func->call);
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (func->value) fprintf(f, "value \"%s\"\n", func->value);
+    generator_cboot_write_members(child, f);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入结构体子域 */
+static void generator_cboot_write_struct(Domain *child, FILE *f) {
+    fprintf(f, "struct %s\n", child->name);
+    fprintf(f, "cd %s\n", child->name);
+    if (docgen_is_api(child)) fprintf(f, "mode api\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    generator_cboot_write_members(child, f);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入类型子域 */
+static void generator_cboot_write_type(Domain *child, FILE *f) {
+    TypeDomain *td = (TypeDomain *)child;
+    fprintf(f, "type %s\n", child->name);
+    fprintf(f, "cd %s\n", child->name);
+    if (td->mode == TYPE_MODE_RENAME) fprintf(f, "mode rename\n");
+    else if (td->mode == TYPE_MODE_API_RENAME) fprintf(f, "mode api rename\n");
+    else if (td->mode == TYPE_MODE_API_STRUCT) fprintf(f, "mode api struct\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (td->value) fprintf(f, "value \"%s\"\n", td->value);
+    generator_cboot_write_members(child, f);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入宏子域 */
+static void generator_cboot_write_macro(Domain *child, FILE *f) {
+    MacroDomain *m = (MacroDomain *)child;
+    fprintf(f, "def %s\n", child->name);
+    fprintf(f, "cd %s\n", child->name);
+    if (m->mode == API_MODE_API) fprintf(f, "mode api\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (m->value) fprintf(f, "value \"%s\"\n", m->value);
+    fprintf(f, "cd ..\n");
+}
+
+/* 写入变量子域 */
+static void generator_cboot_write_variable(Domain *child, FILE *f) {
+    VariableDomain *v = (VariableDomain *)child;
+    fprintf(f, "var %s %s\n", child->name, v->type);
+    fprintf(f, "cd %s\n", child->name);
+    if (v->mode == VAR_MODE_STATIC) fprintf(f, "mode static\n");
+    if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
+    if (v->value) fprintf(f, "value \"%s\"\n", v->value);
+    fprintf(f, "cd ..\n");
+}
+
+static void generator_cboot_write_children(Domain *mod, FILE *f) {
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        switch (child->type) {
+            case DOMAIN_FUNCTION: generator_cboot_write_function(child, f); break;
+            case DOMAIN_STRUCT:   generator_cboot_write_struct(child, f);   break;
+            case DOMAIN_TYPE:     generator_cboot_write_type(child, f);     break;
+            case DOMAIN_MACRO:    generator_cboot_write_macro(child, f);    break;
+            case DOMAIN_VARIABLE: generator_cboot_write_variable(child, f); break;
+            case DOMAIN_MODULE:
+            case DOMAIN_MEMBER:
+            default:
+                break;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* generator_cboot_write_submodule_refs - write submodule references  */
+/* (im commands for EXTERNAL modules, <name>/.cboot for others)       */
+/* ------------------------------------------------------------------ */
+
+static void generator_cboot_write_submodule_refs(Domain *mod, FILE *f) {
+    /* 子模块引用：每个子模块通过 <name>/.cboot 引用。
+     * EXTERNAL 模式模块（im 导入的 API 引用）输出为 im <name>，
+     * 不能输出为 <name>/.cboot，否则会被 parser 当作子模块引用，
+     * 创建多余的子模块并加载同名 .cboot 文件，导致结构混乱。 */
+    int has_submods = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            ModuleDomain *cmd = (ModuleDomain *)child;
+            if (!has_submods) {
+                fprintf(f, "\n# 子模块引用\n");
+                has_submods = 1;
+            }
+            if (cmd->mode == MOD_MODE_EXTERNAL) {
+                /* im 导入的 API 引用：输出为 im <name> */
+                fprintf(f, "im %s\n", child->name);
+            } else {
+                fprintf(f, "%s/.cboot\n", child->name);
+            }
+        }
+    }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_cboot - write minimal .cboot for a module              */
+/* ================================================================== */
+
+static void generator_generate_mod_cboot(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/.cboot", dir);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    /* Write header (comments, mode, value, cmode, code) */
+    generator_cboot_write_header(mod, f);
+
+    /* im 导入的模块（外部引用子模块）*/
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_MODULE &&
+            ((ModuleDomain *)child)->mode == MOD_MODE_EXTERNAL) {
+            fprintf(f, "im %s\n", child->name);
+        }
+    }
+
+    /* Write children definitions (function/struct/type/macro/variable) */
+    generator_cboot_write_children(mod, f);
+
+    /* Write submodule references (im commands and .cboot refs) */
+    generator_cboot_write_submodule_refs(mod, f);
+
+    fprintf(f, "\n# End of .cboot for %s\n", mod->name);
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generator_find_exe_module - find the first exe-mode module                   */
+/* ================================================================== */
+
+static Domain *generator_find_exe_module(Project *proj) {
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            ModuleDomain *md = (ModuleDomain *)child;
+            if (md->compiler == COMPILER_EXE) return child;
+        }
+    }
+    return NULL;
+}
+
+/* ================================================================== */
+/* helpers for generator_generate_top_cmake */
+static void top_cmake_add_subdirs(FILE *f, Project *proj, Domain *skip) {
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        if (child == skip) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->compiler == COMPILER_EXE) continue;
+        fprintf(f, "add_subdirectory(%s)\n", child->name);
+    }
+}
+
+static void top_cmake_emit_exe_sources(FILE *f, Project *proj, Domain *exe_mod) {
+    fprintf(f, "\n# Add normal module sources to executable\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE || child == exe_mod) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
+        if (md->compiler != COMPILER_NORMAL) continue;
+        fprintf(f, "target_sources(%s PRIVATE ${%s_SOURCES})\n",
+                exe_mod->name, child->name);
+        fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR}/%s)\n",
+                exe_mod->name, child->name);
+    }
+}
+
+static void top_cmake_emit_exe_libs(FILE *f, Project *proj, Domain *exe_mod) {
+    fprintf(f, "\n# Link library modules into executable\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE || child == exe_mod) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->compiler != COMPILER_SL && md->compiler != COMPILER_DL &&
+            md->mode != MOD_MODE_STATIC && md->mode != MOD_MODE_DYNAMIC) continue;
+        fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", exe_mod->name, child->name);
+    }
+}
+
+static void top_cmake_collect_all_sources(FILE *f, Project *proj) {
+    fprintf(f, "\n# Collect all module sources\n");
+    fprintf(f, "set(ALL_SOURCES main.c)\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
+        if (md->compiler != COMPILER_NORMAL) continue;
+        fprintf(f, "list(APPEND ALL_SOURCES ${%s_SOURCES})\n", child->name);
+    }
+}
+
+static void top_cmake_link_prebuilt(FILE *f, Project *proj, const char *target_name) {
+    fprintf(f, "\n# Link prebuilt library modules\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode != MOD_MODE_STATIC && md->mode != MOD_MODE_DYNAMIC) continue;
+        fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", target_name, child->name);
+    }
+}
+
+static void top_cmake_with_exe(FILE *f, Project *proj, Domain *exe_mod) {
+    fprintf(f, "# Executable module\n");
+    fprintf(f, "add_subdirectory(%s)\n", exe_mod->name);
+    top_cmake_add_subdirs(f, proj, exe_mod);
+    top_cmake_emit_exe_sources(f, proj, exe_mod);
+    top_cmake_emit_exe_libs(f, proj, exe_mod);
+    fprintf(f, "\ntarget_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", exe_mod->name);
+}
+
+static void top_cmake_without_exe(FILE *f, Project *proj) {
+    fprintf(f, "# Module subdirectories (hierarchical)\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        fprintf(f, "add_subdirectory(%s)\n", child->name);
+    }
+    top_cmake_collect_all_sources(f, proj);
+    fprintf(f, "\n# Main executable\n");
+    fprintf(f, "add_executable(%s ${ALL_SOURCES})\n\n", proj->name);
+    fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", proj->name);
+    top_cmake_link_prebuilt(f, proj, proj->name);
+}
+
+/* generator_generate_top_cmake - write top-level CMakeLists.txt                 */
+/* ================================================================== */
+
+static void generator_generate_top_cmake(Project *proj) {
+    FILE *f = fopen("CMakeLists.txt", "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 CMakeLists.txt\n");
+        return;
+    }
+
+    fprintf(f, "cmake_minimum_required(VERSION 3.13)\n");
+    fprintf(f, "project(%s C)\n\n", proj->name);
+    fprintf(f, "set(CMAKE_C_STANDARD 11)\n");
+    fprintf(f, "set(CMAKE_C_STANDARD_REQUIRED ON)\n\n");
+
+    Domain *exe_mod = generator_find_exe_module(proj);
+    if (exe_mod)
+        top_cmake_with_exe(f, proj, exe_mod);
+    else
+        top_cmake_without_exe(f, proj);
+
+    fprintf(f, "\n# End of CMakeLists.txt\n");
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generator_generate_top_main - write main.c entry point                        */
+/* ================================================================== */
+
+static void generator_generate_top_main(Project *proj) {
+    /* Check if there's an exe module that already has its own main.c */
+    Domain *exe_mod = generator_find_exe_module(proj);
+    if (exe_mod) {
+        /* The exe module's main.c is generated by generator_generate_module */
+        return;
+    }
+
+    FILE *f = fopen("main.c", "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 main.c\n");
+        return;
+    }
+
+    fprintf(f, "/* main.c - CBoot generated entry point */\n\n");
+    fprintf(f, "#include <stdio.h>\n");
+    fprintf(f, "#include <stdlib.h>\n\n");
+
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            fprintf(f, "#include \"%s/%s.h\"\n", child->name, child->name);
+        }
+    }
+
+    fprintf(f, "\nint main(int argc, char **argv) {\n");
+    fprintf(f, "    (void)argc;\n");
+    fprintf(f, "    (void)argv;\n");
+    if (proj->root->comment) {
+        fprintf(f, "    /* %s */\n", proj->root->comment);
+    }
+    fprintf(f, "    printf(\"Hello from %s!\\n\");\n", proj->name);
+    fprintf(f, "    return 0;\n");
+    fprintf(f, "}\n");
+
+    fclose(f);
+}
+
+/* ================================================================== */
+/* generator_generate_project_cboot - write project-level .cboot                 */
+/* ================================================================== */
+
+static void generator_generate_project_cboot(Project *proj) {
+    char path[MAX_PATH_LEN];
+    snprintf(path, sizeof(path), ".cboot");
+
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 %s\n", path);
+        return;
+    }
+
+    fprintf(f, "# CBoot project file for %s\n", proj->name);
+    fprintf(f, "# 通过引用各顶级模块的 .cboot 文件来构建整个项目\n\n");
+    fprintf(f, "project %s\n\n", proj->name);
+
+    if (proj->dep_count > 0) {
+        fprintf(f, "# im 依赖链记录:\n");
+        for (int i = 0; i < proj->dep_count; i++) {
+            fprintf(f, "# im-dep: %s -> %s",
+                    proj->dependencies[i].importer,
+                    proj->dependencies[i].source);
+            if (proj->dependencies[i].cboot_file)
+                fprintf(f, " (%s)", proj->dependencies[i].cboot_file);
+            fprintf(f, "\n");
+        }
+        fprintf(f, "\n");
+    }
+
+    if (proj->import_count > 0) {
+        fprintf(f, "# in 完整项目导入记录:\n");
+        for (int i = 0; i < proj->import_count; i++) {
+            fprintf(f, "# in-import: %s\n", proj->imported_projects[i]);
+        }
+        fprintf(f, "\n");
+    }
+
+    /* 顶级模块通过 <mod>/.cboot 引用，不在此重复定义 */
+    fprintf(f, "# 顶级模块引用\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type == DOMAIN_MODULE) {
+            fprintf(f, "%s/.cboot\n", child->name);
+        }
+    }
+
+    fprintf(f, "\ngen\n");
+    fclose(f);
+}

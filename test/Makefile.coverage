@@ -1,0 +1,112 @@
+# CBoot 测试 Makefile（覆盖率版本）
+# 每个 _test.c 通过 #include 源 .c 文件来测试 static 函数
+
+CC = cc
+CFLAGS = -std=gnu11 -g -Wall -Wno-unused-function -Wno-unused-variable \
+         -Wno-unused-but-set-variable -Wno-format -Wno-unused-result \
+         -fprofile-arcs -ftest-coverage
+INCLUDES = -I. -Iutils -Idomain -Icupdate -Icommands -Iparser -Igenerator \
+           -Idocgen -Itypecheck -Imain -Icommands/analyze
+
+# 各测试目标
+TESTS = \
+    test_utils \
+    test_core \
+    test_domain \
+    test_cupdate_lexer \
+    test_cupdate_parser \
+    test_cupdate \
+    test_typecheck \
+    test_parser \
+    test_generator \
+    test_docgen \
+    test_commands \
+    test_analyze \
+    test_main
+
+# 源文件 -> 对应测试可执行文件 的映射（用于 gcov）
+# 格式: <test_exe>:<source.c>
+COV_PAIRS = \
+    test_utils:utils/utils.c \
+    test_core:domain/core/core.c \
+    test_domain:domain/domain.c \
+    test_typecheck:typecheck/typecheck.c \
+    test_cupdate:cupdate/cupdate.c \
+    test_cupdate_lexer:cupdate/cupdate_lexer.c \
+    test_cupdate_parser:cupdate/cupdate_parser.c \
+    test_parser:parser/parser.c \
+    test_generator:generator/generator.c \
+    test_docgen:docgen/docgen.c \
+    test_commands:commands/commands.c \
+    test_analyze:commands/analyze/analyze.c \
+    test_main:main/main.c
+
+COV_TMP := .cov_tmp
+
+.PHONY: all clean run coverage
+
+all: $(TESTS)
+
+# 通用编译规则：每个 _test.c 单独编译成可执行文件
+%: %.c
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $<
+
+# 运行所有测试
+run: $(TESTS)
+	@for t in $(TESTS); do \
+		echo ""; \
+		echo ">>> 运行 $$t"; \
+		./$$t > /dev/null 2>&1 || echo "[执行失败] $$t"; \
+	done
+
+# 生成覆盖率报告
+# 注意: gcov 会为编译单元中的所有源文件生成 .gcov 文件,
+# 所以必须在每个 gcov 调用后立即处理目标文件的 .gcov, 再清除,
+# 避免后续 gcov 调用覆盖。
+coverage: run
+	@echo ""
+	@echo "========================================"
+	@echo "  代码覆盖率报告"
+	@echo "========================================"
+	@rm -f $(COV_TMP)
+	@echo ""
+	@echo "===== 文件覆盖率汇总 ====="
+	@for pair in $(COV_PAIRS); do \
+		test_exe=`echo $$pair | cut -d: -f1`; \
+		src=`echo $$pair | cut -d: -f2`; \
+		base=`basename $$src`; \
+		gcov_file="$$base.gcov"; \
+		rm -f *.gcov; \
+		gcov -o $$test_exe $$src > /dev/null 2>&1; \
+		if [ -f "$$gcov_file" ]; then \
+			awk -v src="$$src" '\
+				/^[[:space:]]+[0-9]+:/ { hit++; total++ } \
+				/^[[:space:]]+#####:/ { total++ } \
+				END { \
+					pct = (total > 0) ? int(hit * 100 / total) : 0; \
+					printf "  %-45s %3d%% (%d/%d)\n", src, pct, hit, total; \
+					print hit, total >> "$(COV_TMP)"; \
+				} \
+			' $$gcov_file; \
+		else \
+			printf "  %-45s [未生成报告]\n" "$$src"; \
+			echo "0 0" >> $(COV_TMP); \
+		fi; \
+	done
+	@rm -f *.gcov
+	@echo ""
+	@echo "===== 总体覆盖率 ====="
+	@if [ -f $(COV_TMP) ]; then \
+		awk '{ hit += $$1; total += $$2 } END { \
+			pct = (total > 0) ? int(hit * 100 / total) : 0; \
+			printf "  总行数: %d, 已覆盖: %d, 覆盖率: %d%%\n", total, hit, pct; \
+			if (pct >= 70) printf "  [PASS] 覆盖率达标 (>= 70%%)\n"; \
+			else printf "  [FAIL] 覆盖率未达标 (< 70%%)\n"; \
+		}' $(COV_TMP); \
+		rm -f $(COV_TMP); \
+	else \
+		echo "  [无覆盖率数据]"; \
+	fi
+
+clean:
+	rm -f $(TESTS) *.o *.gcno *.gcda *.gcov $(COV_TMP)
