@@ -123,6 +123,8 @@ typedef struct FunctionDomain {
 	char   *call;      /* calling convention: __cdecl, __stdcall, __fastcall, etc. */
 	char   *code;
 	char   *value;
+	int     test_cov;   /* 测试覆盖率目标 (0-100), 0 表示未设置 */
+	int     test_pass;  /* 测试通过率目标 (0-100), 0 表示未设置 */
 } FunctionDomain;
 
 /* ------------------------------------------------------------------ */
@@ -274,6 +276,7 @@ void domain_domain_set_mode(Domain *domain, int mode);
 void domain_domain_set_code(Domain *domain, const char *code);
 void domain_domain_set_call(Domain *domain, const char *call);
 const char *domain_domain_get_call(Domain *domain);
+void domain_domain_set_test(Domain *domain, int cov, int pass);
 
 /* ------------------------------------------------------------------ */
 /* Project operations                                                   */

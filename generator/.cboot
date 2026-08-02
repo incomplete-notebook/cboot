@@ -978,6 +978,9 @@ static void generator_cboot_write_function(Domain *child, FILE *f) {
     if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
     if (func->value) fprintf(f, "value \"%s\"\n", func->value);
     generator_cboot_write_members(child, f);
+    /* 测试目标 (可选, 仅当设置时输出) */
+    if (func->test_cov > 0 || func->test_pass > 0)
+        fprintf(f, "test %d %d\n", func->test_cov, func->test_pass);
     fprintf(f, "cd ..\n");
 }
 

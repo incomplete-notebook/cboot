@@ -38,6 +38,9 @@ int commands_cmd_mode(const char* text);
 // 编译器模式值(exe/sl/dl/normal)
 int commands_cmd_cmode(const char* text);
 
+// 测试覆盖率目标 (0-100)
+int commands_cmd_test(int cov, int pass);
+
 // 目标路径(支持..和/前缀)
 int commands_cmd_cd(const char* path);
 

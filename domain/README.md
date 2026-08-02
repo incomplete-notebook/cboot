@@ -38,6 +38,7 @@
 | `domain_set_call` | 函数 | ✓ | - |
 | `domain_get_call` | 函数 | ✓ | - |
 | `domain_set_mode` | 函数 | ✓ | - |
+| `domain_set_test` | 函数 | ✓ | 设置函数测试覆盖率/通过率目标 |
 | `project_new` | 函数 | ✓ | - |
 | `project_free` | 函数 | ✓ | - |
 | `project_add_dependency` | 函数 | ✓ | - |

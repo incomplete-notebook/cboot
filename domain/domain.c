@@ -166,6 +166,13 @@ void domain_domain_set_mode(Domain *domain, int mode) {
     domain_core_domain_set_mode(domain, mode);
 }
 
+void domain_domain_set_test(Domain *domain, int cov, int pass) {
+    if (!domain || domain->type != DOMAIN_FUNCTION) return;
+    FunctionDomain *func = (FunctionDomain *)domain;
+    func->test_cov = cov;
+    func->test_pass = pass;
+}
+
 Project * domain_project_new(const char *name) {
     return domain_core_project_new(name);
 }

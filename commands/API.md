@@ -14,6 +14,7 @@
 - [cmd_cmt](#cmd_cmt)
 - [cmd_mode](#cmd_mode)
 - [cmd_cmode](#cmd_cmode)
+- [cmd_test](#cmd_test)
 - [cmd_cd](#cmd_cd)
 - [cmd_gen](#cmd_gen)
 - [cmd_im](#cmd_im)
@@ -179,6 +180,21 @@ int cmd_cmode(const char* text)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `text` | `const char*` | - |
+
+### int cmd_test()
+
+测试覆盖率目标 (0-100)
+
+```c
+int cmd_test(int cov, int pass)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `cov` | `int` | - |
+| `pass` | `int` | - |
 
 ### int cmd_cd()
 

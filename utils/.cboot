@@ -384,6 +384,7 @@ cmt "字符串B"
 value "使用strcmp比较，返回1(相等)或0(不等)"
 mem a const char*
 mem b const char*
+test 90 95
 cd ..
 void str_dup char*
 cd str_dup
@@ -391,6 +392,7 @@ mode api
 cmt "源字符串"
 value "分配新内存并复制字符串，返回新指针"
 mem str const char*
+test 90 95
 cd ..
 void strip_quotes void
 cd strip_quotes
@@ -398,29 +400,34 @@ mode api
 cmt "待处理字符串"
 value "原地修改，去除首尾的单引号或双引号"
 mem str char*
+test 80 90
 cd ..
 void tokenize char**
 cd tokenize
 mode api
 mem line const char*
 mem count int*
+test 80 90
 cd ..
 void free_tokens void
 cd free_tokens
 mode api
 mem tokens char**
 mem count int
+test 80 90
 cd ..
 void trim char*
 cd trim
 mode api
 mem str char*
+test 80 90
 cd ..
 void str_startswith int
 cd str_startswith
 mode api
 mem str const char*
 mem prefix const char*
+test 90 95
 cd ..
 void parse_c_decl int
 cd parse_c_decl

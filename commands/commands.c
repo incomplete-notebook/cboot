@@ -694,6 +694,32 @@ int commands_cmd_cmode(const char *text) {
     return 0;
 }
 
+/* commands_cmd_test - 设置函数的测试覆盖率/通过率目标 (可选)
+ * 用法: test <cov> <pass>
+ *   cov:  测试覆盖率目标 (0-100)
+ *   pass: 测试通过率目标 (0-100)
+ * 两者均为 0 时清除设置 */
+int commands_cmd_test(int cov, int pass) {
+    Domain *cur = g_proj->current;
+    if (cur->type != DOMAIN_FUNCTION) {
+        printf("错误: test 命令只能在函数域中使用\n");
+        return -1;
+    }
+
+    if (cov < 0 || cov > 100 || pass < 0 || pass > 100) {
+        printf("错误: test 参数必须在 0-100 范围内\n");
+        return -1;
+    }
+
+    domain_domain_set_test(cur, cov, pass);
+    if (cov == 0 && pass == 0) {
+        printf("测试目标已清除。\n");
+    } else {
+        printf("测试目标已设置: 覆盖率 %d%%, 通过率 %d%%\n", cov, pass);
+    }
+    return 0;
+}
+
 /* ================================================================== */
 /* 控制: cd / rm                                                        */
 /* ================================================================== */

@@ -698,6 +698,32 @@ int commands_cmd_cmode(const char *text) {
     return 0;
 }
 
+/* commands_cmd_test - 设置函数的测试覆盖率/通过率目标 (可选)
+ * 用法: test <cov> <pass>
+ *   cov:  测试覆盖率目标 (0-100)
+ *   pass: 测试通过率目标 (0-100)
+ * 两者均为 0 时清除设置 */
+int commands_cmd_test(int cov, int pass) {
+    Domain *cur = g_proj->current;
+    if (cur->type != DOMAIN_FUNCTION) {
+        printf("错误: test 命令只能在函数域中使用\n");
+        return -1;
+    }
+
+    if (cov < 0 || cov > 100 || pass < 0 || pass > 100) {
+        printf("错误: test 参数必须在 0-100 范围内\n");
+        return -1;
+    }
+
+    domain_domain_set_test(cur, cov, pass);
+    if (cov == 0 && pass == 0) {
+        printf("测试目标已清除。\n");
+    } else {
+        printf("测试目标已设置: 覆盖率 %d%%, 通过率 %d%%\n", cov, pass);
+    }
+    return 0;
+}
+
 /* ================================================================== */
 /* 控制: cd / rm                                                        */
 /* ================================================================== */
@@ -1633,6 +1659,15 @@ mode api
 cmt "编译器模式值(exe/sl/dl/normal)"
 value "仅对模块有效：exe生成可执行文件(代码放main.c)，sl静态库，dl动态库，normal普通.o"
 mem text const char*
+cd ..
+void cmd_test int
+cd cmd_test
+mode api
+cmt "测试覆盖率目标 (0-100)"
+value "设置函数的测试覆盖率/通过率目标 (可选, 0表示未设置)"
+mem cov int
+mem pass int
+test 85 95
 cd ..
 void cmd_cd int
 cd cmd_cd

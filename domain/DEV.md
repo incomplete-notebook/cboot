@@ -4,7 +4,7 @@
 
 ## 统计
 
-- 公开 API: **67** 项
+- 公开 API: **68** 项
 - 私有实现: **1** 项
 
 ## 函数
@@ -461,6 +461,26 @@ void domain_set_mode(Domain* domain, int mode)
 |------|------|------|
 | `domain` | `Domain*` | - |
 | `mode` | `int` | - |
+
+---
+
+### void domain_set_test()
+
+> `API` — 公开接口
+
+**说明**: 设置函数测试覆盖率/通过率目标
+
+```c
+void domain_set_test(Domain* domain, int cov, int pass)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `cov` | `int` | - |
+| `pass` | `int` | - |
 
 ---
 

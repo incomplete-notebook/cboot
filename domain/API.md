@@ -31,6 +31,7 @@
 - [domain_set_call](#domain_set_call)
 - [domain_get_call](#domain_get_call)
 - [domain_set_mode](#domain_set_mode)
+- [domain_set_test](#domain_set_test)
 - [project_new](#project_new)
 - [project_free](#project_free)
 - [project_add_dependency](#project_add_dependency)
@@ -422,6 +423,22 @@ void domain_set_mode(Domain* domain, int mode)
 |------|------|------|
 | `domain` | `Domain*` | - |
 | `mode` | `int` | - |
+
+### void domain_set_test()
+
+设置函数测试覆盖率/通过率目标
+
+```c
+void domain_set_test(Domain* domain, int cov, int pass)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `Domain*` | - |
+| `cov` | `int` | - |
+| `pass` | `int` | - |
 
 ### Project* project_new()
 

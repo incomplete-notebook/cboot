@@ -170,6 +170,13 @@ void domain_domain_set_mode(Domain *domain, int mode) {
     domain_core_domain_set_mode(domain, mode);
 }
 
+void domain_domain_set_test(Domain *domain, int cov, int pass) {
+    if (!domain || domain->type != DOMAIN_FUNCTION) return;
+    FunctionDomain *func = (FunctionDomain *)domain;
+    func->test_cov = cov;
+    func->test_pass = pass;
+}
+
 Project * domain_project_new(const char *name) {
     return domain_core_project_new(name);
 }
@@ -203,17 +210,20 @@ mode api
 mem type DomainType
 mem name const char*
 mem struct_size size_t
+test 90 95
 cd ..
 void module_domain_new ModuleDomain*
 cd module_domain_new
 mode api
 mem name const char*
+test 90 95
 cd ..
 void function_domain_new FunctionDomain*
 cd function_domain_new
 mode api
 mem name const char*
 mem return_type const char*
+test 90 95
 cd ..
 void struct_domain_new StructDomain*
 cd struct_domain_new
@@ -247,6 +257,7 @@ cd domain_add_child
 mode api
 mem parent Domain*
 mem child Domain*
+test 90 95
 cd ..
 void domain_find_child Domain*
 cd domain_find_child
@@ -354,6 +365,15 @@ cd domain_set_mode
 mode api
 mem domain Domain*
 mem mode int
+cd ..
+void domain_set_test void
+cd domain_set_test
+mode api
+cmt "设置函数测试覆盖率/通过率目标"
+mem domain Domain*
+mem cov int
+mem pass int
+test 85 95
 cd ..
 void project_new Project*
 cd project_new

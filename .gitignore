@@ -40,3 +40,15 @@ CMakeFiles/
 cmake_install.cmake
 install_manifest.txt
 Makefile
+
+# Generated import directories (API definitions imported from other modules via im)
+commands/domain/
+commands/cupdate/
+cupdate/domain/
+docgen/domain/
+generator/domain/
+main/cupdate/
+main/domain/
+parser/domain/
+typecheck/domain/
+utils/domain/

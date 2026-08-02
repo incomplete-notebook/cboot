@@ -98,6 +98,7 @@ int commands_cmd_value(const char *text);
 int commands_cmd_call(const char *call_conv);
 int commands_cmd_mode(const char *text);
 int commands_cmd_cmode(const char *text);  /* 设置编译器模式: exe/sl/dl/normal */
+int commands_cmd_test(int cov, int pass);  /* 设置函数测试覆盖率/通过率目标 (可选) */
 
 /* 控制: <op> <域> */
 int commands_cmd_cd(const char *path);

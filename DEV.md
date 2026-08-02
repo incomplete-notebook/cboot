@@ -51,6 +51,7 @@
 - `void domain_set_call()`
 - `const char* domain_get_call()`
 - `void domain_set_mode()`
+- `void domain_set_test()` — 设置函数测试覆盖率/通过率目标
 - `Project* project_new()`
 - `void project_free()`
 - `void project_add_dependency()`
@@ -177,6 +178,8 @@
   逻辑: 根据当前域类型设置对应模式；模块支持internal/external，函数/结构体/宏支持api/normal
 - `int cmd_cmode()` — 编译器模式值(exe/sl/dl/normal)  
   逻辑: 仅对模块有效：exe生成可执行文件(代码放main.c)，sl静态库，dl动态库，normal普通.o
+- `int cmd_test()` — 测试覆盖率目标 (0-100)  
+  逻辑: 设置函数的测试覆盖率/通过率目标 (可选, 0表示未设置)
 - `int cmd_cd()` — 目标路径(支持..和/前缀)  
   逻辑: 解析路径段，逐级在域树中导航
 - `int cmd_gen()` — 生成项目代码命令  
