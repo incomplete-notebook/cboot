@@ -458,6 +458,89 @@ static int analyze_ngram_equal(AnalyzeToken *a, AnalyzeToken *b)
     return 1;
 }
 
+/* 常见固定语句模式：8-token 模板，NULL 表示通配符（匹配任意 token）。
+ * 这些是 C 语言中固有重复的控制流/资源管理模板，
+ * 多次出现属正常语法结构，不应计入"语义重复"统计。
+ * 涵盖 for 循环计数器滑动窗口、错误检查、资源释放等。 */
+typedef struct {
+    const char *tok[ANALYZE_NGRAM_SIZE];
+} AnalyzeNGramPattern;
+
+static const AnalyzeNGramPattern analyze_common_patterns[] = {
+    /* for ( int i = NUM ; i  -- 后接 < 或 <= */
+    { {"for","(","int","i","=","NUM",";","i"} },
+    { {"for","(","int","j","=","NUM",";","j"} },
+    { {"for","(","int","k","=","NUM",";","k"} },
+    /* ( int i = NUM ; i <  -- 滑动窗口 */
+    { {"(","int","i","=","NUM",";","i","<"} },
+    { {"(","int","j","=","NUM",";","j","<"} },
+    { {"(","int","k","=","NUM",";","k","<"} },
+    /* int i = NUM ; i < * */
+    { {"int","i","=","NUM",";","i","<",NULL} },
+    { {"int","j","=","NUM",";","j","<",NULL} },
+    { {"int","k","=","NUM",";","k","<",NULL} },
+    /* = NUM ; i < * ; i  -- 步进部分 */
+    { {"=","NUM",";","i","<",NULL,";","i"} },
+    { {"=","NUM",";","j","<",NULL,";","j"} },
+    { {"=","NUM",";","k","<",NULL,";","k"} },
+    /* NUM ; i < * ; i ++ */
+    { {"NUM",";","i","<",NULL,";","i","++"} },
+    { {"NUM",";","j","<",NULL,";","j","++"} },
+    { {"NUM",";","k","<",NULL,";","k","++"} },
+    /* ; i < * ; i ++ ) */
+    { {";","i","<",NULL,";","i","++",")"} },
+    { {";","j","<",NULL,";","j","++",")"} },
+    { {";","k","<",NULL,";","k","++",")"} },
+    /* i < * ; i ++ ) {  -- 循环体进入 */
+    { {"i","<",NULL,";","i","++",")","{"} },
+    { {"j","<",NULL,";","j","++",")","{"} },
+    { {"k","<",NULL,";","k","++",")","{"} },
+    /* < * ; i ++ ) { *  -- 循环体跨过比较值 */
+    { {"<",NULL,";","i","++",")","{",NULL} },
+    { {"<",NULL,";","j","++",")","{",NULL} },
+    { {"<",NULL,";","k","++",")","{",NULL} },
+    /* * ; i ++ ) { *  -- 跨过整个步进表达式 */
+    { {NULL,";","i","++",")","{",NULL,NULL} },
+    { {NULL,";","j","++",")","{",NULL,NULL} },
+    { {NULL,";","k","++",")","{",NULL,NULL} },
+    /* for ( i = NUM ; i <  -- 无 int 声明 */
+    { {"for","(","i","=","NUM",";","i","<"} },
+    { {"for","(","j","=","NUM",";","j","<"} },
+    { {"for","(","k","=","NUM",";","k","<"} },
+    /* i = NUM ; i < * ;  -- 滑动窗口（无 int 前缀） */
+    { {"i","=","NUM",";","i","<",NULL,";"} },
+    { {"j","=","NUM",";","j","<",NULL,";"} },
+    { {"k","=","NUM",";","k","<",NULL,";"} },
+    /* if ( ! * ) return -- 空指针/错误检查 */
+    { {"if","(","!",NULL,")","return",NULL,NULL} },
+    /* * return - NUM ; -- 错误返回 */
+    { {NULL,NULL,"return","-","NUM",";",NULL,NULL} },
+    /* free ( * ) ; * = -- 资源释放 */
+    { {"free","(",NULL,")",";",NULL,"=",NULL} },
+    /* * = NULL ; * * -- 置空 */
+    { {NULL,"=","NULL",";",NULL,NULL,NULL,NULL} },
+};
+
+/* 检查单个 n-gram 是否匹配任一常见固定模式 */
+static int analyze_ngram_match_pattern(AnalyzeToken *gram,
+                                       const AnalyzeNGramPattern *pat) {
+    for (int i = 0; i < ANALYZE_NGRAM_SIZE; i++) {
+        if (pat->tok[i] == NULL) continue;  /* 通配符 */
+        if (strcmp(gram[i].text, pat->tok[i]) != 0) return 0;
+    }
+    return 1;
+}
+
+/* 检查 n-gram 是否属于常见固定语句（应从重复率统计中排除） */
+static int analyze_ngram_is_common(AnalyzeToken *gram) {
+    int np = (int)(sizeof(analyze_common_patterns) / sizeof(analyze_common_patterns[0]));
+    for (int p = 0; p < np; p++) {
+        if (analyze_ngram_match_pattern(gram, &analyze_common_patterns[p]))
+            return 1;
+    }
+    return 0;
+}
+
 /* analyze 辅助: 确保项目已加载 */
 static void commands_analyze_ensure_loaded(void) {
     if (g_proj->root->child_count == 0 && utils_file_exists(".cboot")) {
@@ -535,13 +618,15 @@ static int analyze_ngram_is_dup(AnalyzeToken **all_toks, int *tok_counts,
 }
 
 /* analyze 辅助: 打印重复代码片段 */
-/* 打印一对函数间的第一个重复 n-gram；返回 1 表示已打印 */
+/* 打印一对函数间的第一个重复 n-gram；返回 1 表示已打印。
+ * 跳过常见固定语句模式，避免误显示控制流模板为重复。 */
 static int analyze_print_first_dup_pair(AnalyzeToken **all_toks, int *tok_counts,
                                         int i, int j, AnalyzeFunc *funcs) {
     int gi = tok_counts[i] - ANALYZE_NGRAM_SIZE + 1;
     int gj = tok_counts[j] - ANALYZE_NGRAM_SIZE + 1;
     if (gi <= 0 || gj <= 0) return 0;
     for (int g = 0; g < gi; g++) {
+        if (analyze_ngram_is_common(&all_toks[i][g])) continue;
         for (int g2 = 0; g2 < gj; g2++) {
             if (!analyze_ngram_equal(&all_toks[i][g], &all_toks[j][g2])) continue;
             printf("    %s [%s] <-> %s [%s]: ",
@@ -579,11 +664,15 @@ static void commands_analyze_duplication(AnalyzeFunc *funcs, int func_count) {
         tok_counts[i] = analyze_tokenize(funcs[i].code, all_toks[i], ANALYZE_MAX_TOKENS);
     }
 
-    int total_ngrams = 0, dup_ngrams = 0;
+    int total_ngrams = 0, dup_ngrams = 0, skipped_common = 0;
     for (int i = 0; i < func_count; i++) {
         int gi = tok_counts[i] - ANALYZE_NGRAM_SIZE + 1;
         if (gi <= 0) continue;
         for (int g = 0; g < gi; g++) {
+            if (analyze_ngram_is_common(&all_toks[i][g])) {
+                skipped_common++;
+                continue;  /* 跳过常见固定语句（如 for 循环计数器模板） */
+            }
             total_ngrams++;
             if (analyze_ngram_is_dup(all_toks, tok_counts, func_count, i, g))
                 dup_ngrams++;
@@ -592,7 +681,7 @@ static void commands_analyze_duplication(AnalyzeFunc *funcs, int func_count) {
 
     double dup_rate = (total_ngrams > 0) ? (double)dup_ngrams / total_ngrams * 100.0 : 0.0;
     printf("  n-gram 大小: %d tokens\n", ANALYZE_NGRAM_SIZE);
-    printf("  总 n-gram 数: %d\n", total_ngrams);
+    printf("  总 n-gram 数: %d (已过滤常见固定语句 %d)\n", total_ngrams, skipped_common);
     printf("  重复 n-gram 数: %d\n", dup_ngrams);
     printf("  代码重复率: %.1f%%\n", dup_rate);
 
