@@ -6,8 +6,8 @@ mode src
 cmode normal
 code <<EOF
 /*
- * CBoot - C Project Bootstrapping Tool v0.5.0
- * .cboot script parser (新规范 v0.5.0)
+ * CBoot - C Project Bootstrapping Tool v1.1.0
+ * .cboot script parser (新规范 v1.1.0)
  *
  * 支持 .cboot 文件引用语法:
  *   <dir>/.cboot  — 在当前作用域创建/进入 <dir> 模块，解析 <dir>/.cboot 文件
@@ -588,11 +588,34 @@ void try_cboot_ref int
 cd try_cboot_ref
 mode api
 mem token const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_ref");
+int rc = parser_try_cboot_ref("not_a_ref");
+EXPECT(rc == 0, "try_cboot_ref(non-ref) should return 0, got %d", rc);
+rc = parser_try_cboot_ref("/nonexistent/.cboot");
+EXPECT(rc != 0, "try_cboot_ref(nonexistent file) should fail, got %d", rc);
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void parse_cboot_script int
 cd parse_cboot_script
 mode api
 mem filename const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_parse");
+FILE *fp = fopen("/tmp/cboot_test_parse.cboot", "w");
+if (fp) { fputs("mod testmod\nexit\n", fp); fclose(fp); }
+int rc = parser_parse_cboot_script("/tmp/cboot_test_parse.cboot");
+EXPECT(rc == 0, "parse_cboot_script(valid) should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "testmod");
+EXPECT(mod != NULL, "parse_cboot_script: module should be created");
+rc = parser_parse_cboot_script("/tmp/cboot_test_nonexistent_xyz.cboot");
+EXPECT(rc != 0, "parse_cboot_script(nonexistent) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+remove("/tmp/cboot_test_parse.cboot");
+EOF
 cd ..
 def PARSER_NOT_HANDLED
 cd PARSER_NOT_HANDLED

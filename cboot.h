@@ -1,5 +1,5 @@
 /*
- * CBoot - C Project Bootstrapping Tool v1.0.0
+ * CBoot - C Project Bootstrapping Tool v1.1.0
  *
  * Copyright (c) 2026 CBoot Contributors
  *
@@ -35,7 +35,7 @@
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
 
-#define CBOOT_VERSION      "1.0.0"
+#define CBOOT_VERSION      "1.1.0"
 #define MAX_LINE_LEN       4096
 #define MAX_PATH_LEN       1024
 #define MAX_NAME_LEN       256
@@ -69,6 +69,10 @@ int     utils_parse_c_decl(const char *decl, char *type_out, int type_size,
 char   *extract_base_type(const char *type_decl);
 char   *extract_type_from_decl(const char *decl);
 char   *extract_name_from_decl(const char *decl);
+char  **utils_tokenize(const char *line, int *count);
+char   *utils_extract_base_type(const char *type_decl);
+char   *utils_extract_type_from_decl(const char *decl);
+char   *utils_extract_name_from_decl(const char *decl);
 int     utils_is_valid_identifier(const char *name);
 void    utils_ensure_dir(const char *path);
 int     utils_file_exists(const char *path);

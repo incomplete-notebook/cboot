@@ -39,7 +39,7 @@ int commands_cmd_mode(const char* text);
 int commands_cmd_cmode(const char* text);
 
 // 测试用例文本 (输入=>预期 或 自定义代码)
-int commands_cmd_test(int cov, int pass);
+int commands_cmd_test(const char* buf);
 
 // 目标路径(支持..和/前缀)
 int commands_cmd_cd(const char* path);
@@ -78,5 +78,7 @@ int commands_cmd_adjust();
 int commands_cmd_res(const char* file_path);
 
 int commands_cmd_analyze_impl();
+
+int commands_cmd_tcode(const char* code);
 
 #endif /* COMMANDS_H */

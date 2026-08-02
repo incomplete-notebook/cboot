@@ -122,6 +122,7 @@ CUPDecl *cupdate_result_add_decl(CUPResult *r);
 /* 释放 CUParParam 数组（循环 free type/name + free 数组头）。
  * cupdate.c 和 cupdate_parser.c 共用。 */
 void cup_free_param_array(CUParParam *params, int count);
+void cupdate_cup_free_param_array(CUParParam *params, int count);
 
 /* 单个模块级别的 update：解析模块对应的 .c 文件并同步。
  * mod_dir 是模块目录（含 .c 文件的目录）。

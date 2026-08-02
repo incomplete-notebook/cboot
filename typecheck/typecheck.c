@@ -2,7 +2,7 @@
 /* Module: typecheck */
 
 /*
- * CBoot - Type Checker Implementation v0.5.0
+ * CBoot - Type Checker Implementation v1.1.0
  *
  * Validates C types against built-in types and user-defined types
  * in the domain tree. Supports typedef resolution and value validation
@@ -459,4 +459,9 @@ int typecheck_type_checker_validate_value(const char *type_name, const char *val
 
     /* User-defined types accept any value */
     return 0;
+}
+
+/* Module-prefix alias for test generation consistency */
+const char *typecheck_type_checker_resolve_typedef(TypeChecker *tc, const char *type_name) {
+    return type_checker_resolve_typedef(tc, type_name);
 }

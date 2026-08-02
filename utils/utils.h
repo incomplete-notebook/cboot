@@ -22,8 +22,6 @@ char** utils_tokenize(const char* line, int* count);
 
 void utils_free_tokens(char** tokens, int count);
 
-char* utils_trim(char* str);
-
 int utils_str_startswith(const char* str, const char* prefix);
 
 int utils_parse_c_decl(const char* decl, char* type_out, int type_size, char* name_out, int name_size);
@@ -37,5 +35,7 @@ char* utils_extract_name_from_decl(const char* decl);
 int utils_is_valid_identifier(const char* name);
 
 int utils_file_exists(const char* path);
+
+char* utils_trim(char* str);
 
 #endif /* UTILS_H */

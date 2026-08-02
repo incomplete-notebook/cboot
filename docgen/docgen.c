@@ -2,8 +2,8 @@
 /* Module: docgen */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
- * Documentation generator (新规范 v0.3.1)
+ * CBoot - C Project Bootstrapping Tool v1.1.0
+ * Documentation generator (新规范 v1.1.0)
  *
  * 生成三种文档:
  *  - README.md: 模块说明 + 子模块链接 (面向用户)

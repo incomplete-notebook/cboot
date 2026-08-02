@@ -6,8 +6,8 @@ mode src
 cmode normal
 code <<EOF
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
- * Documentation generator (新规范 v0.3.1)
+ * CBoot - C Project Bootstrapping Tool v1.1.0
+ * Documentation generator (新规范 v1.1.0)
  *
  * 生成三种文档:
  *  - README.md: 模块说明 + 子模块链接 (面向用户)
@@ -820,6 +820,31 @@ cmt "输出目录"
 value "生成README.md、DEV.md和DEPENDENCIES.md"
 mem proj Project*
 mem output_dir const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_docgen";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+Project *p = domain_project_new("testdoc");
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+FunctionDomain *fn = domain_function_domain_new("add", "int");
+fn->mode = API_MODE_API;
+domain_domain_add_child((Domain *)mod, (Domain *)fn);
+domain_domain_add_child((Domain *)p->root, (Domain *)mod);
+int rc = docgen_generate_docs(p, tdir);
+EXPECT(rc == 0, "generate_docs: should return 0, got %d", rc);
+char path[512];
+snprintf(path, sizeof(path), "%s/README.md", tdir);
+EXPECT(utils_file_exists(path), "generate_docs: README.md should exist");
+snprintf(path, sizeof(path), "%s/DEV.md", tdir);
+EXPECT(utils_file_exists(path), "generate_docs: DEV.md should exist");
+snprintf(path, sizeof(path), "%s/DEPENDENCIES.md", tdir);
+EXPECT(utils_file_exists(path), "generate_docs: DEPENDENCIES.md should exist");
+domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void generate_mod_readme void
 cd generate_mod_readme
@@ -864,6 +889,28 @@ cd generate_module_docs
 mode api
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_docmod";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+ModuleDomain *mod = domain_module_domain_new("docmod");
+mod->mode = MOD_MODE_SRC;
+FunctionDomain *fn = domain_function_domain_new("add", "int");
+fn->mode = API_MODE_API;
+domain_domain_add_child((Domain *)mod, (Domain *)fn);
+docgen_generate_module_docs((Domain *)mod, tdir);
+char path[512];
+snprintf(path, sizeof(path), "%s/README.md", tdir);
+EXPECT(utils_file_exists(path), "generate_module_docs: README.md should exist");
+snprintf(path, sizeof(path), "%s/API.md", tdir);
+EXPECT(utils_file_exists(path), "generate_module_docs: API.md should exist");
+snprintf(path, sizeof(path), "%s/DEV.md", tdir);
+EXPECT(utils_file_exists(path), "generate_module_docs: DEV.md should exist");
+domain_domain_delete((Domain *)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void write_dev_functions void
 cd write_dev_functions

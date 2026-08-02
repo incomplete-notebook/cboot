@@ -833,13 +833,16 @@ static void analyze_run_module_test(const char *mod_name, int *passed, int *tota
     snprintf(test_file, sizeof(test_file), "%s/%s_test.c", mod_name, mod_name);
     if (!utils_file_exists(test_file)) return;  /* 无测试文件 */
 
-    /* 编译: _test.c + 该模块目录下的 .c 源文件 (排除 _test.c 和 main.c) */
+    /* 编译: _test.c + 项目 .c 源文件
+     * 排除: _test.c, main.c, build/, test/, 导入目录
+     * (commands/parser 引用的 g_proj 等全局变量由 _test.c 中的桩提供) */
     char cmd[4096];
     snprintf(cmd, sizeof(cmd),
         "gcc -o /tmp/cboot_%s_test %s "
-        "$(find %s/ -name '*.c' -not -path '*/build/*' "
+        "$(find . -name '*.c' -not -path '*/build/*' -not -path '*/test/*' "
+        "-not -path './*/domain/*' -not -path './*/cupdate/*' "
         "-not -name '*_test.c' -not -name 'main.c' 2>/dev/null) -I. 2>/dev/null",
-        mod_name, test_file, mod_name);
+        mod_name, test_file);
     int rc = system(cmd);
     if (rc != 0) {
         printf("  %-20s 编译失败\n", mod_name);

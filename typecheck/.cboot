@@ -6,7 +6,7 @@ mode src
 cmode normal
 code <<EOF
 /*
- * CBoot - Type Checker Implementation v0.5.0
+ * CBoot - Type Checker Implementation v1.1.0
  *
  * Validates C types against built-in types and user-defined types
  * in the domain tree. Supports typedef resolution and value validation
@@ -464,6 +464,11 @@ int typecheck_type_checker_validate_value(const char *type_name, const char *val
     /* User-defined types accept any value */
     return 0;
 }
+
+/* Module-prefix alias for test generation consistency */
+const char *typecheck_type_checker_resolve_typedef(TypeChecker *tc, const char *type_name) {
+    return type_checker_resolve_typedef(tc, type_name);
+}
 EOF
 im domain
 var builtin_types const char*[]
@@ -491,6 +496,13 @@ void type_checker_is_builtin int
 cd type_checker_is_builtin
 mode api
 mem type_name const char*
+test "int" => 1
+test "char" => 1
+test "float" => 1
+test "double" => 1
+test "void" => 1
+test "MyCustomType" => 0
+test "foobar" => 0
 cd ..
 void is_integer_type int
 cd is_integer_type
@@ -509,6 +521,13 @@ cd type_checker_init
 mode api
 mem tc TypeChecker*
 mem scope Domain*
+tcode <<EOF
+TypeChecker tc;
+Domain *mod = domain_module_domain_new("testmod");
+typecheck_type_checker_init(&tc, (Domain*)mod);
+EXPECT(tc.scope != NULL, "type_checker_init: scope should be set");
+domain_domain_delete((Domain*)mod);
+EOF
 cd ..
 void type_checker_find_api_type_in_submodules Domain*
 cd type_checker_find_api_type_in_submodules
@@ -520,18 +539,40 @@ cd type_checker_validate
 mode api
 mem tc TypeChecker*
 mem type_name const char*
+tcode <<EOF
+TypeChecker tc;
+Domain *mod = domain_module_domain_new("testmod");
+typecheck_type_checker_init(&tc, (Domain*)mod);
+int r1 = typecheck_type_checker_validate(&tc, "int");
+EXPECT(r1 == 0, "type_checker_validate: 'int' should be valid (builtin), got %d", r1);
+int r2 = typecheck_type_checker_validate(&tc, "NonExistentType");
+EXPECT(r2 == -1, "type_checker_validate: 'NonExistentType' should be invalid, got %d", r2);
+domain_domain_delete((Domain*)mod);
+EOF
 cd ..
 void type_checker_resolve_typedef const char*
 cd type_checker_resolve_typedef
 mode api
 mem tc TypeChecker*
 mem type_name const char*
+tcode <<EOF
+TypeChecker tc;
+Domain *mod = domain_module_domain_new("testmod");
+typecheck_type_checker_init(&tc, (Domain*)mod);
+const char* resolved = typecheck_type_checker_resolve_typedef(&tc, "int");
+EXPECT(resolved != NULL, "type_checker_resolve_typedef: 'int' should resolve to non-NULL");
+domain_domain_delete((Domain*)mod);
+EOF
 cd ..
 void type_checker_validate_value int
 cd type_checker_validate_value
 mode api
 mem type_name const char*
 mem value const char*
+test "int", "42" => 0
+test "int", "abc" => -1
+test "float", "3.14" => 0
+test "char", "x" => -1
 cd ..
 void validate_integer_value int
 cd validate_integer_value

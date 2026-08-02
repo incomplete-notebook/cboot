@@ -2,7 +2,7 @@
 /* Module: utils */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.5.0
+ * CBoot - C Project Bootstrapping Tool v1.1.0
  * Utility functions
  */
 
@@ -364,3 +364,9 @@ void utils_strip_quotes(char *str)
         str[len - 2] = '\0';
     }
 }
+
+/* Module-prefix aliases for test generation consistency */
+char **utils_tokenize(const char *line, int *count) { return tokenize(line, count); }
+char  *utils_extract_base_type(const char *type_decl) { return extract_base_type(type_decl); }
+char  *utils_extract_type_from_decl(const char *decl) { return extract_type_from_decl(decl); }
+char  *utils_extract_name_from_decl(const char *decl) { return extract_name_from_decl(decl); }

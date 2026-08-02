@@ -6,7 +6,7 @@ mode src
 cmode normal
 code <<EOF
 /*
- * CBoot - C Project Bootstrapping Tool v0.5.0
+ * CBoot - C Project Bootstrapping Tool v1.1.0
  * Utility functions
  */
 
@@ -368,6 +368,12 @@ void utils_strip_quotes(char *str)
         str[len - 2] = '\0';
     }
 }
+
+/* Module-prefix aliases for test generation consistency */
+char **utils_tokenize(const char *line, int *count) { return tokenize(line, count); }
+char  *utils_extract_base_type(const char *type_decl) { return extract_base_type(type_decl); }
+char  *utils_extract_type_from_decl(const char *decl) { return extract_type_from_decl(decl); }
+char  *utils_extract_name_from_decl(const char *decl) { return extract_name_from_decl(decl); }
 EOF
 im domain
 void ensure_dir void
@@ -376,6 +382,14 @@ mode api
 cmt "目录路径"
 value "递归创建目录结构，使用mkdir系统调用"
 mem path const char*
+tcode <<EOF
+const char *testdir = "/tmp/cboot_test_ensure_dir";
+remove(testdir);
+utils_ensure_dir(testdir);
+EXPECT(utils_file_exists(testdir), "ensure_dir: directory should exist after creation");
+rmdir(testdir);
+EXPECT(!utils_file_exists(testdir), "ensure_dir: directory should not exist after removal");
+EOF
 cd ..
 void str_eq int
 cd str_eq
@@ -425,12 +439,36 @@ cd tokenize
 mode api
 mem line const char*
 mem count int*
+tcode <<EOF
+int count = 0;
+char **toks = utils_tokenize("hello world \"quoted string\"", &count);
+EXPECT(toks != NULL, "tokenize: should return non-NULL");
+EXPECT(count == 3, "tokenize: count should be 3, got %d", count);
+if (toks) {
+    EXPECT(strcmp(toks[0], "hello") == 0, "tokenize[0] => '%s', expected 'hello'", toks[0]);
+    EXPECT(strcmp(toks[1], "world") == 0, "tokenize[1] => '%s', expected 'world'", toks[1]);
+    EXPECT(strcmp(toks[2], "quoted string") == 0, "tokenize[2] => '%s', expected 'quoted string'", toks[2]);
+    utils_free_tokens(toks, count);
+}
+EOF
 cd ..
 void free_tokens void
 cd free_tokens
 mode api
 mem tokens char**
 mem count int
+tcode <<EOF
+int count = 0;
+char **toks = utils_tokenize("a b c", &count);
+EXPECT(toks != NULL, "free_tokens: tokenize should return non-NULL");
+EXPECT(count == 3, "free_tokens: count should be 3, got %d", count);
+utils_free_tokens(toks, count);
+char **empty = (char **)malloc(sizeof(char *) * 2);
+empty[0] = utils_str_dup("x");
+empty[1] = NULL;
+utils_free_tokens(empty, 1);
+utils_free_tokens(NULL, 0);
+EOF
 cd ..
 void str_startswith int
 cd str_startswith
@@ -465,16 +503,36 @@ void extract_base_type char*
 cd extract_base_type
 mode api
 mem type_decl const char*
+tcode <<EOF
+char *r1 = utils_extract_base_type("int*");
+EXPECT(strcmp(r1, "int") == 0, "extract_base_type('int*') => '%s', expected 'int'", r1);
+char *r2 = utils_extract_base_type("char**");
+EXPECT(strcmp(r2, "char") == 0, "extract_base_type('char**') => '%s', expected 'char'", r2);
+char *r3 = utils_extract_base_type("void");
+EXPECT(strcmp(r3, "void") == 0, "extract_base_type('void') => '%s', expected 'void'", r3);
+EOF
 cd ..
 void extract_type_from_decl char*
 cd extract_type_from_decl
 mode api
 mem decl const char*
+tcode <<EOF
+char *r1 = utils_extract_type_from_decl("int* foo");
+EXPECT(strcmp(r1, "int*") == 0, "extract_type_from_decl('int* foo') => '%s', expected 'int*'", r1);
+char *r2 = utils_extract_type_from_decl("char name");
+EXPECT(strcmp(r2, "char") == 0, "extract_type_from_decl('char name') => '%s', expected 'char'", r2);
+EOF
 cd ..
 void extract_name_from_decl char*
 cd extract_name_from_decl
 mode api
 mem decl const char*
+tcode <<EOF
+char *r1 = utils_extract_name_from_decl("int* foo");
+EXPECT(strcmp(r1, "foo") == 0, "extract_name_from_decl('int* foo') => '%s', expected 'foo'", r1);
+char *r2 = utils_extract_name_from_decl("char name");
+EXPECT(strcmp(r2, "name") == 0, "extract_name_from_decl('char name') => '%s', expected 'name'", r2);
+EOF
 cd ..
 void is_valid_identifier int
 cd is_valid_identifier
@@ -552,6 +610,21 @@ void trim char*
 cd trim
 mode api
 mem str char*
+tcode <<EOF
+char buf1[] = "  hello  ";
+char *r1 = utils_trim(buf1);
+EXPECT(strcmp(r1, "hello") == 0, "trim('  hello  ') => '%s', expected 'hello'", r1);
+char buf2[] = "no_spaces";
+char *r2 = utils_trim(buf2);
+EXPECT(strcmp(r2, "no_spaces") == 0, "trim('no_spaces') => '%s', expected 'no_spaces'", r2);
+char buf3[] = "   ";
+char *r3 = utils_trim(buf3);
+EXPECT(*r3 == '\0', "trim('   ') should return empty string");
+char buf4[] = "";
+char *r4 = utils_trim(buf4);
+EXPECT(*r4 == '\0', "trim('') should return empty string");
+EXPECT(utils_trim(NULL) == NULL, "trim(NULL) should return NULL");
+EOF
 cd ..
 
 # 子模块引用

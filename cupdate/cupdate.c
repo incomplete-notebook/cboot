@@ -2,7 +2,7 @@
 /* Module: cupdate */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.5.0
+ * CBoot - C Project Bootstrapping Tool v1.1.0
  * cboot update 主逻辑
  *
  * 功能：
@@ -771,4 +771,9 @@ int cupdate_run_project(Project *proj, int *error_count_out, int *warning_count_
 
     printf("cboot update: 项目已同步\n");
     return rc;
+}
+
+/* Module-prefix alias for test generation consistency */
+void cupdate_cup_free_param_array(CUParParam *params, int count) {
+    cup_free_param_array(params, count);
 }

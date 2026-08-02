@@ -2,8 +2,8 @@
 /* Module: generator */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.3.1
- * Code generator (v0.3.1 - no-src-dir, hierarchical CMake, compiler modes)
+ * CBoot - C Project Bootstrapping Tool v1.1.0
+ * Code generator (v1.1.0 - no-src-dir, hierarchical CMake, compiler modes)
  *
  * 生成规则:
  *  - 项目根即为源码根目录，不再有 src/ 子目录
@@ -190,6 +190,9 @@ static void generator_generate_cboot_only_recursive(Domain *mod, const char *par
     } else {
         snprintf(mod_dir, sizeof(mod_dir), "%s/%s", parent_dir, mod->name);
     }
+
+    /* 确保模块目录存在 (cboot_only 模式下目录可能尚未创建) */
+    utils_ensure_dir(mod_dir);
 
     /* 仅生成 .cboot 文件 */
     generator_generate_mod_cboot(mod, mod_dir);
@@ -1134,6 +1137,33 @@ static void generator_cboot_write_submodule_refs(Domain *mod, FILE *f) {
 /* 仅当模块中有函数设置了测试用例时才生成                                         */
 /* ================================================================== */
 
+/* generator_test_is_string_type - 判断返回类型是否为字符串 (char*) */
+static int generator_test_is_string_type(const char *type) {
+    if (!type) return 0;
+    return (strstr(type, "char") != NULL && strchr(type, '*') != NULL) ? 1 : 0;
+}
+
+/* generator_test_fmt - 根据返回类型选择 printf 格式说明符 */
+static const char *generator_test_fmt(const char *type) {
+    if (!type) return "%d";
+    if (generator_test_is_string_type(type)) return "%s";
+    if (strchr(type, '*')) return "%p";
+    return "%d";
+}
+
+/* generator_test_emit_expected - 输出 expected 表达式
+ * 字符串类型若 expected 未加引号, 则自动包成字符串字面量 */
+static void generator_test_emit_expected(FILE *f, const char *type, const char *expected) {
+    const char *exp = (expected && *expected) ? expected : "0";
+    if (generator_test_is_string_type(type)) {
+        /* 若 expected 已是字符串字面量 (以 " 开头), 原样输出; 否则包成 "..." */
+        if (exp[0] == '"') fprintf(f, "%s", exp);
+        else fprintf(f, "\"%s\"", exp);
+    } else {
+        fprintf(f, "%s", exp);
+    }
+}
+
 static void generator_generate_mod_test(Domain *mod, const char *dir) {
     /* 先检查是否有任何函数有测试用例 */
     int has_tests = 0;
@@ -1161,8 +1191,17 @@ static void generator_generate_mod_test(Domain *mod, const char *dir) {
     fprintf(f, "/* %s_test.c - 自动生成的测试文件 (CBoot generated) */\n", mod->name);
     fprintf(f, "/* Module: %s */\n\n", mod->name);
     fprintf(f, "#include \"cboot.h\"\n");
+    fprintf(f, "#include \"%s/%s.h\"\n", mod->name, mod->name);
     fprintf(f, "#include <stdio.h>\n");
     fprintf(f, "#include <string.h>\n\n");
+
+    /* 全局状态桩 (commands/parser 模块引用 main.c 中的全局变量, 测试时需提供定义) */
+    fprintf(f, "/* Global state stubs (for modules referencing main.c globals) */\n");
+    fprintf(f, "Project *g_proj = NULL;\n");
+    fprintf(f, "RunMode  g_mode = MODE_INTERACTIVE;\n");
+    fprintf(f, "int      g_force = 0;\n");
+    fprintf(f, "int      g_running = 1;\n");
+    fprintf(f, "int      g_skip_gen = 0;\n\n");
 
     /* 统计变量和 EXPECT 宏 */
     fprintf(f, "static int g_test_passed = 0;\n");
@@ -1221,16 +1260,30 @@ static void generator_generate_mod_test(Domain *mod, const char *dir) {
                     fprintf(f, "    %s(%s);\n", abs_name, tc->inputs ? tc->inputs : "");
                     fprintf(f, "    g_test_passed++;\n");
                     fprintf(f, "    printf(\"PASS [case %%d]\\n\", %d);\n", case_no);
-                } else {
-                    /* 有返回值: 调用并比较 */
+                } else if (generator_test_is_string_type(func->return_type)) {
+                    /* 字符串返回: 用 strcmp 比较 */
                     fprintf(f, "    {\n");
                     fprintf(f, "        g_test_total++;\n");
                     fprintf(f, "        %s _r = %s(%s);\n",
                             func->return_type, abs_name, tc->inputs ? tc->inputs : "");
-                    fprintf(f, "        %s _e = (%s);\n",
-                            func->return_type, tc->expected ? tc->expected : "0");
+                    fprintf(f, "        const char *_e = ");
+                    generator_test_emit_expected(f, func->return_type, tc->expected);
+                    fprintf(f, ";\n");
+                    fprintf(f, "        if (_r && strcmp(_r, _e) == 0) { g_test_passed++; printf(\"PASS [case %%d]\\n\", %d); }\n", case_no);
+                    fprintf(f, "        else { printf(\"FAIL [case %%d]: got %%s, expected %%s\\n\", %d, _r ? _r : \"(null)\", _e); }\n", case_no);
+                    fprintf(f, "    }\n");
+                } else {
+                    /* 有返回值: 调用并比较 */
+                    const char *fmt = generator_test_fmt(func->return_type);
+                    fprintf(f, "    {\n");
+                    fprintf(f, "        g_test_total++;\n");
+                    fprintf(f, "        %s _r = %s(%s);\n",
+                            func->return_type, abs_name, tc->inputs ? tc->inputs : "");
+                    fprintf(f, "        %s _e = (", func->return_type);
+                    generator_test_emit_expected(f, func->return_type, tc->expected);
+                    fprintf(f, ");\n");
                     fprintf(f, "        if (_r == _e) { g_test_passed++; printf(\"PASS [case %%d]\\n\", %d); }\n", case_no);
-                    fprintf(f, "        else { printf(\"FAIL [case %%d]\\n\", %d); }\n", case_no);
+                    fprintf(f, "        else { printf(\"FAIL [case %%d]: got %s, expected %s\\n\", %d, _r, _e); }\n", fmt, fmt, case_no);
                     fprintf(f, "    }\n");
                 }
             } else {

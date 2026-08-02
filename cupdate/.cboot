@@ -6,7 +6,7 @@ mode src
 cmode normal
 code <<EOF
 /*
- * CBoot - C Project Bootstrapping Tool v0.5.0
+ * CBoot - C Project Bootstrapping Tool v1.1.0
  * cboot update 主逻辑
  *
  * 功能：
@@ -776,6 +776,11 @@ int cupdate_run_project(Project *proj, int *error_count_out, int *warning_count_
     printf("cboot update: 项目已同步\n");
     return rc;
 }
+
+/* Module-prefix alias for test generation consistency */
+void cupdate_cup_free_param_array(CUParParam *params, int count) {
+    cup_free_param_array(params, count);
+}
 EOF
 im domain
 void run_project int
@@ -786,11 +791,41 @@ value "遍历所有src模式模块，读取.c文件，解析C声明，更新code
 mem proj Project*
 mem error_count_out int*
 mem warning_count_out int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_run_proj";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s/mymod", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod/mymod.c", "w");
+if (fp) { fputs("int mymod_add(int a, int b) { return a + b; }\n", fp); fclose(fp); }
+Project *p = domain_project_new("testproj");
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+domain_domain_add_child((Domain*)p->root, (Domain*)mod);
+int errs = 0, warns = 0;
+int rc = cupdate_run_project(p, &errs, &warns);
+EXPECT(rc == 0, "run_project: should return 0, got %d", rc);
+chdir(cwd);
+domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void result_init void
 cd result_init
 mode api
 mem r CUPResult*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+EXPECT(r.error_count == 0, "result_init: error_count should be 0");
+EXPECT(r.warning_count == 0, "result_init: warning_count should be 0");
+EXPECT(r.decls == NULL, "result_init: decls should be NULL");
+EXPECT(r.decl_count == 0, "result_init: decl_count should be 0");
+cupdate_result_free(&r);
+EOF
 cd ..
 void cup_free_decl void
 cd cup_free_decl
@@ -800,6 +835,15 @@ void result_free void
 cd result_free
 mode api
 mem r CUPResult*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+cupdate_result_add_error(&r, "test", 1);
+cupdate_result_add_decl(&r);
+cupdate_result_free(&r);
+EXPECT(r.error_count == 0, "result_free: should reset error_count");
+EXPECT(r.decl_count == 0, "result_free: should reset decl_count");
+EOF
 cd ..
 void result_add_error void
 cd result_add_error
@@ -807,6 +851,13 @@ mode api
 mem r CUPResult*
 mem msg const char*
 mem line int
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+cupdate_result_add_error(&r, "test error", 10);
+EXPECT(r.error_count == 1, "result_add_error: error_count should be 1, got %d", r.error_count);
+cupdate_result_free(&r);
+EOF
 cd ..
 void result_add_warning void
 cd result_add_warning
@@ -814,11 +865,26 @@ mode api
 mem r CUPResult*
 mem msg const char*
 mem line int
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+cupdate_result_add_warning(&r, "test warning", 20);
+EXPECT(r.warning_count == 1, "result_add_warning: warning_count should be 1, got %d", r.warning_count);
+cupdate_result_free(&r);
+EOF
 cd ..
 void result_add_decl CUPDecl*
 cd result_add_decl
 mode api
 mem r CUPResult*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+CUPDecl *d = cupdate_result_add_decl(&r);
+EXPECT(d != NULL, "result_add_decl: should return non-NULL");
+EXPECT(r.decl_count == 1, "result_add_decl: decl_count should be 1, got %d", r.decl_count);
+cupdate_result_free(&r);
+EOF
 cd ..
 void parse_source int
 cd parse_source
@@ -826,6 +892,15 @@ mode api
 mem source const char*
 mem filename const char*
 mem r CUPResult*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+const char *src = "int add(int a, int b) { return a + b; }\n";
+int rc = cupdate_parse_source(src, "test.c", &r);
+EXPECT(rc == 0, "parse_source: should return 0 on success, got %d", rc);
+EXPECT(r.decl_count >= 1, "parse_source: should parse at least 1 decl, got %d", r.decl_count);
+cupdate_result_free(&r);
+EOF
 cd ..
 void cup_read_file char*
 cd cup_read_file
@@ -883,6 +958,25 @@ cd run_module
 mode api
 mem mod ModuleDomain*
 mem mod_dir const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_run_mod";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_add(int a, int b) { return a + b; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "run_module: should return 0, got %d", rc);
+EXPECT(mod->code != NULL, "run_module: mod->code should be set after update");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_update_recursive int
 cd cup_update_recursive
@@ -1002,8 +1096,22 @@ mem changes int
 cd ..
 void cup_free_param_array void
 cd cup_free_param_array
+mode api
 mem params CUParParam*
 mem count int
+tcode <<EOF
+CUParParam *params = (CUParParam *)malloc(sizeof(CUParParam) * 3);
+params[0].type = utils_str_dup("int");
+params[0].name = utils_str_dup("a");
+params[1].type = utils_str_dup("const char*");
+params[1].name = utils_str_dup("b");
+params[2].type = utils_str_dup("double");
+params[2].name = NULL;
+cupdate_cup_free_param_array(params, 3);
+EXPECT(1, "cup_free_param_array: should not crash with valid params");
+cupdate_cup_free_param_array(NULL, 0);
+EXPECT(1, "cup_free_param_array: should not crash with NULL");
+EOF
 cd ..
 void cup_free_member_array void
 cd cup_free_member_array

@@ -6,8 +6,8 @@ mode src
 cmode normal
 code <<EOF
 /*
- * CBoot - C Project Bootstrapping Tool v0.5.0
- * Command handlers (新规范 v0.5.0)
+ * CBoot - C Project Bootstrapping Tool v1.1.0
+ * Command handlers (新规范 v1.1.0)
  *
  * 命令体系:
  *   建立域: mod/struct/type/def <name>
@@ -1636,6 +1636,18 @@ mode api
 cmt "模块名称"
 value "验证名称唯一性，创建ModuleDomain并添加到当前作用域"
 mem name const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_mod");
+int rc = commands_cmd_mod("mymod");
+EXPECT(rc == 0, "cmd_mod should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+EXPECT(mod != NULL, "cmd_mod: module not found after creation");
+EXPECT(mod->type == DOMAIN_MODULE, "cmd_mod: wrong type %d", (int)mod->type);
+rc = commands_cmd_mod("mymod");
+EXPECT(rc != 0, "cmd_mod: duplicate should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_struct int
 cd cmd_struct
@@ -1643,6 +1655,19 @@ mode api
 cmt "结构体名称"
 value "在当前模块作用域中创建StructDomain"
 mem name const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_struct");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_struct("Point");
+EXPECT(rc == 0, "cmd_struct should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *s = domain_domain_find_child(mod, "Point");
+EXPECT(s != NULL, "cmd_struct: struct not found");
+EXPECT(s->type == DOMAIN_STRUCT, "cmd_struct: wrong type");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_type int
 cd cmd_type
@@ -1665,6 +1690,21 @@ cmt "返回类型"
 value "验证名称唯一性，创建FunctionDomain并设为当前"
 mem name const char*
 mem return_type const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_void");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_void("add", "int");
+EXPECT(rc == 0, "cmd_void should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *fn = domain_domain_find_child(mod, "add");
+EXPECT(fn != NULL, "cmd_void: function not found");
+EXPECT(fn->type == DOMAIN_FUNCTION, "cmd_void: wrong type");
+FunctionDomain *fd = (FunctionDomain *)fn;
+EXPECT(strcmp(fd->return_type, "int") == 0, "cmd_void: return_type wrong: %s", fd->return_type);
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_var int
 cd cmd_var
@@ -1681,6 +1721,23 @@ cmt "类型"
 value "根据当前作用域(函数/结构体/类型)创建MemberDomain，设为当前"
 mem name const char*
 mem type const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_mem");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_void("add", "int");
+commands_cmd_cd("add");
+int rc = commands_cmd_mem("a", "int");
+EXPECT(rc == 0, "cmd_mem should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *fn = domain_domain_find_child(mod, "add");
+Domain *m = domain_domain_find_child(fn, "a");
+EXPECT(m != NULL, "cmd_mem: member not found");
+EXPECT(m->type == DOMAIN_MEMBER, "cmd_mem: wrong type");
+EXPECT(strcmp(((MemberDomain *)m)->type, "int") == 0, "cmd_mem: member type wrong: %s", ((MemberDomain *)m)->type);
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_cmt int
 cd cmd_cmt
@@ -1688,6 +1745,17 @@ mode api
 cmt "注释文本"
 value "设置当前域的注释；若当前是成员/参数，设置后恢复到父作用域"
 mem text const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_cmt");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_cmt("hello world");
+EXPECT(rc == 0, "cmd_cmt should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+EXPECT(mod->comment != NULL && strcmp(mod->comment, "hello world") == 0, "cmd_cmt: comment wrong: %s", mod->comment ? mod->comment : "NULL");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_mode int
 cd cmd_mode
@@ -1695,6 +1763,20 @@ mode api
 cmt "模式值(api/normal/internal/external/static/rename/struct等)"
 value "根据当前域类型设置对应模式；模块支持internal/external，函数/结构体/宏支持api/normal"
 mem text const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_mode");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_mode("external");
+EXPECT(rc == 0, "cmd_mode(external) should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+EXPECT(((ModuleDomain *)mod)->mode == MOD_MODE_EXTERNAL, "cmd_mode(external) should set EXTERNAL, got %d", ((ModuleDomain *)mod)->mode);
+rc = commands_cmd_mode("src");
+EXPECT(rc == 0, "cmd_mode(src) should return 0, got %d", rc);
+EXPECT(((ModuleDomain *)mod)->mode == MOD_MODE_SRC, "cmd_mode(src) should set SRC, got %d", ((ModuleDomain *)mod)->mode);
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_cmode int
 cd cmd_cmode
@@ -1716,6 +1798,21 @@ mode api
 cmt "目标路径(支持..和/前缀)"
 value "解析路径段，逐级在域树中导航"
 mem path const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_cd");
+commands_cmd_mod("mymod");
+int rc = commands_cmd_cd("mymod");
+EXPECT(rc == 0, "cmd_cd(mymod) should return 0, got %d", rc);
+EXPECT(g_proj->current != g_proj->root, "cmd_cd should change current");
+EXPECT(strcmp(g_proj->current->name, "mymod") == 0, "cmd_cd: current name wrong: %s", g_proj->current->name);
+rc = commands_cmd_cd("..");
+EXPECT(rc == 0, "cmd_cd(..) should return 0, got %d", rc);
+EXPECT(g_proj->current == g_proj->root, "cmd_cd(..) should go back to root");
+rc = commands_cmd_cd("/nonexistent");
+EXPECT(rc != 0, "cmd_cd(/nonexistent) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_gen int
 cd cmd_gen
@@ -1782,6 +1879,20 @@ cd cmd_rm
 mode api
 mem name const char*
 mem force int
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_rm");
+commands_cmd_mod("mymod");
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+EXPECT(mod != NULL, "setup: module should exist");
+int rc = commands_cmd_rm("mymod", 1);
+EXPECT(rc == 0, "cmd_rm(-f) should return 0, got %d", rc);
+Domain *gone = domain_domain_find_child(g_proj->root, "mymod");
+EXPECT(gone == NULL, "cmd_rm: module should be removed");
+rc = commands_cmd_rm("nonexistent", 1);
+EXPECT(rc != 0, "cmd_rm(nonexistent) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void find_recursive void
 cd find_recursive

@@ -55,3 +55,4 @@ utils/domain/
 
 # Generated test files (由 generator 从 test/tcode 用例自动生成)
 *_test.c
+_gen.cboot
