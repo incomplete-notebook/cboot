@@ -5,7 +5,6 @@ cmt "代码更新模块 - 解析C源码并同步.cboot描述文件"
 mode src
 cmode normal
 code <<EOF
-
 /*
  * CBoot - C Project Bootstrapping Tool v0.5.0
  * cboot update 主逻辑
@@ -874,6 +873,115 @@ mem dom Domain*
 mem dir const char*
 mem total_errors int*
 mem total_warnings int*
+cd ..
+void cup_create_new_function FunctionDomain*
+cd cup_create_new_function
+mem mod ModuleDomain*
+mem decl CUPDecl*
+cd ..
+void cup_replace_str_field int
+cd cup_replace_str_field
+mem field char**
+mem new_val const char*
+cd ..
+void cup_sync_func_body int
+cd cup_sync_func_body
+mem func FunctionDomain*
+mem decl CUPDecl*
+cd ..
+void cup_update_existing_function int
+cd cup_update_existing_function
+mem func FunctionDomain*
+mem decl CUPDecl*
+cd ..
+void cup_sync_function_decl void
+cd cup_sync_function_decl
+mem mod ModuleDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_sync_struct_decl void
+cd cup_sync_struct_decl
+mem mod ModuleDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_sync_typedef_decl void
+cd cup_sync_typedef_decl
+mem mod ModuleDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_sync_macro_decl void
+cd cup_sync_macro_decl
+mem mod ModuleDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_sync_var_fields void
+cd cup_sync_var_fields
+mem vd VariableDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_sync_variable_decl void
+cd cup_sync_variable_decl
+mem mod ModuleDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_sync_enum_decl void
+cd cup_sync_enum_decl
+mem mod ModuleDomain*
+mem decl CUPDecl*
+mem changes int*
+cd ..
+void cup_decl_type_matches int
+cd cup_decl_type_matches
+mem dtype DomainType
+mem dkind CUPDeclKind
+cd ..
+void cup_find_matching_decl int
+cd cup_find_matching_decl
+mem c Domain*
+mem result CUPResult*
+mem prefix const char*
+mem plen size_t
+cd ..
+void cup_detect_and_remove_deleted void
+cd cup_detect_and_remove_deleted
+mem mod ModuleDomain*
+mem result CUPResult*
+mem prefix const char*
+mem plen size_t
+mem changes int*
+cd ..
+void cup_skip_generated_header const char*
+cd cup_skip_generated_header
+mem p const char*
+mem mod_name const char*
+mem name_len size_t
+cd ..
+void cup_set_module_code void
+cd cup_set_module_code
+mem mod ModuleDomain*
+mem source const char*
+cd ..
+void cup_print_diagnostics void
+cd cup_print_diagnostics
+mem result CUPResult*
+cd ..
+void cup_strip_decl_prefix void
+cd cup_strip_decl_prefix
+mem result CUPResult*
+mem prefix const char*
+mem plen size_t
+cd ..
+void cup_print_summary void
+cd cup_print_summary
+mem mod ModuleDomain*
+mem result CUPResult*
+mem changes int
 cd ..
 
 # 子模块引用

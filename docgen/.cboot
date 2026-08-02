@@ -5,7 +5,6 @@ cmt "文档生成器 - 生成README.md/API.md/DEV.md三种文档"
 mode src
 cmode normal
 code <<EOF
-
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Documentation generator (新规范 v0.3.1)
@@ -878,6 +877,131 @@ mem f FILE*
 cd ..
 void write_dev_macros void
 cd write_dev_macros
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_api_deps void
+cd write_api_deps
+mem proj Project*
+mem f FILE*
+cd ..
+void proj_readme_write_modules void
+cd proj_readme_write_modules
+mem proj Project*
+mem f FILE*
+cd ..
+void proj_readme_write_mod_entry void
+cd proj_readme_write_mod_entry
+mem child Domain*
+mem f FILE*
+cd ..
+void proj_readme_write_tree void
+cd proj_readme_write_tree
+mem proj Project*
+mem f FILE*
+cd ..
+void dev_write_funcs void
+cd dev_write_funcs
+mem mod Domain*
+mem f FILE*
+cd ..
+void dev_write_types void
+cd dev_write_types
+mem mod Domain*
+mem f FILE*
+cd ..
+void dev_write_macros void
+cd dev_write_macros
+mem mod Domain*
+mem f FILE*
+cd ..
+void dev_write_deps void
+cd dev_write_deps
+mem proj Project*
+mem f FILE*
+cd ..
+void is_item int
+cd is_item
+mem c Domain*
+cd ..
+void readme_write_submodules void
+cd readme_write_submodules
+mem mod Domain*
+mem f FILE*
+cd ..
+void readme_write_item_summary void
+cd readme_write_item_summary
+mem mod Domain*
+mem f FILE*
+cd ..
+void api_write_toc int
+cd api_write_toc
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_func_signature void
+cd write_func_signature
+mem func FunctionDomain*
+mem f FILE*
+cd ..
+void write_func_params int
+cd write_func_params
+mem func_domain Domain*
+mem f FILE*
+cd ..
+void api_write_functions int
+cd api_write_functions
+mem mod Domain*
+mem f FILE*
+cd ..
+void dev_write_type_def void
+cd dev_write_type_def
+mem child Domain*
+mem f FILE*
+cd ..
+void dev_write_members void
+cd dev_write_members
+mem child Domain*
+mem f FILE*
+cd ..
+void api_write_types int
+cd api_write_types
+mem mod Domain*
+mem f FILE*
+cd ..
+void api_write_macros int
+cd api_write_macros
+mem mod Domain*
+mem f FILE*
+cd ..
+void api_write_submodules int
+cd api_write_submodules
+mem mod Domain*
+mem f FILE*
+cd ..
+void dev_write_signature void
+cd dev_write_signature
+mem func FunctionDomain*
+mem child Domain*
+mem f FILE*
+cd ..
+void dev_write_params void
+cd dev_write_params
+mem child Domain*
+mem f FILE*
+cd ..
+void dev_write_locals void
+cd dev_write_locals
+mem child Domain*
+mem f FILE*
+cd ..
+void dev_write_stats void
+cd dev_write_stats
+mem mod Domain*
+mem f FILE*
+cd ..
+void dev_write_child_links void
+cd dev_write_child_links
 mem mod Domain*
 mem f FILE*
 cd ..

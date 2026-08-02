@@ -5,7 +5,6 @@ cmt "代码生成器 - 将域树转换为C源代码、CMake构建系统和文档
 mode src
 cmode normal
 code <<EOF
-
 /*
  * CBoot - C Project Bootstrapping Tool v0.3.1
  * Code generator (v0.3.1 - no-src-dir, hierarchical CMake, compiler modes)
@@ -1102,6 +1101,98 @@ static Domain *generator_find_exe_module(Project *proj) {
 }
 
 /* ================================================================== */
+/* helpers for generator_generate_top_cmake */
+static void top_cmake_add_subdirs(FILE *f, Project *proj, Domain *skip) {
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        if (child == skip) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->compiler == COMPILER_EXE) continue;
+        fprintf(f, "add_subdirectory(%s)\n", child->name);
+    }
+}
+
+static void top_cmake_emit_exe_sources(FILE *f, Project *proj, Domain *exe_mod) {
+    fprintf(f, "\n# Add normal module sources to executable\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE || child == exe_mod) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
+        if (md->compiler != COMPILER_NORMAL) continue;
+        fprintf(f, "target_sources(%s PRIVATE ${%s_SOURCES})\n",
+                exe_mod->name, child->name);
+        fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR}/%s)\n",
+                exe_mod->name, child->name);
+    }
+}
+
+static void top_cmake_emit_exe_libs(FILE *f, Project *proj, Domain *exe_mod) {
+    fprintf(f, "\n# Link library modules into executable\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE || child == exe_mod) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->compiler != COMPILER_SL && md->compiler != COMPILER_DL &&
+            md->mode != MOD_MODE_STATIC && md->mode != MOD_MODE_DYNAMIC) continue;
+        fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", exe_mod->name, child->name);
+    }
+}
+
+static void top_cmake_collect_all_sources(FILE *f, Project *proj) {
+    fprintf(f, "\n# Collect all module sources\n");
+    fprintf(f, "set(ALL_SOURCES main.c)\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
+        if (md->compiler != COMPILER_NORMAL) continue;
+        fprintf(f, "list(APPEND ALL_SOURCES ${%s_SOURCES})\n", child->name);
+    }
+}
+
+static void top_cmake_link_prebuilt(FILE *f, Project *proj, const char *target_name) {
+    fprintf(f, "\n# Link prebuilt library modules\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode != MOD_MODE_STATIC && md->mode != MOD_MODE_DYNAMIC) continue;
+        fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", target_name, child->name);
+    }
+}
+
+static void top_cmake_with_exe(FILE *f, Project *proj, Domain *exe_mod) {
+    fprintf(f, "# Executable module\n");
+    fprintf(f, "add_subdirectory(%s)\n", exe_mod->name);
+    top_cmake_add_subdirs(f, proj, exe_mod);
+    top_cmake_emit_exe_sources(f, proj, exe_mod);
+    top_cmake_emit_exe_libs(f, proj, exe_mod);
+    fprintf(f, "\ntarget_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", exe_mod->name);
+}
+
+static void top_cmake_without_exe(FILE *f, Project *proj) {
+    fprintf(f, "# Module subdirectories (hierarchical)\n");
+    for (int i = 0; i < proj->root->child_count; i++) {
+        Domain *child = proj->root->children[i];
+        if (child->type != DOMAIN_MODULE) continue;
+        ModuleDomain *md = (ModuleDomain *)child;
+        if (md->mode == MOD_MODE_EXTERNAL) continue;
+        fprintf(f, "add_subdirectory(%s)\n", child->name);
+    }
+    top_cmake_collect_all_sources(f, proj);
+    fprintf(f, "\n# Main executable\n");
+    fprintf(f, "add_executable(%s ${ALL_SOURCES})\n\n", proj->name);
+    fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", proj->name);
+    top_cmake_link_prebuilt(f, proj, proj->name);
+}
+
 /* generator_generate_top_cmake - write top-level CMakeLists.txt                 */
 /* ================================================================== */
 
@@ -1117,101 +1208,11 @@ static void generator_generate_top_cmake(Project *proj) {
     fprintf(f, "set(CMAKE_C_STANDARD 11)\n");
     fprintf(f, "set(CMAKE_C_STANDARD_REQUIRED ON)\n\n");
 
-    /* Check if there's an exe module */
     Domain *exe_mod = generator_find_exe_module(proj);
-
-    if (exe_mod) {
-        /* exe module handles its own compilation via add_subdirectory */
-        fprintf(f, "# Executable module\n");
-        fprintf(f, "add_subdirectory(%s)\n", exe_mod->name);
-
-        /* Also add non-executable modules */
-        for (int i = 0; i < proj->root->child_count; i++) {
-            Domain *child = proj->root->children[i];
-            if (child->type == DOMAIN_MODULE && child != exe_mod) {
-                ModuleDomain *md = (ModuleDomain *)child;
-                if (md->mode == MOD_MODE_EXTERNAL) continue;
-                if (md->compiler == COMPILER_EXE) continue; /* already handled */
-                fprintf(f, "add_subdirectory(%s)\n", child->name);
-            }
-        }
-
-        /* Add normal module sources to the executable target */
-        fprintf(f, "\n# Add normal module sources to executable\n");
-        for (int i = 0; i < proj->root->child_count; i++) {
-            Domain *child = proj->root->children[i];
-            if (child->type == DOMAIN_MODULE && child != exe_mod) {
-                ModuleDomain *md = (ModuleDomain *)child;
-                if (md->mode == MOD_MODE_EXTERNAL) continue;
-                /* static/dynamic 模式没有 SOURCES 变量，跳过 */
-                if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
-                if (md->compiler == COMPILER_NORMAL) {
-                    fprintf(f, "target_sources(%s PRIVATE ${%s_SOURCES})\n",
-                            exe_mod->name, child->name);
-                    fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR}/%s)\n",
-                            exe_mod->name, child->name);
-                }
-            }
-        }
-
-        /* For sl/dl modules and static/dynamic prebuilt libs, link them into the exe */
-        fprintf(f, "\n# Link library modules into executable\n");
-        for (int i = 0; i < proj->root->child_count; i++) {
-            Domain *child = proj->root->children[i];
-            if (child->type == DOMAIN_MODULE && child != exe_mod) {
-                ModuleDomain *md = (ModuleDomain *)child;
-                if (md->mode == MOD_MODE_EXTERNAL) continue;
-                if (md->compiler == COMPILER_SL || md->compiler == COMPILER_DL ||
-                    md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
-                    fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", exe_mod->name, child->name);
-                }
-            }
-        }
-
-        fprintf(f, "\ntarget_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", exe_mod->name);
-    } else {
-        /* No exe module: collect all sources and build default executable */
-        fprintf(f, "# Module subdirectories (hierarchical)\n");
-        for (int i = 0; i < proj->root->child_count; i++) {
-            Domain *child = proj->root->children[i];
-            if (child->type == DOMAIN_MODULE) {
-                ModuleDomain *md = (ModuleDomain *)child;
-                if (md->mode == MOD_MODE_EXTERNAL) continue;
-                fprintf(f, "add_subdirectory(%s)\n", child->name);
-            }
-        }
-
-        fprintf(f, "\n# Collect all module sources\n");
-        fprintf(f, "set(ALL_SOURCES main.c)\n");
-        for (int i = 0; i < proj->root->child_count; i++) {
-            Domain *child = proj->root->children[i];
-            if (child->type == DOMAIN_MODULE) {
-                ModuleDomain *md = (ModuleDomain *)child;
-                if (md->mode == MOD_MODE_EXTERNAL) continue;
-                /* static/dynamic 模式没有 SOURCES 变量，跳过 */
-                if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) continue;
-                if (md->compiler == COMPILER_NORMAL) {
-                    fprintf(f, "list(APPEND ALL_SOURCES ${%s_SOURCES})\n", child->name);
-                }
-            }
-        }
-
-        fprintf(f, "\n# Main executable\n");
-        fprintf(f, "add_executable(%s ${ALL_SOURCES})\n\n", proj->name);
-        fprintf(f, "target_include_directories(%s PRIVATE ${CMAKE_SOURCE_DIR})\n", proj->name);
-
-        /* Link static/dynamic prebuilt libs */
-        fprintf(f, "\n# Link prebuilt library modules\n");
-        for (int i = 0; i < proj->root->child_count; i++) {
-            Domain *child = proj->root->children[i];
-            if (child->type == DOMAIN_MODULE) {
-                ModuleDomain *md = (ModuleDomain *)child;
-                if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
-                    fprintf(f, "target_link_libraries(%s PRIVATE %s)\n", proj->name, child->name);
-                }
-            }
-        }
-    }
+    if (exe_mod)
+        top_cmake_with_exe(f, proj, exe_mod);
+    else
+        top_cmake_without_exe(f, proj);
 
     fprintf(f, "\n# End of CMakeLists.txt\n");
     fclose(f);
@@ -1457,6 +1458,160 @@ void write_h_api_functions void
 cd write_h_api_functions
 mem mod Domain*
 mem f FILE*
+cd ..
+void cboot_write_header void
+cd cboot_write_header
+mem mod Domain*
+mem f FILE*
+cd ..
+void cboot_write_children void
+cd cboot_write_children
+mem mod Domain*
+mem f FILE*
+cd ..
+void cboot_write_submodule_refs void
+cd cboot_write_submodule_refs
+mem mod Domain*
+mem f FILE*
+cd ..
+void cmake_write_prebuilt_lib void
+cd cmake_write_prebuilt_lib
+mem mod Domain*
+mem f FILE*
+cd ..
+void cmake_write_submodule_sources void
+cd cmake_write_submodule_sources
+mem mod Domain*
+mem f FILE*
+cd ..
+void write_struct_members void
+cd write_struct_members
+mem parent Domain*
+mem f FILE*
+cd ..
+void write_func_signature void
+cd write_func_signature
+mem func FunctionDomain*
+mem abs_name const char*
+mem f FILE*
+cd ..
+void write_func_vars void
+cd write_func_vars
+mem child Domain*
+mem f FILE*
+cd ..
+void write_api_rename_type void
+cd write_api_rename_type
+mem td TypeDomain*
+mem child Domain*
+mem f FILE*
+cd ..
+void extract_struct_name int
+cd extract_struct_name
+mem ts const char*
+mem sname char*
+mem size size_t
+cd ..
+void fwd_list_contains int
+cd fwd_list_contains
+mem arr char[][MAX_NAME_LEN]
+mem count int
+mem name const char*
+cd ..
+void defined_in_module int
+cd defined_in_module
+mem mod Domain*
+mem sname const char*
+cd ..
+void collect_func_types int
+cd collect_func_types
+mem func FunctionDomain*
+mem child Domain*
+mem out const char*[]
+mem cap int
+cd ..
+void fwd_try_add void
+cd fwd_try_add
+mem type const char*
+mem mod Domain*
+mem fwd_decls char[][MAX_NAME_LEN]
+mem fwd_count int*
+mem cap int
+cd ..
+void write_mod_mode void
+cd write_mod_mode
+mem md ModuleDomain*
+mem f FILE*
+cd ..
+void cboot_write_members void
+cd cboot_write_members
+mem parent Domain*
+mem f FILE*
+cd ..
+void cboot_write_function void
+cd cboot_write_function
+mem child Domain*
+mem f FILE*
+cd ..
+void cboot_write_struct void
+cd cboot_write_struct
+mem child Domain*
+mem f FILE*
+cd ..
+void cboot_write_type void
+cd cboot_write_type
+mem child Domain*
+mem f FILE*
+cd ..
+void cboot_write_macro void
+cd cboot_write_macro
+mem child Domain*
+mem f FILE*
+cd ..
+void cboot_write_variable void
+cd cboot_write_variable
+mem child Domain*
+mem f FILE*
+cd ..
+void top_cmake_add_subdirs void
+cd top_cmake_add_subdirs
+mem f FILE*
+mem proj Project*
+mem skip Domain*
+cd ..
+void top_cmake_emit_exe_sources void
+cd top_cmake_emit_exe_sources
+mem f FILE*
+mem proj Project*
+mem exe_mod Domain*
+cd ..
+void top_cmake_emit_exe_libs void
+cd top_cmake_emit_exe_libs
+mem f FILE*
+mem proj Project*
+mem exe_mod Domain*
+cd ..
+void top_cmake_collect_all_sources void
+cd top_cmake_collect_all_sources
+mem f FILE*
+mem proj Project*
+cd ..
+void top_cmake_link_prebuilt void
+cd top_cmake_link_prebuilt
+mem f FILE*
+mem proj Project*
+mem target_name const char*
+cd ..
+void top_cmake_with_exe void
+cd top_cmake_with_exe
+mem f FILE*
+mem proj Project*
+mem exe_mod Domain*
+cd ..
+void top_cmake_without_exe void
+cd top_cmake_without_exe
+mem f FILE*
+mem proj Project*
 cd ..
 
 # 子模块引用

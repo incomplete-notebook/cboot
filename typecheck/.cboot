@@ -5,7 +5,6 @@ cmt "类型检查器 - 检查域类型一致性和符号冲突"
 mode src
 cmode normal
 code <<EOF
-
 /*
  * CBoot - Type Checker Implementation v0.5.0
  *
@@ -541,6 +540,41 @@ cd ..
 void validate_float_value int
 cd validate_float_value
 mem value const char*
+cd ..
+void match_qualifier size_t
+cd match_qualifier
+mem buf const char*
+cd ..
+void strip_array_dims void
+cd strip_array_dims
+mem buf char*
+mem len_ptr int*
+cd ..
+void find_named_type_in_scope int
+cd find_named_type_in_scope
+mem scope Domain*
+mem base const char*
+cd ..
+void typedef_value const char*
+cd typedef_value
+mem d Domain*
+cd ..
+void find_type_in_scope Domain*
+cd find_type_in_scope
+mem scope Domain*
+mem name const char*
+cd ..
+void check_end int
+cd check_end
+mem p const char*
+cd ..
+void skip_digits int
+cd skip_digits
+mem pp const char**
+cd ..
+void skip_exponent int
+cd skip_exponent
+mem pp const char**
 cd ..
 
 # 子模块引用

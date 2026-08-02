@@ -2,6 +2,7 @@
 
 set(domain_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/domain.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/core.c
 )
 
 

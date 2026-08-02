@@ -5,7 +5,6 @@ cmt "脚本解析器 - 解析.cboot脚本文件为项目定义"
 mode src
 cmode normal
 code <<EOF
-
 /*
  * CBoot - C Project Bootstrapping Tool v0.5.0
  * .cboot script parser (新规范 v0.5.0)
@@ -520,6 +519,69 @@ void parse_cboot_script int
 cd parse_cboot_script
 mode api
 mem filename const char*
+cd ..
+def PARSER_NOT_HANDLED
+cd PARSER_NOT_HANDLED
+mode api
+value " ( - 1000 )"
+cd ..
+void join_tokens_from void
+cd join_tokens_from
+mem tokens char**
+mem count int
+mem start int
+mem buf char*
+mem size size_t
+cd ..
+void require_args int
+cd require_args
+mem tokens char**
+mem count int
+mem needed int
+mem usage const char*
+cd ..
+void dispatch_build int
+cd dispatch_build
+mem tokens char**
+mem count int
+cd ..
+void dispatch_modify int
+cd dispatch_modify
+mem tokens char**
+mem count int
+cd ..
+void parse_rm int
+cd parse_rm
+mem tokens char**
+mem count int
+mem name const char**
+mem force int*
+cd ..
+void parse_find_flags int
+cd parse_find_flags
+mem tokens char**
+mem count int
+cd ..
+void dispatch_control int
+cd dispatch_control
+mem tokens char**
+mem count int
+cd ..
+void dispatch_action int
+cd dispatch_action
+mem tokens char**
+mem count int
+cd ..
+void set_script_dir void
+cd set_script_dir
+mem filename const char*
+mem saved_dir char*
+mem size size_t
+cd ..
+void read_heredoc int
+cd read_heredoc
+mem f FILE*
+mem line_no int*
 cd ..
 
 # 子模块引用

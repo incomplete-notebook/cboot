@@ -126,6 +126,46 @@ int utils_str_startswith(const char *str, const char *prefix)
 /* Declaration parsing                                                 */
 /* ================================================================== */
 
+/* Phase 1-4 helpers for utils_parse_c_decl; each returns next p or NULL on fail. */
+static const char *parse_read_base_type(const char *p, char *type_out, int type_size, int *ti) {
+    while (isalnum((unsigned char)*p) || *p == '_') {
+        if (*ti < type_size - 1) type_out[(*ti)++] = *p;
+        p++;
+    }
+    return p;
+}
+
+static const char *parse_read_pointer_stars(const char *p, char *type_out, int type_size, int *ti) {
+    while (*p == '*') {
+        if (*ti < type_size - 1) type_out[(*ti)++] = *p;
+        p++;
+    }
+    return p;
+}
+
+static const char *parse_read_identifier(const char *p, char *name_out, int name_size, int *ni) {
+    while (isalnum((unsigned char)*p) || *p == '_') {
+        if (*ni < name_size - 1) name_out[(*ni)++] = *p;
+        p++;
+    }
+    return p;
+}
+
+static const char *parse_read_array_dims(const char *p, char *name_out, int name_size, int *ni) {
+    while (*p == '[') {
+        if (*ni < name_size - 1) name_out[(*ni)++] = *p;
+        p++;
+        while (isdigit((unsigned char)*p)) {
+            if (*ni < name_size - 1) name_out[(*ni)++] = *p;
+            p++;
+        }
+        if (*p != ']') return NULL;  /* unclosed bracket */
+        if (*ni < name_size - 1) name_out[(*ni)++] = *p;
+        p++;
+    }
+    return p;
+}
+
 /*
  * Parse a C declaration: [base_type][*...][whitespace]ident[[N]...]
  * Returns 0 on success, -1 on invalid declaration.
@@ -148,16 +188,10 @@ int utils_parse_c_decl(const char *decl, char *type_out, int type_size,
 
     /* Phase 1: Read base type (alphanumeric + _) */
     if (!isalpha((unsigned char)*p) && *p != '_') return -1;
-    while (isalnum((unsigned char)*p) || *p == '_') {
-        if (ti < type_size - 1) type_out[ti++] = *p;
-        p++;
-    }
+    p = parse_read_base_type(p, type_out, type_size, &ti);
 
     /* Phase 2: Read pointer stars */
-    while (*p == '*') {
-        if (ti < type_size - 1) type_out[ti++] = *p;
-        p++;
-    }
+    p = parse_read_pointer_stars(p, type_out, type_size, &ti);
     type_out[ti] = '\0';
 
     /* After type, if we see '[' it's invalid ('[' must follow identifier) */
@@ -169,23 +203,11 @@ int utils_parse_c_decl(const char *decl, char *type_out, int type_size,
 
     /* Phase 3: Read identifier */
     if (!isalpha((unsigned char)*p) && *p != '_') return -1;
-    while (isalnum((unsigned char)*p) || *p == '_') {
-        if (ni < name_size - 1) name_out[ni++] = *p;
-        p++;
-    }
+    p = parse_read_identifier(p, name_out, name_size, &ni);
 
     /* Phase 4: Read array dimensions [N] */
-    while (*p == '[') {
-        if (ni < name_size - 1) name_out[ni++] = *p;
-        p++;
-        while (isdigit((unsigned char)*p)) {
-            if (ni < name_size - 1) name_out[ni++] = *p;
-            p++;
-        }
-        if (*p != ']') return -1;  /* unclosed bracket */
-        if (ni < name_size - 1) name_out[ni++] = *p;
-        p++;
-    }
+    p = parse_read_array_dims(p, name_out, name_size, &ni);
+    if (!p) return -1;
     name_out[ni] = '\0';
 
     /* Should be at end (or trailing whitespace) */

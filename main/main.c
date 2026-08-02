@@ -355,6 +355,64 @@ static int main_common_prefix_len(const char **strs, int count)
     return len;
 }
 
+/* helpers for main_do_tab_complete: gather candidate matches from current scope
+ * where each candidate name starts with prefix; returns match count. */
+static int tab_collect_child_domains(const char *prefix, const char **matches, int max_matches) {
+    int plen = (int)strlen(prefix);
+    int match_count = 0;
+    Domain *cur = g_proj->current;
+    for (int i = 0; i < cur->child_count && match_count < max_matches; i++) {
+        if (strncmp(cur->children[i]->name, prefix, plen) == 0)
+            matches[match_count++] = cur->children[i]->name;
+    }
+    return match_count;
+}
+
+/* helpers for main_do_tab_complete: base_len computation */
+static int tab_base_len(const char *buf) {
+    char *last_space = strrchr(buf, ' ');
+    return last_space ? (int)(last_space - buf) + 1 : 0;
+}
+
+/* helpers for main_do_tab_complete: single match apply */
+static int tab_apply_single(char *line, int *pos, const char *prompt,
+                            const char *buf, const char *completion) {
+    int base_len = tab_base_len(buf);
+    const char *suffix = completion + (*pos - base_len);
+    int suffix_len = (int)strlen(suffix);
+    if (*pos + suffix_len + 1 < MAX_LINE_LEN) {
+        memcpy(line + *pos, suffix, suffix_len);
+        line[*pos + suffix_len] = ' ';
+        line[*pos + suffix_len + 1] = '\0';
+        *pos = *pos + suffix_len + 1;
+    }
+    printf("\r\033[K%s%s", prompt, line);
+    fflush(stdout);
+    return 1;
+}
+
+/* helpers for main_do_tab_complete: multi match common-prefix apply */
+static int tab_apply_multi(char *line, int *pos, const char *prompt,
+                           const char *buf, const char **matches, int match_count) {
+    int base_len = tab_base_len(buf);
+    int cplen = main_common_prefix_len(matches, match_count);
+    const char *first = matches[0];
+    const char *suffix = first + (*pos - base_len);
+    int new_cplen = cplen - (*pos - base_len);
+    if (new_cplen < 0) new_cplen = 0;
+    if (new_cplen > 0 && *pos + new_cplen < MAX_LINE_LEN) {
+        memcpy(line + *pos, suffix, new_cplen);
+        line[*pos + new_cplen] = '\0';
+        *pos = *pos + new_cplen;
+    }
+    printf("\r\033[K%s%s\n", prompt, line);
+    for (int i = 0; i < match_count; i++)
+        printf("%s  ", matches[i]);
+    printf("\n%s%s", prompt, line);
+    fflush(stdout);
+    return 1;
+}
+
 /*
  * main_do_tab_complete - perform tab completion on the current line.
  * Modifies line and updates pos. Returns 1 if display was refreshed.
@@ -384,32 +442,15 @@ static int main_do_tab_complete(char *line, int *pos, const char *prompt)
         int is_last_space = (buf[*pos - 1] == ' ');
 
         if (utils_str_eq(cmd, "cd") || utils_str_eq(cmd, "rm") || utils_str_eq(cmd, "ls")) {
-            /* Complete with child domain names */
-            int plen = (int)strlen(partial);
-            Domain *cur = g_proj->current;
-            for (int i = 0; i < cur->child_count && match_count < 128; i++) {
-                if (strncmp(cur->children[i]->name, partial, plen) == 0) {
-                    matches[match_count++] = cur->children[i]->name;
-                }
-            }
+            match_count = tab_collect_child_domains(partial, matches, 128);
         } else if (utils_str_eq(cmd, "find") && tc == 2 && !is_last_space) {
-            /* Complete domain type for find command */
             match_count = main_try_complete(partial, g_domain_types, 128, matches);
         } else if (utils_str_eq(cmd, "mode")) {
-            /* Complete mode values */
             match_count = main_try_complete(partial, g_mode_values, 128, matches);
         } else if (utils_str_eq(cmd, "cmode")) {
-            /* Complete compiler mode values */
             match_count = main_try_complete(partial, g_cmode_values, 128, matches);
         } else {
-            /* Default: complete with child domain names */
-            int plen = (int)strlen(partial);
-            Domain *cur = g_proj->current;
-            for (int i = 0; i < cur->child_count && match_count < 128; i++) {
-                if (strncmp(cur->children[i]->name, partial, plen) == 0) {
-                    matches[match_count++] = cur->children[i]->name;
-                }
-            }
+            match_count = tab_collect_child_domains(partial, matches, 128);
         }
     }
 
@@ -421,62 +462,9 @@ static int main_do_tab_complete(char *line, int *pos, const char *prompt)
         fflush(stdout);
         return 0;
     }
-
-    if (match_count == 1) {
-        /* Single match - complete it */
-        /* Find where the current partial token starts */
-        char *last_space = strrchr(buf, ' ');
-        int base_len;
-        if (last_space)
-            base_len = (int)(last_space - buf) + 1;
-        else
-            base_len = 0;
-
-        const char *completion = matches[0];
-        const char *suffix = completion + (*pos - base_len);
-        int suffix_len = (int)strlen(suffix);
-
-        /* Append suffix + space */
-        if (*pos + suffix_len + 1 < MAX_LINE_LEN) {
-            memcpy(line + *pos, suffix, suffix_len);
-            line[*pos + suffix_len] = ' ';
-            line[*pos + suffix_len + 1] = '\0';
-            *pos = *pos + suffix_len + 1;
-        }
-        /* Redisplay */
-        printf("\r\033[K%s%s", prompt, line);
-        fflush(stdout);
-        return 1;
-    }
-
-    /* Multiple matches - complete to common prefix */
-    char *last_space = strrchr(buf, ' ');
-    int base_len;
-    if (last_space)
-        base_len = (int)(last_space - buf) + 1;
-    else
-        base_len = 0;
-
-    int cplen = main_common_prefix_len(matches, match_count);
-    const char *first = matches[0];
-    const char *suffix = first + (*pos - base_len);
-    int new_cplen = cplen - (*pos - base_len);
-    if (new_cplen < 0) new_cplen = 0;
-
-    if (new_cplen > 0 && *pos + new_cplen < MAX_LINE_LEN) {
-        memcpy(line + *pos, suffix, new_cplen);
-        line[*pos + new_cplen] = '\0';
-        *pos = *pos + new_cplen;
-    }
-
-    /* Show the common prefix completion, then list matches */
-    printf("\r\033[K%s%s\n", prompt, line);
-    for (int i = 0; i < match_count; i++) {
-        printf("%s  ", matches[i]);
-    }
-    printf("\n%s%s", prompt, line);
-    fflush(stdout);
-    return 1;
+    if (match_count == 1)
+        return tab_apply_single(line, pos, prompt, buf, matches[0]);
+    return tab_apply_multi(line, pos, prompt, buf, matches, match_count);
 }
 
 /* ------------------------------------------------------------------ */
