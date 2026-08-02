@@ -166,6 +166,17 @@ static const char *parse_read_array_dims(const char *p, char *name_out, int name
     return p;
 }
 
+/* 跳过空格并验证下一个 token 以合法标识符字符开头。
+ * 合并"skip ws + 非空检查 + 标识符起始检查"三步，
+ * utils_parse_c_decl 中此模式出现两次，抽出降低圈复杂度。
+ * 返回指向第一个标识符字符的指针，失败返回 NULL。 */
+static const char *parse_skip_ws_to_ident(const char *p) {
+    while (*p == ' ') p++;
+    if (!*p) return NULL;
+    if (!isalpha((unsigned char)*p) && *p != '_') return NULL;
+    return p;
+}
+
 /*
  * Parse a C declaration: [base_type][*...][whitespace]ident[[N]...]
  * Returns 0 on success, -1 on invalid declaration.
@@ -182,12 +193,9 @@ int utils_parse_c_decl(const char *decl, char *type_out, int type_size,
     type_out[0] = '\0';
     name_out[0] = '\0';
 
-    /* Skip leading whitespace */
-    while (*p == ' ') p++;
-    if (!*p) return -1;
-
-    /* Phase 1: Read base type (alphanumeric + _) */
-    if (!isalpha((unsigned char)*p) && *p != '_') return -1;
+    /* Phase 1: skip ws, validate ident start, read base type */
+    p = parse_skip_ws_to_ident(p);
+    if (!p) return -1;
     p = parse_read_base_type(p, type_out, type_size, &ti);
 
     /* Phase 2: Read pointer stars */
@@ -197,12 +205,9 @@ int utils_parse_c_decl(const char *decl, char *type_out, int type_size,
     /* After type, if we see '[' it's invalid ('[' must follow identifier) */
     if (*p == '[') return -1;
 
-    /* Skip whitespace */
-    while (*p == ' ') p++;
-    if (!*p) return -1;  /* no name found */
-
-    /* Phase 3: Read identifier */
-    if (!isalpha((unsigned char)*p) && *p != '_') return -1;
+    /* Phase 3: skip ws, validate ident start, read identifier */
+    p = parse_skip_ws_to_ident(p);
+    if (!p) return -1;
     p = parse_read_identifier(p, name_out, name_size, &ni);
 
     /* Phase 4: Read array dimensions [N] */

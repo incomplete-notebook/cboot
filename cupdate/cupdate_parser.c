@@ -1015,11 +1015,7 @@ static void cup_parse_typedef_decl(CuParser *p, SB *base_type_sb,
             (void)params; (void)pcount; (void)is_func; (void)is_func_def;
             /* typedef 不收集 params（简化） */
             if (params) {
-                for (int i = 0; i < pcount; i++) {
-                    free(params[i].type);
-                    free(params[i].name);
-                }
-                free(params);
+                cup_free_param_array(params, pcount);
             }
             free(name);
         } else {
@@ -1030,11 +1026,7 @@ static void cup_parse_typedef_decl(CuParser *p, SB *base_type_sb,
                 cup_warning(p, "typedef 缺少声明名（无 declarator）");
             }
             if (params) {
-                for (int i = 0; i < pcount; i++) {
-                    free(params[i].type);
-                    free(params[i].name);
-                }
-                free(params);
+                cup_free_param_array(params, pcount);
             }
         }
         sb_free(&dtype);
@@ -1250,11 +1242,7 @@ static void cup_parse_function_or_var(CuParser *p, SB *base_type_sb,
 
         /* 释放 params（变量不应有 params，但安全起见） */
         if (params) {
-            for (int i = 0; i < pcount; i++) {
-                free(params[i].type);
-                free(params[i].name);
-            }
-            free(params);
+            cup_free_param_array(params, pcount);
         }
         sb_free(&dtype);
 

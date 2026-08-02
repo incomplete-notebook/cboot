@@ -23,17 +23,29 @@
 /* 结果容器管理                                                        */
 /* ------------------------------------------------------------------ */
 
-void cupdate_result_init(CUPResult *r)
+/* 释放 CUParParam 数组：params[i].type / params[i].name 两字段。
+ * cup_free_decl 内 params 与 members 都遵循"循环 free + free(数组头)"模式，
+ * members 多一个 value 字段，所以单独处理。
+ * 非静态：cupdate_parser.c 也需要复用此函数清理临时 params。 */
+void cup_free_param_array(CUParParam *params, int count)
 {
-    r->decls = NULL;
-    r->decl_count = 0;
-    r->decl_capacity = 0;
-    r->errors = NULL;
-    r->error_count = 0;
-    r->error_capacity = 0;
-    r->warnings = NULL;
-    r->warning_count = 0;
-    r->warning_capacity = 0;
+    for (int i = 0; i < count; i++) {
+        free(params[i].type);
+        free(params[i].name);
+    }
+    free(params);
+}
+
+/* 释放 CUParMember 数组：type / name / value 三字段。
+ * 复用 cup_free_param_array 的循环框架，多释放一个 value 字段。 */
+static void cup_free_member_array(CUParMember *members, int count)
+{
+    for (int i = 0; i < count; i++) {
+        free(members[i].type);
+        free(members[i].name);
+        free(members[i].value);
+    }
+    free(members);
 }
 
 static void cup_free_decl(CUPDecl *d)
@@ -44,17 +56,33 @@ static void cup_free_decl(CUPDecl *d)
     free(d->base_type);    d->base_type = NULL;
     free(d->value);        d->value = NULL;
     free(d->body);         d->body = NULL;
-    for (int i = 0; i < d->param_count; i++) {
-        free(d->params[i].type);
-        free(d->params[i].name);
-    }
-    free(d->params);       d->params = NULL;
-    for (int i = 0; i < d->member_count; i++) {
-        free(d->members[i].type);
-        free(d->members[i].name);
-        free(d->members[i].value);
-    }
-    free(d->members);      d->members = NULL;
+    cup_free_param_array(d->params, d->param_count);    d->params = NULL;
+    cup_free_member_array(d->members, d->member_count); d->members = NULL;
+}
+
+/* 清零一个 "指针+count+capacity" 三元组（共 3 个字段）。
+ * cupdate_result_init 和 cupdate_result_free 都需要把 errors/warnings/decls
+ * 三组字段归零，抽此 helper 消除重复赋值样板。 */
+static void cup_zero_str_slot(char ***arr_ptr, int *count, int *cap) {
+    *arr_ptr = NULL;
+    *count = 0;
+    *cap = 0;
+}
+
+/* 释放字符串指针数组并清零统计字段。
+ * 复用 utils_free_tokens（功能一致：循环 free + free 头指针）。
+ * 仅多做了 count/cap 归零。 */
+static void cup_free_str_array(char ***arr_ptr, int *count, int *cap)
+{
+    utils_free_tokens(*arr_ptr, *count);
+    cup_zero_str_slot(arr_ptr, count, cap);
+}
+
+void cupdate_result_init(CUPResult *r)
+{
+    cup_zero_str_slot((char ***)&r->decls, &r->decl_count, &r->decl_capacity);
+    cup_zero_str_slot(&r->errors, &r->error_count, &r->error_capacity);
+    cup_zero_str_slot(&r->warnings, &r->warning_count, &r->warning_capacity);
 }
 
 void cupdate_result_free(CUPResult *r)
@@ -63,40 +91,34 @@ void cupdate_result_free(CUPResult *r)
         cup_free_decl(&r->decls[i]);
     }
     free(r->decls);
-    r->decls = NULL;
-    r->decl_count = r->decl_capacity = 0;
+    cup_zero_str_slot((char ***)&r->decls, &r->decl_count, &r->decl_capacity);
 
-    for (int i = 0; i < r->error_count; i++) free(r->errors[i]);
-    free(r->errors);
-    r->errors = NULL;
-    r->error_count = r->error_capacity = 0;
+    cup_free_str_array(&r->errors, &r->error_count, &r->error_capacity);
+    cup_free_str_array(&r->warnings, &r->warning_count, &r->warning_capacity);
+}
 
-    for (int i = 0; i < r->warning_count; i++) free(r->warnings[i]);
-    free(r->warnings);
-    r->warnings = NULL;
-    r->warning_count = r->warning_capacity = 0;
+/* 通用字符串数组追加：扩容到 2 倍（首次 16），把 strdup(msg) 放到末尾。
+ * add_error / add_warning 完全同构，仅字段不同，抽此 helper 消除重复。 */
+static void cup_str_array_push(char ***arr_ptr, int *count, int *cap, const char *msg)
+{
+    if (*count + 1 > *cap) {
+        int newcap = *cap ? *cap * 2 : 16;
+        *arr_ptr = (char **)realloc(*arr_ptr, sizeof(char *) * newcap);
+        *cap = newcap;
+    }
+    (*arr_ptr)[(*count)++] = strdup(msg);
 }
 
 void cupdate_result_add_error(CUPResult *r, const char *msg, int line)
 {
     (void)line;
-    if (r->error_count + 1 > r->error_capacity) {
-        int newcap = r->error_capacity ? r->error_capacity * 2 : 16;
-        r->errors = (char **)realloc(r->errors, sizeof(char *) * newcap);
-        r->error_capacity = newcap;
-    }
-    r->errors[r->error_count++] = strdup(msg);
+    cup_str_array_push(&r->errors, &r->error_count, &r->error_capacity, msg);
 }
 
 void cupdate_result_add_warning(CUPResult *r, const char *msg, int line)
 {
     (void)line;
-    if (r->warning_count + 1 > r->warning_capacity) {
-        int newcap = r->warning_capacity ? r->warning_capacity * 2 : 16;
-        r->warnings = (char **)realloc(r->warnings, sizeof(char *) * newcap);
-        r->warning_capacity = newcap;
-    }
-    r->warnings[r->warning_count++] = strdup(msg);
+    cup_str_array_push(&r->warnings, &r->warning_count, &r->warning_capacity, msg);
 }
 
 CUPDecl *cupdate_result_add_decl(CUPResult *r)
@@ -219,27 +241,31 @@ static VariableDomain *cup_find_variable(ModuleDomain *mod, const char *name)
 /* 同步声明到 domain 树                                                */
 /* ------------------------------------------------------------------ */
 
+/* 收集并删除指定域下所有 DOMAIN_MEMBER 类型的子域。
+ * 用于 cup_sync_function_params / cup_sync_struct_members 共同的"清空旧成员"逻辑。
+ * 抽出此 helper 以消除代码重复（原两段几乎逐字相同的 for+remove+delete 块）。 */
+static void cup_remove_all_member_children(Domain *parent)
+{
+    int old_count = parent->child_count;
+    Domain **to_remove = (Domain **)calloc(old_count, sizeof(Domain *));
+    int rc = 0;
+    for (int i = 0; i < old_count; i++) {
+        Domain *c = parent->children[i];
+        if (c->type == DOMAIN_MEMBER) to_remove[rc++] = c;
+    }
+    for (int i = 0; i < rc; i++) {
+        domain_domain_remove_child(parent, to_remove[i]);
+        domain_domain_delete(to_remove[i]);
+    }
+    free(to_remove);
+}
+
 /* 把 CUParParam 列表同步为函数的子域（参数）。
  * 先清空旧的参数成员，再添加新的。 */
 static void cup_sync_function_params(FunctionDomain *func, CUPDecl *decl)
 {
-    /* 删除旧的非参数子域中的参数成员 */
     Domain *fd = (Domain *)func;
-    /* 收集要删除的参数成员（避免遍历时修改） */
-    int old_count = fd->child_count;
-    Domain **to_remove = (Domain **)calloc(old_count, sizeof(Domain *));
-    int rc = 0;
-    for (int i = 0; i < old_count; i++) {
-        Domain *c = fd->children[i];
-        if (c->type == DOMAIN_MEMBER) {
-            to_remove[rc++] = c;
-        }
-    }
-    for (int i = 0; i < rc; i++) {
-        domain_domain_remove_child(fd, to_remove[i]);
-        domain_domain_delete(to_remove[i]);
-    }
-    free(to_remove);
+    cup_remove_all_member_children(fd);
 
     /* 添加新参数 */
     for (int i = 0; i < decl->param_count; i++) {
@@ -253,21 +279,7 @@ static void cup_sync_function_params(FunctionDomain *func, CUPDecl *decl)
 /* 把 CUParMember 列表同步为结构体的子域（成员） */
 static void cup_sync_struct_members(Domain *sd, CUPDecl *decl)
 {
-    /* 删除旧成员 */
-    int old_count = sd->child_count;
-    Domain **to_remove = (Domain **)calloc(old_count, sizeof(Domain *));
-    int rc = 0;
-    for (int i = 0; i < old_count; i++) {
-        Domain *c = sd->children[i];
-        if (c->type == DOMAIN_MEMBER) {
-            to_remove[rc++] = c;
-        }
-    }
-    for (int i = 0; i < rc; i++) {
-        domain_domain_remove_child(sd, to_remove[i]);
-        domain_domain_delete(to_remove[i]);
-    }
-    free(to_remove);
+    cup_remove_all_member_children(sd);
 
     /* 添加新成员 */
     for (int i = 0; i < decl->member_count; i++) {
@@ -605,13 +617,18 @@ static void cup_set_module_code(ModuleDomain *mod, const char *source)
     free(with_nl);
 }
 
+/* 打印字符串数组到指定 FILE*。
+ * cup_print_diagnostics 内 errors/warnings 两段完全同构。 */
+static void cup_print_str_array(FILE *fp, char **arr, int count) {
+    for (int i = 0; i < count; i++)
+        fprintf(fp, "%s\n", arr[i]);
+}
+
 /* 打印解析诊断信息 */
 static void cup_print_diagnostics(CUPResult *result)
 {
-    for (int i = 0; i < result->error_count; i++)
-        fprintf(stderr, "%s\n", result->errors[i]);
-    for (int i = 0; i < result->warning_count; i++)
-        fprintf(stderr, "%s\n", result->warnings[i]);
+    cup_print_str_array(stderr, result->errors, result->error_count);
+    cup_print_str_array(stderr, result->warnings, result->warning_count);
 }
 
 /* 剥离声明中的模块前缀 */

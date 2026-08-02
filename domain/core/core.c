@@ -175,10 +175,8 @@ void domain_core_free_type_fields(Domain *domain) {
 		ModuleDomain *mod = (ModuleDomain *)domain;
 		free(mod->value);
 		free(mod->code);
-		for (int i = 0; i < mod->include_count; i++) free(mod->includes[i]);
-		free(mod->includes);
-		for (int i = 0; i < mod->dep_count; i++) free(mod->dependencies[i]);
-		free(mod->dependencies);
+		utils_free_tokens(mod->includes, mod->include_count);
+		utils_free_tokens(mod->dependencies, mod->dep_count);
 		break;
 	}
 	case DOMAIN_FUNCTION: {
@@ -726,10 +724,8 @@ int domain_core_project_would_cycle(Project *proj, const char *importer_path,
 		}
 	}
 
-	for (int i = 0; i < visited_count; i++) free(visited[i]);
-	for (int i = 0; i < q_tail; i++) free(queue[i]);
-	free(visited);
-	free(queue);
+	utils_free_tokens(visited, visited_count);
+	utils_free_tokens(queue, q_tail);
 	return cycle;
 }
 

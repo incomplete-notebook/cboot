@@ -417,6 +417,23 @@ static int tab_apply_multi(char *line, int *pos, const char *prompt,
     return 1;
 }
 
+/* helpers for main_do_tab_complete: context-sensitive match collection
+ * 根据 cmd 名字决定补全来源（子域 / 类型枚举 / 模式值）。
+ * 把这组 if-else 链从主函数中抽出来，降低主函数圈复杂度。 */
+static int tab_collect_for_cmd(const char *cmd, const char *partial,
+                               int tc, int is_last_space,
+                               const char **matches, int max_matches) {
+    if (utils_str_eq(cmd, "cd") || utils_str_eq(cmd, "rm") || utils_str_eq(cmd, "ls"))
+        return tab_collect_child_domains(partial, matches, max_matches);
+    if (utils_str_eq(cmd, "find") && tc == 2 && !is_last_space)
+        return main_try_complete(partial, g_domain_types, max_matches, matches);
+    if (utils_str_eq(cmd, "mode"))
+        return main_try_complete(partial, g_mode_values, max_matches, matches);
+    if (utils_str_eq(cmd, "cmode"))
+        return main_try_complete(partial, g_cmode_values, max_matches, matches);
+    return tab_collect_child_domains(partial, matches, max_matches);
+}
+
 /*
  * main_do_tab_complete - perform tab completion on the current line.
  * Modifies line and updates pos. Returns 1 if display was refreshed.
@@ -444,24 +461,12 @@ static int main_do_tab_complete(char *line, int *pos, const char *prompt)
         const char *cmd = tokens[0];
         const char *partial = (tc > 1) ? tokens[tc - 1] : "";
         int is_last_space = (buf[*pos - 1] == ' ');
-
-        if (utils_str_eq(cmd, "cd") || utils_str_eq(cmd, "rm") || utils_str_eq(cmd, "ls")) {
-            match_count = tab_collect_child_domains(partial, matches, 128);
-        } else if (utils_str_eq(cmd, "find") && tc == 2 && !is_last_space) {
-            match_count = main_try_complete(partial, g_domain_types, 128, matches);
-        } else if (utils_str_eq(cmd, "mode")) {
-            match_count = main_try_complete(partial, g_mode_values, 128, matches);
-        } else if (utils_str_eq(cmd, "cmode")) {
-            match_count = main_try_complete(partial, g_cmode_values, 128, matches);
-        } else {
-            match_count = tab_collect_child_domains(partial, matches, 128);
-        }
+        match_count = tab_collect_for_cmd(cmd, partial, tc, is_last_space, matches, 128);
     }
 
     utils_free_tokens(tokens, tc);
 
     if (match_count == 0) {
-        /* No match - beep */
         printf("\a");
         fflush(stdout);
         return 0;
@@ -1210,6 +1215,15 @@ void parse_find_flags int
 cd parse_find_flags
 mem tokens char**
 mem count int
+cd ..
+void tab_collect_for_cmd int
+cd tab_collect_for_cmd
+mem cmd const char*
+mem partial const char*
+mem tc int
+mem is_last_space int
+mem matches const char**
+mem max_matches int
 cd ..
 
 # 子模块引用
