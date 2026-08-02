@@ -2,8 +2,8 @@
 /* Module: main */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.4.0
- * Main entry point (新规范 v0.4.0)
+ * CBoot - C Project Bootstrapping Tool v0.5.0
+ * Main entry point (新规范 v0.5.0)
  */
 
 #include "cboot.h"
@@ -913,7 +913,7 @@ static int main_dispatch_action(const char *cmd, char **tokens, int count) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Command dispatcher (新规范 v0.4.0)                                     */
+/* Command dispatcher (新规范 v0.5.0)                                     */
 /* ------------------------------------------------------------------ */
 
 static int main_dispatch_command(char **tokens, int count) {

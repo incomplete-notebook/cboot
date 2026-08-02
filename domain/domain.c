@@ -2,7 +2,7 @@
 /* Module: domain */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.4.0
+ * CBoot - C Project Bootstrapping Tool v0.5.0
  * Domain tree operations
  */
 

@@ -2,8 +2,8 @@
 /* Module: commands */
 
 /*
- * CBoot - C Project Bootstrapping Tool v0.4.0
- * Command handlers (新规范 v0.4.0)
+ * CBoot - C Project Bootstrapping Tool v0.5.0
+ * Command handlers (新规范 v0.5.0)
  *
  * 命令体系:
  *   建立域: mod/struct/type/def <name>
@@ -1159,6 +1159,7 @@ typedef struct {
     char module[128];
     char *code;             /* 函数体，持有所有权 (strdup) */
     int  complexity;
+    int  call_count;        /* 被其他函数调用的次数（依赖图复杂度 = call_count - 1） */
 } AnalyzeFunc;
 
 typedef struct {
@@ -1299,18 +1300,19 @@ static int analyze_is_keyword(const char *name, int len) {
 
 /* 跳过字符串内容，返回跳过后的指针 */
 static const char *analyze_skip_string(const char *p, char quote);
+/* 跳过字符串、字符、注释、预处理指令 */
+static const char *analyze_skip_non_code(const char *p);
 
-/* 查找函数体结束位置（匹配大括号），跳过字符串和字符 */
+/* 查找函数体结束位置（匹配大括号），跳过字符串、字符和注释
+ * （注释中的 } 不得误计为大括号闭合） */
 static const char *analyze_find_body_end(const char *body_start) {
     const char *p = body_start;
     int brace_depth = 1;
     while (*p && brace_depth > 0) {
+        const char *skipped = analyze_skip_non_code(p);
+        if (skipped) { p = skipped; continue; }
         if (*p == '{') brace_depth++;
         else if (*p == '}') brace_depth--;
-        else if (*p == '"' || *p == '\'') {
-            p = analyze_skip_string(p, *p);
-            continue;  /* skip_string 已推进过指针 */
-        }
         if (p < body_start) break;
         p++;
     }
@@ -1341,7 +1343,8 @@ static const char *analyze_skip_non_code(const char *p) {
 }
 
 /* 在 [start, ...) 范围内查找配对的圆括号；成功返回 1 并设置 open/close 指针，
- * 失败时返回 0。查找到 '{' 或 ';' 或 '\0' 即停止。 */
+ * 失败时返回 0。查找到 '{' 或 ';' 或 '\0' 即停止。
+ * 跳过注释、字符串、预处理指令，避免注释中的 name( 被误识别为函数调用。 */
 static int analyze_find_parens(const char *start,
                                const char **open_paren, const char **close_paren) {
     const char *paren = start;
@@ -1349,6 +1352,8 @@ static int analyze_find_parens(const char *start,
     *open_paren = NULL;
     *close_paren = NULL;
     while (*paren && *paren != '{' && *paren != ';') {
+        const char *skipped = analyze_skip_non_code(paren);
+        if (skipped) { paren = skipped; continue; }
         if (*paren == '(') {
             if (depth == 0) *open_paren = paren;
             depth++;
@@ -1729,6 +1734,115 @@ static void commands_analyze_duplication(AnalyzeFunc *funcs, int func_count) {
     free(tok_counts);
 }
 
+/* 在函数体 code 中查找对 name 的调用：name 后紧跟 '('，且 name 是完整标识符。
+ * 跳过字符串、字符、注释、预处理指令。返回 1 表示至少调用一次。
+ * 仅负责"是否存在调用"的词法判定，不做命名空间解析（由 analyze_resolve_call 完成）。 */
+static int analyze_has_call(const char *code, const char *name) {
+    if (!code || !*code || !name || !*name) return 0;
+    int nlen = (int)strlen(name);
+    const char *p = code;
+    while (*p) {
+        const char *skipped = analyze_skip_non_code(p);
+        if (skipped) { p = skipped; continue; }
+
+        if (isalpha((unsigned char)*p) || *p == '_') {
+            const char *id_start = p;
+            while (isalnum((unsigned char)*p) || *p == '_') p++;
+            int id_len = (int)(p - id_start);
+            if (id_len == nlen && strncmp(id_start, name, nlen) == 0) {
+                const char *q = p;
+                while (isspace((unsigned char)*q)) q++;
+                if (*q == '(') return 1;
+            }
+            continue;
+        }
+        p++;
+    }
+    return 0;
+}
+
+/* 命名空间解析：从 caller_module 视角，callee_name 应指向哪个函数？
+ * 解析规则（C 语言近似）：
+ *   1. 优先匹配 caller_module 内定义的同名函数（同文件作用域优先）
+ *   2. 否则若全局只有一个同名函数定义，匹配之
+ *   3. 否则无法精确定位（多个同名函数跨模块），返回 -1
+ * 返回函数在 funcs[] 中的索引，-1 表示无法定位。 */
+static int analyze_resolve_call(const char *callee_name,
+                                const char *caller_module,
+                                AnalyzeFunc *funcs, int func_count) {
+    int same_mod_idx = -1;
+    int global_count = 0;
+    int global_idx = -1;
+    for (int k = 0; k < func_count; k++) {
+        if (strcmp(funcs[k].name, callee_name) != 0) continue;
+        if (strcmp(funcs[k].module, caller_module) == 0) same_mod_idx = k;
+        global_idx = k;
+        global_count++;
+    }
+    if (same_mod_idx >= 0) return same_mod_idx;   /* 同模块定义优先 */
+    if (global_count == 1) return global_idx;     /* 全局唯一兜底 */
+    return -1;                                    /* 无法精确定位 */
+}
+
+/* analyze 辅助: 计算并打印依赖图复杂度
+ * 定义: 函数被 N 个其他函数调用，复杂度 = max(0, N - 1)。
+ * 反映修改一个函数时波及的调用方数量。
+ * 调用关系通过命名空间解析精确定位：
+ *   对每个调用方 G，先确认其代码中存在 name( 调用，
+ *   再按"同模块优先 / 全局唯一兜底"规则解析出真正的被调函数 F。 */
+static void commands_analyze_dependency_complexity(AnalyzeFunc *funcs, int func_count) {
+    for (int i = 0; i < func_count; i++)
+        funcs[i].call_count = 0;
+
+    /* 对每个被调函数 F，扫描所有其他函数 G；若 G 精确调用 F，则 F.call_count++ */
+    for (int i = 0; i < func_count; i++) {
+        for (int j = 0; j < func_count; j++) {
+            if (i == j) continue;  /* 不计自调用 */
+            /* 快速预筛：G 代码中是否出现 F 名字的调用 */
+            if (!analyze_has_call(funcs[j].code, funcs[i].name)) continue;
+            /* 命名空间解析：从 G 的模块看，该调用应指向哪个函数？ */
+            int resolved = analyze_resolve_call(funcs[i].name,
+                                                funcs[j].module,
+                                                funcs, func_count);
+            if (resolved == i)
+                funcs[i].call_count++;
+        }
+    }
+
+    int total_dc = 0, max_dc = 0;
+    char max_dc_name[128] = "", max_dc_mod[128] = "";
+    printf("--- 4. 依赖图复杂度 (Dependency Complexity) ---\n");
+    printf("  说明: 被调用次数 - 1，反映修改函数时波及的调用方数量\n");
+    printf("  说明: 调用关系经命名空间解析（同模块优先/全局唯一兜底）精确定位\n");
+    printf("  %-44s %s\n", "函数", "复杂度");
+    printf("  %-44s %s\n", "--------------------------------------------", "--------");
+    for (int i = 0; i < func_count; i++) {
+        int dc = funcs[i].call_count > 0 ? funcs[i].call_count - 1 : 0;
+        char display[300];
+        snprintf(display, sizeof(display), "%s [%s]", funcs[i].name, funcs[i].module);
+        const char *marker = (dc > 10) ? " *** 高" : (dc > 5) ? " ** 中" : "";
+        printf("  %-44s %d%s\n", display, dc, marker);
+        total_dc += dc;
+        if (dc > max_dc) {
+            max_dc = dc;
+            strncpy(max_dc_name, funcs[i].name, 127);
+            strncpy(max_dc_mod, funcs[i].module, 127);
+        }
+    }
+    printf("  %-44s %s\n", "--------------------------------------------", "--------");
+    if (func_count > 0) {
+        printf("  %-44s %d\n", "总计", total_dc);
+        printf("  %-44s %d\n", "平均", total_dc / func_count);
+        if (max_dc > 0)
+            printf("  %-44s %d (%s [%s])\n", "最高", max_dc, max_dc_name, max_dc_mod);
+        else
+            printf("  %-44s %d\n", "最高", 0);
+    } else {
+        printf("  (无函数数据)\n");
+    }
+    printf("\n");
+}
+
 int commands_cmd_analyze(void)
 {
     if (!g_proj || !g_proj->root) {
@@ -1755,6 +1869,9 @@ int commands_cmd_analyze(void)
 
     /* 3. 代码重复率 */
     commands_analyze_duplication(funcs, func_count);
+
+    /* 4. 依赖图复杂度 */
+    commands_analyze_dependency_complexity(funcs, func_count);
 
     printf("\n=== 分析完成 ===\n");
 

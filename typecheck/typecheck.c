@@ -2,7 +2,7 @@
 /* Module: typecheck */
 
 /*
- * CBoot - Type Checker Implementation v0.4.0
+ * CBoot - Type Checker Implementation v0.5.0
  *
  * Validates C types against built-in types and user-defined types
  * in the domain tree. Supports typedef resolution and value validation

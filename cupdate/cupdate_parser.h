@@ -1,5 +1,5 @@
 /*
- * CBoot - C Project Bootstrapping Tool v0.4.0
+ * CBoot - C Project Bootstrapping Tool v0.5.0
  * C 语法分析器（parser）- 内部接口
  *
  * 仅暴露给 cupdate.c 使用。实现见 cupdate_parser.c。
