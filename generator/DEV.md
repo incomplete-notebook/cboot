@@ -5,7 +5,7 @@
 ## 统计
 
 - 公开 API: **2** 项
-- 私有实现: **27** 项
+- 私有实现: **55** 项
 
 ## 函数
 
@@ -449,8 +449,442 @@ void write_h_api_functions(Domain* mod, FILE* f)
 
 ---
 
+### void cboot_write_header()
+
+```c
+void cboot_write_header(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_children()
+
+```c
+void cboot_write_children(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_submodule_refs()
+
+```c
+void cboot_write_submodule_refs(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cmake_write_prebuilt_lib()
+
+```c
+void cmake_write_prebuilt_lib(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cmake_write_submodule_sources()
+
+```c
+void cmake_write_submodule_sources(Domain* mod, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void write_struct_members()
+
+```c
+void write_struct_members(Domain* parent, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `parent` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void write_func_signature()
+
+```c
+void write_func_signature(FunctionDomain* func, const char* abs_name, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `abs_name` | `const char*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void write_func_vars()
+
+```c
+void write_func_vars(Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void write_api_rename_type()
+
+```c
+void write_api_rename_type(TypeDomain* td, Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `td` | `TypeDomain*` | - |
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### int extract_struct_name()
+
+```c
+int extract_struct_name(const char* ts, char* sname, size_t size)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `ts` | `const char*` | - |
+| `sname` | `char*` | - |
+| `size` | `size_t` | - |
+
+---
+
+### int fwd_list_contains()
+
+```c
+int fwd_list_contains(char[][MAX_NAME_LEN] arr, int count, const char* name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr` | `char[][MAX_NAME_LEN]` | - |
+| `count` | `int` | - |
+| `name` | `const char*` | - |
+
+---
+
+### int defined_in_module()
+
+```c
+int defined_in_module(Domain* mod, const char* sname)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `sname` | `const char*` | - |
+
+---
+
+### int collect_func_types()
+
+```c
+int collect_func_types(FunctionDomain* func, Domain* child, const char*[] out, int cap)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `child` | `Domain*` | - |
+| `out` | `const char*[]` | - |
+| `cap` | `int` | - |
+
+---
+
+### void fwd_try_add()
+
+```c
+void fwd_try_add(const char* type, Domain* mod, char[][MAX_NAME_LEN] fwd_decls, int* fwd_count, int cap)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type` | `const char*` | - |
+| `mod` | `Domain*` | - |
+| `fwd_decls` | `char[][MAX_NAME_LEN]` | - |
+| `fwd_count` | `int*` | - |
+| `cap` | `int` | - |
+
+---
+
+### void write_mod_mode()
+
+```c
+void write_mod_mode(ModuleDomain* md, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `md` | `ModuleDomain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_members()
+
+```c
+void cboot_write_members(Domain* parent, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `parent` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_function()
+
+```c
+void cboot_write_function(Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_struct()
+
+```c
+void cboot_write_struct(Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_type()
+
+```c
+void cboot_write_type(Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_macro()
+
+```c
+void cboot_write_macro(Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void cboot_write_variable()
+
+```c
+void cboot_write_variable(Domain* child, FILE* f)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+| `f` | `FILE*` | - |
+
+---
+
+### void top_cmake_add_subdirs()
+
+```c
+void top_cmake_add_subdirs(FILE* f, Project* proj, Domain* skip)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+| `skip` | `Domain*` | - |
+
+---
+
+### void top_cmake_emit_exe_sources()
+
+```c
+void top_cmake_emit_exe_sources(FILE* f, Project* proj, Domain* exe_mod)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+| `exe_mod` | `Domain*` | - |
+
+---
+
+### void top_cmake_emit_exe_libs()
+
+```c
+void top_cmake_emit_exe_libs(FILE* f, Project* proj, Domain* exe_mod)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+| `exe_mod` | `Domain*` | - |
+
+---
+
+### void top_cmake_collect_all_sources()
+
+```c
+void top_cmake_collect_all_sources(FILE* f, Project* proj)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+
+---
+
+### void top_cmake_link_prebuilt()
+
+```c
+void top_cmake_link_prebuilt(FILE* f, Project* proj, const char* target_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+| `target_name` | `const char*` | - |
+
+---
+
+### void top_cmake_with_exe()
+
+```c
+void top_cmake_with_exe(FILE* f, Project* proj, Domain* exe_mod)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+| `exe_mod` | `Domain*` | - |
+
+---
+
+### void top_cmake_without_exe()
+
+```c
+void top_cmake_without_exe(FILE* f, Project* proj)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `f` | `FILE*` | - |
+| `proj` | `Project*` | - |
+
+---
+
 ## 子模块
 
 - [domain](domain/DEV.md): [API 引用] 从项目内模块 domain 导入
 
-*Generated by CBoot v0.3.1*
+*Generated by CBoot v1.0.0*

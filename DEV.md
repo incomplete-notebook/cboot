@@ -1,5 +1,7 @@
 # cboot 开发文档
 
+本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。
+
 ## 模块概览
 
 | 模块 | 说明 | 路径 |
@@ -54,6 +56,42 @@
 - `void project_add_dependency()`
 - `int project_has_dependency()`
 - `int is_builtin_type()`
+- `void free_type_fields()`
+- `int project_would_cycle()`
+- `Domain* core_domain_new()`
+- `ModuleDomain* core_module_domain_new()`
+- `FunctionDomain* core_function_domain_new()`
+- `StructDomain* core_struct_domain_new()`
+- `TypeDomain* core_type_domain_new()`
+- `MacroDomain* core_macro_domain_new()`
+- `VariableDomain* core_variable_domain_new()`
+- `MemberDomain* core_member_domain_new()`
+- `void core_domain_add_child()`
+- `Domain* core_domain_find_child()`
+- `Domain* core_domain_find_child_by_type()`
+- `void core_free_type_fields()`
+- `void core_domain_delete()`
+- `void core_domain_remove_child()`
+- `Domain* core_domain_find_nearest_of_type()`
+- `Domain* core_domain_find_in_tree()`
+- `char* core_domain_get_path()`
+- `int core_domain_is_api()`
+- `Domain* core_domain_find_api_in_submodules()`
+- `Domain* core_domain_check_api_name_conflict()`
+- `void core_domain_set_comment()`
+- `void core_domain_set_child_comment()`
+- `Comment* core_find_child_comment()`
+- `void core_domain_set_value()`
+- `void core_domain_set_code()`
+- `void core_domain_set_call()`
+- `const char* core_domain_get_call()`
+- `void core_domain_set_mode()`
+- `Project* core_project_new()`
+- `void core_project_free()`
+- `void core_project_add_dependency()`
+- `int core_project_has_dependency()`
+- `int core_project_would_cycle()`
+- `int core_is_builtin_type()`
 
 详细文档见 [domain](domain/DEV.md)。
 
@@ -84,6 +122,32 @@
 - `void cup_sync_decl()`
 - `int run_module()`
 - `int cup_update_recursive()`
+- `FunctionDomain* cup_create_new_function()`
+- `int cup_replace_str_field()`
+- `int cup_sync_func_body()`
+- `int cup_update_existing_function()`
+- `void cup_sync_function_decl()`
+- `void cup_sync_struct_decl()`
+- `void cup_sync_typedef_decl()`
+- `void cup_sync_macro_decl()`
+- `void cup_sync_var_fields()`
+- `void cup_sync_variable_decl()`
+- `void cup_sync_enum_decl()`
+- `int cup_decl_type_matches()`
+- `int cup_find_matching_decl()`
+- `void cup_detect_and_remove_deleted()`
+- `const char* cup_skip_generated_header()`
+- `void cup_set_module_code()`
+- `void cup_print_diagnostics()`
+- `void cup_strip_decl_prefix()`
+- `void cup_print_summary()`
+- `void cup_free_param_array()`
+- `void cup_free_member_array()`
+- `void cup_free_str_array()`
+- `void cup_str_array_push()`
+- `void cup_remove_all_member_children()`
+- `void cup_zero_str_slot()`
+- `void cup_print_str_array()`
 
 详细文档见 [cupdate](cupdate/DEV.md)。
 
@@ -137,30 +201,34 @@
 - `int cmd_mv()`
 - `int cmd_exit()`
 - `int cmd_update()`
-- `void analyze_collect_modules()`
-- `int analyze_count_code_lines()`
-- `void analyze_extract_functions()`
-- `int analyze_tokenize()`
-- `int analyze_cyclomatic_complexity()`
-- `int analyze_ngram_equal()`
 - `int cmd_analyze()`
 - `int cmd_adjust()`
 - `void copy_api_items()`
 - `void copy_api_items_recursive()`
 - `int cmd_res()`
+- `int is_binary_api_domain()`
+- `int binary_api_mode()`
+- `int add_member()`
+- `int mode_find()`
+- `int mode_becoming_api()`
+- `int mode_check_api_conflict()`
+- `int mode_apply()`
+- `int cd_walk()`
+- `DomainType parse_type_filter()`
+- `void ls_print_type_info()`
+- `void ls_print_child()`
+- `int mv_resolve_target()`
+- `int mv_check_target()`
+- `void copy_members()`
+- `Domain* clone_api_child()`
+- `Domain* im_find_sibling()`
+- `int im_internal()`
+- `int im_external()`
+- `int cmd_analyze_impl()`
 
 **类型:**
 
-- `AnalyzeMod`
-- `AnalyzeFunc`
-- `AnalyzeToken`
-
-**宏:**
-
-- `ANALYZE_NGRAM_SIZE` = `8`
-- `ANALYZE_MAX_MODS` = `256`
-- `ANALYZE_MAX_FUNCS` = `2048`
-- `ANALYZE_MAX_TOKENS` = `8192`
+- `ModeMap`
 
 详细文档见 [commands](commands/DEV.md)。
 
@@ -176,6 +244,20 @@
 - `int exec_cboot_ref()`
 - `int try_cboot_ref()`
 - `int parse_cboot_script()`
+- `void join_tokens_from()`
+- `int require_args()`
+- `int dispatch_build()`
+- `int dispatch_modify()`
+- `int parse_rm()`
+- `int parse_find_flags()`
+- `int dispatch_control()`
+- `int dispatch_action()`
+- `void set_script_dir()`
+- `int read_heredoc()`
+
+**宏:**
+
+- `PARSER_NOT_HANDLED` = ` ( - 1000 )`
 
 详细文档见 [parser](parser/DEV.md)。
 
@@ -215,6 +297,34 @@
 - `void write_h_api_types()`
 - `void write_h_fwd_decls()`
 - `void write_h_api_functions()`
+- `void cboot_write_header()`
+- `void cboot_write_children()`
+- `void cboot_write_submodule_refs()`
+- `void cmake_write_prebuilt_lib()`
+- `void cmake_write_submodule_sources()`
+- `void write_struct_members()`
+- `void write_func_signature()`
+- `void write_func_vars()`
+- `void write_api_rename_type()`
+- `int extract_struct_name()`
+- `int fwd_list_contains()`
+- `int defined_in_module()`
+- `int collect_func_types()`
+- `void fwd_try_add()`
+- `void write_mod_mode()`
+- `void cboot_write_members()`
+- `void cboot_write_function()`
+- `void cboot_write_struct()`
+- `void cboot_write_type()`
+- `void cboot_write_macro()`
+- `void cboot_write_variable()`
+- `void top_cmake_add_subdirs()`
+- `void top_cmake_emit_exe_sources()`
+- `void top_cmake_emit_exe_libs()`
+- `void top_cmake_collect_all_sources()`
+- `void top_cmake_link_prebuilt()`
+- `void top_cmake_with_exe()`
+- `void top_cmake_without_exe()`
 
 详细文档见 [generator](generator/DEV.md)。
 
@@ -238,6 +348,31 @@
 - `void write_dev_functions()`
 - `void write_dev_types()`
 - `void write_dev_macros()`
+- `void write_api_deps()`
+- `void proj_readme_write_modules()`
+- `void proj_readme_write_mod_entry()`
+- `void proj_readme_write_tree()`
+- `void dev_write_funcs()`
+- `void dev_write_types()`
+- `void dev_write_macros()`
+- `void dev_write_deps()`
+- `int is_item()`
+- `void readme_write_submodules()`
+- `void readme_write_item_summary()`
+- `int api_write_toc()`
+- `void write_func_signature()`
+- `int write_func_params()`
+- `int api_write_functions()`
+- `void dev_write_type_def()`
+- `void dev_write_members()`
+- `int api_write_types()`
+- `int api_write_macros()`
+- `int api_write_submodules()`
+- `void dev_write_signature()`
+- `void dev_write_params()`
+- `void dev_write_locals()`
+- `void dev_write_stats()`
+- `void dev_write_child_links()`
 
 详细文档见 [docgen](docgen/DEV.md)。
 
@@ -260,6 +395,14 @@
 - `int type_checker_validate_value()`
 - `int validate_integer_value()`
 - `int validate_float_value()`
+- `size_t match_qualifier()`
+- `void strip_array_dims()`
+- `int find_named_type_in_scope()`
+- `const char* typedef_value()`
+- `Domain* find_type_in_scope()`
+- `int check_end()`
+- `int skip_digits()`
+- `int skip_exponent()`
 
 详细文档见 [typecheck](typecheck/DEV.md)。
 
@@ -287,6 +430,14 @@
 - `char* extract_name_from_decl()`
 - `int is_valid_identifier()`
 - `int file_exists()`
+- `void tokenize_emit()`
+- `const char* tokenize_quoted()`
+- `const char* tokenize_plain()`
+- `const char* parse_read_base_type()`
+- `const char* parse_read_pointer_stars()`
+- `const char* parse_read_identifier()`
+- `const char* parse_read_array_dims()`
+- `const char* parse_skip_ws_to_ident()`
 
 详细文档见 [utils](utils/DEV.md)。
 
@@ -315,6 +466,27 @@
 - `int dispatch_modify()`
 - `int dispatch_control()`
 - `int dispatch_action()`
+- `int parse_flag()`
+- `int parse_info_flag()`
+- `void parse_positional()`
+- `int parse_args()`
+- `int run_update()`
+- `int run_adjust()`
+- `int run_analyze()`
+- `int run_batch_script()`
+- `int run_default_cboot()`
+- `int run_interactive()`
+- `int tab_collect_child_domains()`
+- `int tab_base_len()`
+- `int tab_apply_single()`
+- `int tab_apply_multi()`
+- `void repl_handle_esc2()`
+- `int repl_handle_esc()`
+- `int repl_handle_ctrl()`
+- `void read_code_from_stdin()`
+- `int parse_rm()`
+- `int parse_find_flags()`
+- `int tab_collect_for_cmd()`
 
 **宏:**
 
@@ -341,4 +513,4 @@
 /main --> /cupdate
 ```
 
-*Generated by CBoot v0.4.0*
+*Generated by CBoot v1.0.0*

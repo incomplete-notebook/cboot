@@ -5,7 +5,6 @@ cmt "可执行入口模块 - CBoot的主程序入口"
 mode src
 cmode exe
 code <<EOF
-
 /*
  * CBoot - C Project Bootstrapping Tool v0.5.0
  * Main entry point (新规范 v0.5.0)

@@ -5,7 +5,7 @@
 ## 统计
 
 - 公开 API: **8** 项
-- 私有实现: **12** 项
+- 私有实现: **38** 项
 
 ## 函数
 
@@ -332,8 +332,416 @@ int cup_update_recursive(Domain* dom, const char* dir, int* total_errors, int* t
 
 ---
 
+### FunctionDomain* cup_create_new_function()
+
+```c
+FunctionDomain* cup_create_new_function(ModuleDomain* mod, CUPDecl* decl)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+---
+
+### int cup_replace_str_field()
+
+```c
+int cup_replace_str_field(char** field, const char* new_val)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `field` | `char**` | - |
+| `new_val` | `const char*` | - |
+
+---
+
+### int cup_sync_func_body()
+
+```c
+int cup_sync_func_body(FunctionDomain* func, CUPDecl* decl)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+---
+
+### int cup_update_existing_function()
+
+```c
+int cup_update_existing_function(FunctionDomain* func, CUPDecl* decl)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+---
+
+### void cup_sync_function_decl()
+
+```c
+void cup_sync_function_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### void cup_sync_struct_decl()
+
+```c
+void cup_sync_struct_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### void cup_sync_typedef_decl()
+
+```c
+void cup_sync_typedef_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### void cup_sync_macro_decl()
+
+```c
+void cup_sync_macro_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### void cup_sync_var_fields()
+
+```c
+void cup_sync_var_fields(VariableDomain* vd, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `vd` | `VariableDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### void cup_sync_variable_decl()
+
+```c
+void cup_sync_variable_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### void cup_sync_enum_decl()
+
+```c
+void cup_sync_enum_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+---
+
+### int cup_decl_type_matches()
+
+```c
+int cup_decl_type_matches(DomainType dtype, CUPDeclKind dkind)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `dtype` | `DomainType` | - |
+| `dkind` | `CUPDeclKind` | - |
+
+---
+
+### int cup_find_matching_decl()
+
+```c
+int cup_find_matching_decl(Domain* c, CUPResult* result, const char* prefix, size_t plen)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `c` | `Domain*` | - |
+| `result` | `CUPResult*` | - |
+| `prefix` | `const char*` | - |
+| `plen` | `size_t` | - |
+
+---
+
+### void cup_detect_and_remove_deleted()
+
+```c
+void cup_detect_and_remove_deleted(ModuleDomain* mod, CUPResult* result, const char* prefix, size_t plen, int* changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `result` | `CUPResult*` | - |
+| `prefix` | `const char*` | - |
+| `plen` | `size_t` | - |
+| `changes` | `int*` | - |
+
+---
+
+### const char* cup_skip_generated_header()
+
+```c
+const char* cup_skip_generated_header(const char* p, const char* mod_name, size_t name_len)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `p` | `const char*` | - |
+| `mod_name` | `const char*` | - |
+| `name_len` | `size_t` | - |
+
+---
+
+### void cup_set_module_code()
+
+```c
+void cup_set_module_code(ModuleDomain* mod, const char* source)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `source` | `const char*` | - |
+
+---
+
+### void cup_print_diagnostics()
+
+```c
+void cup_print_diagnostics(CUPResult* result)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `result` | `CUPResult*` | - |
+
+---
+
+### void cup_strip_decl_prefix()
+
+```c
+void cup_strip_decl_prefix(CUPResult* result, const char* prefix, size_t plen)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `result` | `CUPResult*` | - |
+| `prefix` | `const char*` | - |
+| `plen` | `size_t` | - |
+
+---
+
+### void cup_print_summary()
+
+```c
+void cup_print_summary(ModuleDomain* mod, CUPResult* result, int changes)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `result` | `CUPResult*` | - |
+| `changes` | `int` | - |
+
+---
+
+### void cup_free_param_array()
+
+```c
+void cup_free_param_array(CUParParam* params, int count)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `params` | `CUParParam*` | - |
+| `count` | `int` | - |
+
+---
+
+### void cup_free_member_array()
+
+```c
+void cup_free_member_array(CUParMember* members, int count)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `members` | `CUParMember*` | - |
+| `count` | `int` | - |
+
+---
+
+### void cup_free_str_array()
+
+```c
+void cup_free_str_array(char*** arr_ptr, int* count, int* cap)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr_ptr` | `char***` | - |
+| `count` | `int*` | - |
+| `cap` | `int*` | - |
+
+---
+
+### void cup_str_array_push()
+
+```c
+void cup_str_array_push(char*** arr_ptr, int* count, int* cap, const char* msg)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr_ptr` | `char***` | - |
+| `count` | `int*` | - |
+| `cap` | `int*` | - |
+| `msg` | `const char*` | - |
+
+---
+
+### void cup_remove_all_member_children()
+
+```c
+void cup_remove_all_member_children(Domain* parent)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `parent` | `Domain*` | - |
+
+---
+
+### void cup_zero_str_slot()
+
+```c
+void cup_zero_str_slot(char*** arr_ptr, int* count, int* cap)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr_ptr` | `char***` | - |
+| `count` | `int*` | - |
+| `cap` | `int*` | - |
+
+---
+
+### void cup_print_str_array()
+
+```c
+void cup_print_str_array(FILE* fp, char** arr, int count)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `fp` | `FILE*` | - |
+| `arr` | `char**` | - |
+| `count` | `int` | - |
+
+---
+
 ## 子模块
 
 - [domain](domain/DEV.md): [API 引用] 从项目内模块 domain 导入
 
-*Generated by CBoot v0.4.0*
+*Generated by CBoot v1.0.0*

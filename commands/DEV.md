@@ -4,8 +4,8 @@
 
 ## 统计
 
-- 公开 API: **33** 项
-- 私有实现: **15** 项
+- 公开 API: **28** 项
+- 私有实现: **27** 项
 
 ## 函数
 
@@ -521,100 +521,6 @@ int cmd_update()
 
 ---
 
-### void analyze_collect_modules()
-
-```c
-void analyze_collect_modules(Domain* d, AnalyzeMod* mods, int* count, int cap)
-```
-
-**参数列表**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `d` | `Domain*` | - |
-| `mods` | `AnalyzeMod*` | - |
-| `count` | `int*` | - |
-| `cap` | `int` | - |
-
----
-
-### int analyze_count_code_lines()
-
-```c
-int analyze_count_code_lines(const char* code)
-```
-
-**参数列表**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `code` | `const char*` | - |
-
----
-
-### void analyze_extract_functions()
-
-```c
-void analyze_extract_functions(const char* mod_name, const char* code, AnalyzeFunc* funcs, int* count, int cap)
-```
-
-**参数列表**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `mod_name` | `const char*` | - |
-| `code` | `const char*` | - |
-| `funcs` | `AnalyzeFunc*` | - |
-| `count` | `int*` | - |
-| `cap` | `int` | - |
-
----
-
-### int analyze_tokenize()
-
-```c
-int analyze_tokenize(const char* code, AnalyzeToken* toks, int cap)
-```
-
-**参数列表**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `code` | `const char*` | - |
-| `toks` | `AnalyzeToken*` | - |
-| `cap` | `int` | - |
-
----
-
-### int analyze_cyclomatic_complexity()
-
-```c
-int analyze_cyclomatic_complexity(const char* code)
-```
-
-**参数列表**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `code` | `const char*` | - |
-
----
-
-### int analyze_ngram_equal()
-
-```c
-int analyze_ngram_equal(AnalyzeToken* a, AnalyzeToken* b)
-```
-
-**参数列表**:
-
-| 名称 | 类型 | 说明 |
-|------|------|------|
-| `a` | `AnalyzeToken*` | - |
-| `b` | `AnalyzeToken*` | - |
-
----
-
 ### int cmd_analyze()
 
 > `API` — 公开接口
@@ -681,76 +587,301 @@ int cmd_res(const char* file_path)
 
 ---
 
+### int is_binary_api_domain()
+
+```c
+int is_binary_api_domain(DomainType t)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `t` | `DomainType` | - |
+
+---
+
+### int binary_api_mode()
+
+```c
+int binary_api_mode(Domain* d)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `d` | `Domain*` | - |
+
+---
+
+### int add_member()
+
+```c
+int add_member(const char* name, const char* type, const char* label)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `name` | `const char*` | - |
+| `type` | `const char*` | - |
+| `label` | `const char*` | - |
+
+---
+
+### int mode_find()
+
+```c
+int mode_find(const ModeMap* map, int n, const char* text, int* out)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `map` | `const ModeMap*` | - |
+| `n` | `int` | - |
+| `text` | `const char*` | - |
+| `out` | `int*` | - |
+
+---
+
+### int mode_becoming_api()
+
+```c
+int mode_becoming_api(DomainType type, const char* text)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type` | `DomainType` | - |
+| `text` | `const char*` | - |
+
+---
+
+### int mode_check_api_conflict()
+
+```c
+int mode_check_api_conflict(Domain* cur)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `cur` | `Domain*` | - |
+
+---
+
+### int mode_apply()
+
+```c
+int mode_apply(Domain* cur, const char* text)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `cur` | `Domain*` | - |
+| `text` | `const char*` | - |
+
+---
+
+### int cd_walk()
+
+```c
+int cd_walk(Domain* start, const char* p)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `start` | `Domain*` | - |
+| `p` | `const char*` | - |
+
+---
+
+### DomainType parse_type_filter()
+
+```c
+DomainType parse_type_filter(const char* type_filter)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `type_filter` | `const char*` | - |
+
+---
+
+### void ls_print_type_info()
+
+```c
+void ls_print_type_info(Domain* target)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `target` | `Domain*` | - |
+
+---
+
+### void ls_print_child()
+
+```c
+void ls_print_child(Domain* child)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+
+---
+
+### int mv_resolve_target()
+
+```c
+int mv_resolve_target(const char* target, Domain** out_parent, const char** out_name)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `target` | `const char*` | - |
+| `out_parent` | `Domain**` | - |
+| `out_name` | `const char**` | - |
+
+---
+
+### int mv_check_target()
+
+```c
+int mv_check_target(Domain* target_parent, const char* target_name, Domain* src_domain)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `target_parent` | `Domain*` | - |
+| `target_name` | `const char*` | - |
+| `src_domain` | `Domain*` | - |
+
+---
+
+### void copy_members()
+
+```c
+void copy_members(Domain* src, Domain* dst)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `src` | `Domain*` | - |
+| `dst` | `Domain*` | - |
+
+---
+
+### Domain* clone_api_child()
+
+```c
+Domain* clone_api_child(Domain* child)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `child` | `Domain*` | - |
+
+---
+
+### Domain* im_find_sibling()
+
+```c
+Domain* im_find_sibling(Domain* importer, const char* path)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `importer` | `Domain*` | - |
+| `path` | `const char*` | - |
+
+---
+
+### int im_internal()
+
+```c
+int im_internal(Domain* importer, const char* path, char* importer_path)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `importer` | `Domain*` | - |
+| `path` | `const char*` | - |
+| `importer_path` | `char*` | - |
+
+---
+
+### int im_external()
+
+```c
+int im_external(Domain* importer, const char* path, char* importer_path)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `importer` | `Domain*` | - |
+| `path` | `const char*` | - |
+| `importer_path` | `char*` | - |
+
+---
+
+### int cmd_analyze_impl()
+
+> `API` — 公开接口
+
+```c
+int cmd_analyze_impl()
+```
+
+---
+
 ## 类型
 
-### AnalyzeMod
+### ModeMap
 
 > `API` — 公开类型
 
 ```c
-typedef struct AnalyzeMod;
+typedef struct ModeMap;
 ```
 
 ---
-
-### AnalyzeFunc
-
-> `API` — 公开类型
-
-```c
-typedef struct AnalyzeFunc;
-```
-
----
-
-### AnalyzeToken
-
-> `API` — 公开类型
-
-```c
-typedef struct AnalyzeToken;
-```
-
----
-
-## 宏
-
-### `ANALYZE_NGRAM_SIZE`
-
-> `API` — 公开宏
-
-```c
-#define ANALYZE_NGRAM_SIZE 8
-```
-
-### `ANALYZE_MAX_MODS`
-
-> `API` — 公开宏
-
-```c
-#define ANALYZE_MAX_MODS 256
-```
-
-### `ANALYZE_MAX_FUNCS`
-
-> `API` — 公开宏
-
-```c
-#define ANALYZE_MAX_FUNCS 2048
-```
-
-### `ANALYZE_MAX_TOKENS`
-
-> `API` — 公开宏
-
-```c
-#define ANALYZE_MAX_TOKENS 8192
-```
-
 
 ## 子模块
 
 - [domain](domain/DEV.md): [API 引用] 从项目内模块 domain 导入
 - [cupdate](cupdate/DEV.md): [API 引用] 从项目内模块 cupdate 导入
 
-*Generated by CBoot v0.4.0*
+*Generated by CBoot v1.0.0*

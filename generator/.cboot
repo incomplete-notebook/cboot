@@ -729,6 +729,25 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/%s.h", dir, mod->name);
 
+    ModuleDomain *md = (ModuleDomain *)mod;
+
+    /* 如果模块使用 code 块（原始代码模式）且已存在手写 .h 文件，
+     * 则跳过覆盖以保护手写类型定义（如 domain.h 的 struct/typedef）。
+     * 判定依据：生成器产出的 .h 首行含 "API declarations only" 标记，
+     * 若现有 .h 无此标记，说明是开发者手写维护的头文件。 */
+    if (md->code && md->code[0] != '\0' && utils_file_exists(file_path)) {
+        FILE *existing = fopen(file_path, "r");
+        if (existing) {
+            char first_line[256];
+            if (fgets(first_line, sizeof(first_line), existing) &&
+                !strstr(first_line, "API declarations only")) {
+                fclose(existing);
+                return;  /* 手写 .h，跳过覆盖 */
+            }
+            fclose(existing);
+        }
+    }
+
     FILE *f = fopen(file_path, "w");
     if (!f) {
         fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
@@ -738,7 +757,6 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
     char guard[MAX_NAME_LEN * 2];
     generator_write_h_guard_begin(f, mod->name, guard, sizeof(guard));
 
-    ModuleDomain *md = (ModuleDomain *)mod;
     if (md->compiler == COMPILER_DL) {
         generator_write_dllexport_macro(f, mod->name);
     }
@@ -813,6 +831,12 @@ static void generator_generate_mod_cmake(Domain *mod, const char *dir) {
 
     char file_path[MAX_PATH_LEN];
     snprintf(file_path, sizeof(file_path), "%s/CMakeLists.txt", dir);
+
+    /* code 块模块的 CMakeLists.txt 可能包含手写子模块源文件
+     * （如 domain/core/core.c），若已存在则跳过覆盖以保护手写内容 */
+    if (md->code && md->code[0] != '\0' && utils_file_exists(file_path)) {
+        return;
+    }
 
     FILE *f = fopen(file_path, "w");
     if (!f) {
