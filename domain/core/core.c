@@ -184,6 +184,7 @@ void domain_core_free_type_fields(Domain *domain) {
 		free(func->return_type);
 		free(func->code);
 		free(func->value);
+		domain_function_clear_test_cases(func);
 		break;
 	}
 	case DOMAIN_TYPE: {

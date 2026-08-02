@@ -183,7 +183,7 @@ int cmd_cmode(const char* text)
 
 ### int cmd_test()
 
-测试覆盖率目标 (0-100)
+测试用例文本 (输入=>预期 或 自定义代码)
 
 ```c
 int cmd_test(int cov, int pass)

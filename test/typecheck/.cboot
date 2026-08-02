@@ -509,7 +509,6 @@ cd type_checker_init
 mode api
 mem tc TypeChecker*
 mem scope Domain*
-test 90 95
 cd ..
 void type_checker_find_api_type_in_submodules Domain*
 cd type_checker_find_api_type_in_submodules
@@ -521,7 +520,6 @@ cd type_checker_validate
 mode api
 mem tc TypeChecker*
 mem type_name const char*
-test 90 95
 cd ..
 void type_checker_resolve_typedef const char*
 cd type_checker_resolve_typedef

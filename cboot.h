@@ -60,7 +60,7 @@ extern char     g_script_dir[]; /* 当前脚本文件所在目录，用于 .cboo
 
 char  **tokenize(const char *line, int *count);
 void    utils_free_tokens(char **tokens, int count);
-char   *trim(char *str);
+char   *utils_trim(char *str);
 char   *utils_str_dup(const char *str);
 int     utils_str_eq(const char *a, const char *b);
 int     utils_str_startswith(const char *str, const char *prefix);
@@ -98,7 +98,8 @@ int commands_cmd_value(const char *text);
 int commands_cmd_call(const char *call_conv);
 int commands_cmd_mode(const char *text);
 int commands_cmd_cmode(const char *text);  /* 设置编译器模式: exe/sl/dl/normal */
-int commands_cmd_test(int cov, int pass);  /* 设置函数测试覆盖率/通过率目标 (可选) */
+int commands_cmd_test(const char *buf);    /* 添加测试用例: test <输入> => <预期> */
+int commands_cmd_tcode(const char *code);  /* 添加代码测试用例: tcode <<EOF */
 
 /* 控制: <op> <域> */
 int commands_cmd_cd(const char *path);

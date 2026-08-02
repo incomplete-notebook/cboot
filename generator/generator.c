@@ -34,8 +34,10 @@
 static void generator_generate_module(Domain *mod, const char *parent_dir);
 static void generator_generate_mod_c(Domain *mod, const char *dir);
 static void generator_generate_mod_h(Domain *mod, const char *dir);
+static void generator_generate_mod_h_external(Domain *mod, const char *dir);
 static void generator_generate_mod_cmake(Domain *mod, const char *dir);
 static void generator_generate_mod_cboot(Domain *mod, const char *dir);
+static void generator_generate_mod_test(Domain *mod, const char *dir);
 static void generator_generate_top_cmake(Project *proj);
 static void generator_generate_top_main(Project *proj);
 static void generator_generate_project_cboot(Project *proj);
@@ -242,8 +244,11 @@ static void generator_generate_module(Domain *mod, const char *parent_dir) {
 
     if (md->mode == MOD_MODE_EXTERNAL) {
         /* External API-reference module (from im command):
-         * Only generate .h file (API declarations), no .c, no CMakeLists.txt */
-        generator_generate_mod_h(mod, mod_dir);
+         * 生成转发头文件 (forwarder), 不重复声明 API — 直接 #include 源模块的真实头文件,
+         * 以获取完整类型定义。避免与源模块头文件的同名 include guard 冲突
+         * (否则会屏蔽源模块的 struct/typedef 定义, 导致编译失败)。
+         * 不生成 .c / CMakeLists.txt。 */
+        generator_generate_mod_h_external(mod, mod_dir);
         generator_generate_mod_cboot(mod, mod_dir);
         docgen_generate_module_docs(mod, mod_dir);
     } else if (md->mode == MOD_MODE_STATIC || md->mode == MOD_MODE_DYNAMIC) {
@@ -267,6 +272,9 @@ static void generator_generate_module(Domain *mod, const char *parent_dir) {
 
         /* Generate markdown docs */
         docgen_generate_module_docs(mod, mod_dir);
+
+        /* Generate <module>_test.c (仅当有测试用例时) */
+        generator_generate_mod_test(mod, mod_dir);
     }
 
     /* Process child modules */
@@ -770,6 +778,44 @@ static void generator_generate_mod_h(Domain *mod, const char *dir) {
     fclose(f);
 }
 
+/* ================================================================== */
+/* generator_generate_mod_h_external - 为 im 导入的外部模块生成转发头文件       */
+/*                                                                    */
+/* im 命令在导入方模块下创建一个 EXTERNAL 模式子模块 (api_ref), 用于引用源模块     */
+/* 的 API。生成器原本会为它生成一份与源模块同名 (如 domain.h) 的 "API only" 头文件, */
+/* 但该头文件:                                                       */
+/*   1. 使用与源模块相同的 include guard (如 DOMAIN_H), 会屏蔽源模块的真实头文件   */
+/*   2. 仅声明函数原型, 引用了 Domain/ModuleDomain 等类型却未定义, 无法独立编译   */
+/* 因此改为生成一个 "转发头文件": 使用独立 guard, 直接 #include 源模块的真实头文件。  */
+/* 主项目构建时源模块头文件经相对路径可达, 从而获得完整类型定义。                 */
+/* 相对路径 ../../<src>/<src>.h 假定导入方位于项目根下一级 (cboot 标准结构)。     */
+/* ================================================================== */
+
+static void generator_generate_mod_h_external(Domain *mod, const char *dir) {
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/%s.h", dir, mod->name);
+
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 '%s'\n", file_path);
+        return;
+    }
+
+    /* 独立 guard: <SRCMOD>_API_H, 避免与源模块头文件的 <SRCMOD>_H 冲突 */
+    char guard[MAX_NAME_LEN * 2];
+    snprintf(guard, sizeof(guard), "%s_API_H", mod->name);
+    for (int i = 0; guard[i]; i++)
+        guard[i] = (char)toupper((unsigned char)guard[i]);
+
+    fprintf(f, "/* %s.h - CBoot generated (API import reference) */\n", mod->name);
+    fprintf(f, "/* im 导入的外部模块引用: 转发到源模块头文件以获取完整类型定义 */\n");
+    fprintf(f, "#ifndef %s\n", guard);
+    fprintf(f, "#define %s\n\n", guard);
+    fprintf(f, "#include \"../../%s/%s.h\"\n", mod->name, mod->name);
+    fprintf(f, "\n#endif /* %s */\n", guard);
+    fclose(f);
+}
+
 /* ------------------------------------------------------------------ */
 /* generator_cmake_write_prebuilt_lib - write CMake for static/dynamic */
 /* prebuilt library modules (IMPORTED target)                          */
@@ -974,6 +1020,20 @@ static void generator_cboot_write_function(Domain *child, FILE *f) {
     if (child->comment) fprintf(f, "cmt \"%s\"\n", child->comment);
     if (func->value) fprintf(f, "value \"%s\"\n", func->value);
     generator_cboot_write_members(child, f);
+    /* 测试用例 (可选, 仅当设置时输出) */
+    {
+        TestCase *tc = func->test_cases;
+        while (tc) {
+            if (tc->type == TEST_CASE_SIMPLE)
+                fprintf(f, "test %s => %s\n",
+                        tc->inputs ? tc->inputs : "",
+                        tc->expected ? tc->expected : "");
+            else  /* TEST_CASE_CODE */
+                fprintf(f, "tcode <<EOF\n%s\nEOF\n",
+                        tc->code ? tc->code : "");
+            tc = tc->next;
+        }
+    }
     fprintf(f, "cd ..\n");
 }
 
@@ -1067,6 +1127,139 @@ static void generator_cboot_write_submodule_refs(Domain *mod, FILE *f) {
             }
         }
     }
+}
+
+/* ================================================================== */
+/* generator_generate_mod_test - 生成 <module>_test.c 测试文件                    */
+/* 仅当模块中有函数设置了测试用例时才生成                                         */
+/* ================================================================== */
+
+static void generator_generate_mod_test(Domain *mod, const char *dir) {
+    /* 先检查是否有任何函数有测试用例 */
+    int has_tests = 0;
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type == DOMAIN_FUNCTION) {
+            FunctionDomain *func = (FunctionDomain *)child;
+            if (func->test_cases) { has_tests = 1; break; }
+        }
+    }
+    if (!has_tests) return;  /* 无测试用例, 不生成文件 */
+
+    char prefix[MAX_NAME_LEN * 5];
+    generator_get_module_prefix(mod, prefix, sizeof(prefix));
+
+    char file_path[MAX_PATH_LEN];
+    snprintf(file_path, sizeof(file_path), "%s/%s_test.c", dir, mod->name);
+    FILE *f = fopen(file_path, "w");
+    if (!f) {
+        fprintf(stderr, "generator: 无法创建 %s\n", file_path);
+        return;
+    }
+
+    /* 文件头 */
+    fprintf(f, "/* %s_test.c - 自动生成的测试文件 (CBoot generated) */\n", mod->name);
+    fprintf(f, "/* Module: %s */\n\n", mod->name);
+    fprintf(f, "#include \"cboot.h\"\n");
+    fprintf(f, "#include <stdio.h>\n");
+    fprintf(f, "#include <string.h>\n\n");
+
+    /* 统计变量和 EXPECT 宏 */
+    fprintf(f, "static int g_test_passed = 0;\n");
+    fprintf(f, "static int g_test_total = 0;\n\n");
+    fprintf(f, "/* EXPECT 宏: 断言条件为真, 失败时打印消息并计数 */\n");
+    fprintf(f, "#define EXPECT(cond, ...) do { \\\n");
+    fprintf(f, "    g_test_total++; \\\n");
+    fprintf(f, "    if (cond) { g_test_passed++; } \\\n");
+    fprintf(f, "    else { printf(\"FAIL: \" __VA_ARGS__); printf(\"\\n\"); } \\\n");
+    fprintf(f, "} while(0)\n\n");
+
+    /* 被测函数 extern 声明 (使用绝对符号名) */
+    fprintf(f, "/* 被测函数声明 */\n");
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION) continue;
+        FunctionDomain *func = (FunctionDomain *)child;
+        if (!func->test_cases) continue;
+        char abs_name[MAX_NAME_LEN * 5];
+        generator_make_abs_name(prefix, child->name, abs_name, sizeof(abs_name));
+        fprintf(f, "extern %s %s(", func->return_type, abs_name);
+        int first = 1;
+        for (int j = 0; j < child->child_count; j++) {
+            Domain *mem = child->children[j];
+            if (mem->type != DOMAIN_MEMBER) continue;
+            MemberDomain *m = (MemberDomain *)mem;
+            fprintf(f, "%s%s", first ? "" : ", ", m->type);
+            first = 0;
+        }
+        if (first) fprintf(f, "void");
+        fprintf(f, ");\n");
+    }
+    fprintf(f, "\n");
+
+    /* 每个有测试用例的函数生成 test_<funcname>() */
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION) continue;
+        FunctionDomain *func = (FunctionDomain *)child;
+        if (!func->test_cases) continue;
+        char abs_name[MAX_NAME_LEN * 5];
+        generator_make_abs_name(prefix, child->name, abs_name, sizeof(abs_name));
+
+        fprintf(f, "static void test_%s(void) {\n", child->name);
+        fprintf(f, "    printf(\"--- 测试 %s ---\\n\");\n", child->name);
+
+        int case_no = 0;
+        TestCase *tc = func->test_cases;
+        while (tc) {
+            case_no++;
+            if (tc->type == TEST_CASE_SIMPLE) {
+                /* 纯函数: 输入 => 预期返回值 */
+                if (strcmp(func->return_type, "void") == 0) {
+                    /* void 函数: 只调用, 不检查返回值 */
+                    fprintf(f, "    g_test_total++;\n");
+                    fprintf(f, "    %s(%s);\n", abs_name, tc->inputs ? tc->inputs : "");
+                    fprintf(f, "    g_test_passed++;\n");
+                    fprintf(f, "    printf(\"PASS [case %%d]\\n\", %d);\n", case_no);
+                } else {
+                    /* 有返回值: 调用并比较 */
+                    fprintf(f, "    {\n");
+                    fprintf(f, "        g_test_total++;\n");
+                    fprintf(f, "        %s _r = %s(%s);\n",
+                            func->return_type, abs_name, tc->inputs ? tc->inputs : "");
+                    fprintf(f, "        %s _e = (%s);\n",
+                            func->return_type, tc->expected ? tc->expected : "0");
+                    fprintf(f, "        if (_r == _e) { g_test_passed++; printf(\"PASS [case %%d]\\n\", %d); }\n", case_no);
+                    fprintf(f, "        else { printf(\"FAIL [case %%d]\\n\", %d); }\n", case_no);
+                    fprintf(f, "    }\n");
+                }
+            } else {
+                /* TEST_CASE_CODE: 用户自定义代码 */
+                fprintf(f, "    /* 用例 %d: 自定义代码 */\n", case_no);
+                fprintf(f, "    {\n");
+                fprintf(f, "        %s\n", tc->code ? tc->code : "");
+                fprintf(f, "    }\n");
+            }
+            tc = tc->next;
+        }
+        fprintf(f, "}\n\n");
+    }
+
+    /* main 函数 */
+    fprintf(f, "int main(void) {\n");
+    fprintf(f, "    printf(\"=== %s 模块测试 ===\\n\");\n", mod->name);
+    for (int i = 0; i < mod->child_count; i++) {
+        Domain *child = mod->children[i];
+        if (child->type != DOMAIN_FUNCTION) continue;
+        FunctionDomain *func = (FunctionDomain *)child;
+        if (!func->test_cases) continue;
+        fprintf(f, "    test_%s();\n", child->name);
+    }
+    fprintf(f, "    printf(\"\\n=== %s 测试结果: %%d/%%d passed ===\\n\", g_test_passed, g_test_total);\n", mod->name);
+    fprintf(f, "    return (g_test_passed == g_test_total) ? 0 : 1;\n");
+    fprintf(f, "}\n");
+
+    fclose(f);
 }
 
 /* ================================================================== */

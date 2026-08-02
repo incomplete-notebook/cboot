@@ -701,7 +701,7 @@ static void main_repl_loop(void) {
 
         hist_browsing = 0;
 
-        char *trimmed = trim(line);
+        char *trimmed = utils_trim(line);
         if (trimmed[0] == '\0') continue;
 
         /* Add to history */

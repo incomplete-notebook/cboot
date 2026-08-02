@@ -4,7 +4,7 @@
 
 ## 统计
 
-- 公开 API: **68** 项
+- 公开 API: **69** 项
 - 私有实现: **1** 项
 
 ## 函数
@@ -464,23 +464,43 @@ void domain_set_mode(Domain* domain, int mode)
 
 ---
 
-### void domain_set_test()
+### void function_add_test_case()
 
 > `API` — 公开接口
 
-**说明**: 设置函数测试覆盖率/通过率目标
+**说明**: 添加测试用例到函数域 (链表尾插)
 
 ```c
-void domain_set_test(Domain* domain, int cov, int pass)
+void function_add_test_case(FunctionDomain* func, TestCaseType type, const char* inputs, const char* expected, const char* code)
 ```
 
 **参数列表**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `Domain*` | - |
-| `cov` | `int` | - |
-| `pass` | `int` | - |
+| `func` | `FunctionDomain*` | - |
+| `type` | `TestCaseType` | - |
+| `inputs` | `const char*` | - |
+| `expected` | `const char*` | - |
+| `code` | `const char*` | - |
+
+---
+
+### void function_clear_test_cases()
+
+> `API` — 公开接口
+
+**说明**: 清除函数域的所有测试用例
+
+```c
+void function_clear_test_cases(FunctionDomain* func)
+```
+
+**参数列表**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
 
 ---
 

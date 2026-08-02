@@ -809,69 +809,121 @@ static void commands_analyze_dependency_complexity(AnalyzeFunc *funcs, int func_
     dependency_report(funcs, func_count);
 }
 
-/* analyze 辅助: 遍历域树收集函数测试目标设置。
- * 对每个函数域：若设置了 test_cov/test_pass (>0)，计入统计并打印一行。
- * 控制单次输出行数上限，避免大项目刷屏。 */
-static void analyze_test_walk(Domain *d, int *total_funcs,
-                              int *tested_funcs, int *cov_sum,
-                              int *pass_sum, int *printed) {
+/* analyze 辅助: 遍历域树收集测试统计 (总函数数/有测试用例函数数/总用例数) */
+static void analyze_test_collect(Domain *d, int *total_funcs,
+                                  int *tested_funcs, int *total_cases) {
     if (!d) return;
     if (d->type == DOMAIN_FUNCTION) {
         (*total_funcs)++;
         FunctionDomain *fd = (FunctionDomain *)d;
-        if (fd->test_cov > 0 || fd->test_pass > 0) {
+        if (fd->test_cases) {
             (*tested_funcs)++;
-            (*cov_sum)  += fd->test_cov;
-            (*pass_sum) += fd->test_pass;
-            if (*printed < 50) {  /* 最多打印 50 行，避免刷屏 */
-                char *path = domain_domain_get_path(d);
-                char display[300];
-                snprintf(display, sizeof(display), "%s [%s]",
-                         d->name ? d->name : "?",
-                         path ? path : "");
-                printf("  %-44s %8d%% %8d%%\n",
-                       display, fd->test_cov, fd->test_pass);
-                if (path) free(path);
-                (*printed)++;
-            }
+            TestCase *tc = fd->test_cases;
+            while (tc) { (*total_cases)++; tc = tc->next; }
         }
     }
     for (int i = 0; i < d->child_count; i++)
-        analyze_test_walk(d->children[i], total_funcs, tested_funcs,
-                          cov_sum, pass_sum, printed);
+        analyze_test_collect(d->children[i], total_funcs, tested_funcs, total_cases);
+}
+
+/* analyze 辅助: 对模块编译运行 _test.c, 解析输出获取通过数/总数 */
+static void analyze_run_module_test(const char *mod_name, int *passed, int *total) {
+    *passed = 0; *total = 0;
+    char test_file[MAX_PATH_LEN];
+    snprintf(test_file, sizeof(test_file), "%s/%s_test.c", mod_name, mod_name);
+    if (!utils_file_exists(test_file)) return;  /* 无测试文件 */
+
+    /* 编译: _test.c + 该模块目录下的 .c 源文件 (排除 _test.c 和 main.c) */
+    char cmd[4096];
+    snprintf(cmd, sizeof(cmd),
+        "gcc -o /tmp/cboot_%s_test %s "
+        "$(find %s/ -name '*.c' -not -path '*/build/*' "
+        "-not -name '*_test.c' -not -name 'main.c' 2>/dev/null) -I. 2>/dev/null",
+        mod_name, test_file, mod_name);
+    int rc = system(cmd);
+    if (rc != 0) {
+        printf("  %-20s 编译失败\n", mod_name);
+        return;
+    }
+
+    /* 运行并解析输出 */
+    snprintf(cmd, sizeof(cmd), "/tmp/cboot_%s_test 2>/dev/null", mod_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) {
+        printf("  %-20s 运行失败\n", mod_name);
+        return;
+    }
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        int p, t;
+        /* 解析 "=== <module> 测试结果: X/Y passed ===" */
+        if (sscanf(line, "=== %*[^=]=== 测试结果: %d/%d passed ===", &p, &t) == 2 ||
+            sscanf(line, "=== %*s 测试结果: %d/%d passed", &p, &t) == 2) {
+            *passed = p; *total = t;
+        }
+    }
+    pclose(fp);
+    printf("  %-20s %d/%d passed\n", mod_name, *passed, *total);
+
+    /* 清理临时可执行文件 */
+    snprintf(cmd, sizeof(cmd), "rm -f /tmp/cboot_%s_test", mod_name);
+    system(cmd);
+}
+
+/* analyze 辅助: 遍历域树, 对每个有测试用例的模块运行 _test.c */
+static void analyze_test_run_all(Domain *d, int *passed_sum, int *total_sum) {
+    if (!d) return;
+    if (d->type == DOMAIN_MODULE && d->name) {
+        /* 检查模块是否有测试用例 */
+        int has_tests = 0;
+        for (int i = 0; i < d->child_count; i++) {
+            Domain *child = d->children[i];
+            if (child->type == DOMAIN_FUNCTION &&
+                ((FunctionDomain *)child)->test_cases) {
+                has_tests = 1; break;
+            }
+        }
+        if (has_tests) {
+            int p = 0, t = 0;
+            analyze_run_module_test(d->name, &p, &t);
+            *passed_sum += p; *total_sum += t;
+        }
+    }
+    for (int i = 0; i < d->child_count; i++)
+        analyze_test_run_all(d->children[i], passed_sum, total_sum);
 }
 
 /* analyze 辅助: 计算并打印测试覆盖指标
- * 数据来源: 项目域树中 FunctionDomain 的 test_cov/test_pass 字段。
- * 这些字段由 .cboot 脚本中 "test <cov> <pass>" 指令设置 (可选)。
- * 报告内容: 每个设置了测试目标的函数 + 汇总统计。 */
+ * 覆盖率 = 有测试用例的函数数 / 总函数数
+ * 通过率 = 编译运行 _test.c 后通过的用例数 / 总用例数 */
 static void commands_analyze_test_metrics(void) {
     printf("--- 5. 测试覆盖指标 (Test Metrics) ---\n");
-    printf("  说明: 函数测试目标 (test 指令设置, 可选, 0%% 表示未设置)\n");
-    printf("  %-44s %s %s\n", "函数 [模块路径]", "覆盖率%", "通过率%");
-    printf("  %-44s %s %s\n",
-           "--------------------------------------------", "--------", "--------");
+    printf("  说明: test 指令设置输入-预期输出对, tcode 设置自定义代码用例\n");
+    printf("  覆盖率 = 有测试用例的函数数 / 总函数数\n");
+    printf("  通过率 = 编译运行 _test.c 后通过的用例数 / 总用例数\n\n");
 
-    int total_funcs = 0, tested_funcs = 0;
-    int cov_sum = 0, pass_sum = 0, printed = 0;
-    analyze_test_walk(g_proj->root, &total_funcs, &tested_funcs,
-                      &cov_sum, &pass_sum, &printed);
+    int total_funcs = 0, tested_funcs = 0, total_cases = 0;
+    analyze_test_collect(g_proj->root, &total_funcs, &tested_funcs, &total_cases);
 
-    printf("  %-44s %s %s\n",
-           "--------------------------------------------", "--------", "--------");
+    printf("  统计: 总函数 %d, 有用例函数 %d, 总用例数 %d\n",
+           total_funcs, tested_funcs, total_cases);
     if (total_funcs > 0) {
-        printf("  总函数数:           %d\n", total_funcs);
-        printf("  设置测试目标函数数: %d\n", tested_funcs);
-        printf("  测试目标设置率:     %.1f%%\n",
+        printf("  测试覆盖率: %.1f%%\n",
                (double)tested_funcs / total_funcs * 100.0);
-        if (tested_funcs > 0) {
-            printf("  平均覆盖率目标:     %d%%\n", cov_sum / tested_funcs);
-            printf("  平均通过率目标:     %d%%\n", pass_sum / tested_funcs);
+    }
+    if (tested_funcs > 0) {
+        printf("\n  编译运行各模块 _test.c:\n");
+        int passed_sum = 0, total_run = 0;
+        analyze_test_run_all(g_proj->root, &passed_sum, &total_run);
+        printf("\n  合计: %d/%d 用例通过\n", passed_sum, total_run);
+        if (total_run > 0) {
+            printf("  测试通过率: %.1f%%\n",
+                   (double)passed_sum / total_run * 100.0);
         } else {
-            printf("  (尚未为任何函数设置测试目标)\n");
+            printf("  测试通过率: N/A (无测试用例运行)\n");
         }
     } else {
-        printf("  (无函数数据)\n");
+        printf("  (尚未为任何函数设置测试用例, 使用 test/tcode 指令添加)\n");
     }
     printf("\n");
 }

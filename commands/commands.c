@@ -694,29 +694,72 @@ int commands_cmd_cmode(const char *text) {
     return 0;
 }
 
-/* commands_cmd_test - 设置函数的测试覆盖率/通过率目标 (可选)
- * 用法: test <cov> <pass>
- *   cov:  测试覆盖率目标 (0-100)
- *   pass: 测试通过率目标 (0-100)
- * 两者均为 0 时清除设置 */
-int commands_cmd_test(int cov, int pass) {
+/* commands_cmd_test - 添加测试用例 (纯函数: 输入 => 预期返回值)
+ * 用法: test <inputs> => <expected>
+ *   inputs:   逗号分隔的输入表达式 (对应 mem 参数顺序)
+ *   expected: 预期返回值表达式
+ * parser 已把 "test" 之后的所有内容拼接传入 buf, 在此解析 "=>" 分隔符 */
+int commands_cmd_test(const char *buf) {
+    if (!buf || buf[0] == '\0') {
+        printf("用法: test <输入> => <预期>\n");
+        return -1;
+    }
+
     Domain *cur = g_proj->current;
     if (cur->type != DOMAIN_FUNCTION) {
         printf("错误: test 命令只能在函数域中使用\n");
         return -1;
     }
 
-    if (cov < 0 || cov > 100 || pass < 0 || pass > 100) {
-        printf("错误: test 参数必须在 0-100 范围内\n");
+    /* 查找 "=>" 分隔符 */
+    char *arrow = strstr(buf, "=>");
+    if (!arrow) {
+        printf("错误: test 用法为 'test <输入> => <预期>'，缺少 '=>'\n");
         return -1;
     }
 
-    domain_domain_set_test(cur, cov, pass);
-    if (cov == 0 && pass == 0) {
-        printf("测试目标已清除。\n");
-    } else {
-        printf("测试目标已设置: 覆盖率 %d%%, 通过率 %d%%\n", cov, pass);
+    /* 分割: inputs = arrow 之前, expected = arrow+2 之后 */
+    char inputs[MAX_LINE_LEN];
+    size_t ilen = arrow - buf;
+    while (ilen > 0 && (buf[ilen-1] == ' ' || buf[ilen-1] == '\t')) ilen--;  /* 去尾部空白 */
+    strncpy(inputs, buf, ilen);
+    inputs[ilen] = '\0';
+
+    const char *exp = arrow + 2;
+    while (*exp == ' ' || *exp == '\t') exp++;  /* 去头部空白 */
+
+    if (inputs[0] == '\0' && *exp == '\0') {
+        /* test =>  清除所有测试用例 */
+        domain_function_clear_test_cases((FunctionDomain *)cur);
+        printf("测试用例已清除。\n");
+        return 0;
     }
+
+    domain_function_add_test_case((FunctionDomain *)cur, TEST_CASE_SIMPLE,
+                                    inputs, exp, NULL);
+    printf("测试用例已添加: %s(%s) => %s\n", cur->name, inputs, exp);
+    return 0;
+}
+
+/* commands_cmd_tcode - 添加测试用例 (自定义代码片段, 用于指针/IO 等复杂场景)
+ * 用法: tcode <<EOF ... EOF  (heredoc, 由 parser 读取后传入 code)
+ *        或 tcode <单行代码>  (单行兼容)
+ * 代码片段中可用 EXPECT(cond, fmt, ...) 宏做断言 */
+int commands_cmd_tcode(const char *code) {
+    if (!code || code[0] == '\0') {
+        printf("用法: tcode <<EOF ... EOF\n");
+        return -1;
+    }
+
+    Domain *cur = g_proj->current;
+    if (cur->type != DOMAIN_FUNCTION) {
+        printf("错误: tcode 命令只能在函数域中使用\n");
+        return -1;
+    }
+
+    domain_function_add_test_case((FunctionDomain *)cur, TEST_CASE_CODE,
+                                    NULL, NULL, code);
+    printf("代码测试用例已添加 (函数 %s, %zu 字节)\n", cur->name, strlen(code));
     return 0;
 }
 

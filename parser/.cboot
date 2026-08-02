@@ -232,12 +232,28 @@ static int parser_dispatch_modify(char **tokens, int count) {
         }
     }
 
-    /* 修改字段: test <cov> <pass> (函数测试目标, 可选) */
+    /* 测试用例: test <inputs> => <expected> (纯函数, 可选)
+     * inputs 为逗号分隔的输入表达式(对应 mem 参数顺序)
+     * expected 为预期返回值表达式
+     * 例: test 3,5 => 8  表示 add(3,5) 预期返回 8 */
     if (utils_str_eq(cmd, "test")) {
-        if (parser_require_args(tokens, count, 3, "test <覆盖率> <通过率>") < 0) return -1;
-        int cov = atoi(tokens[1]);
-        int pass = atoi(tokens[2]);
-        return commands_cmd_test(cov, pass);
+        if (parser_require_args(tokens, count, 2, "test <输入> => <预期>") < 0) return -1;
+        char buf[MAX_LINE_LEN];
+        parser_join_tokens_from(tokens, count, 1, buf, sizeof(buf));
+        return commands_cmd_test(buf);
+    }
+
+    /* 测试用例: tcode <<EOF ... EOF (自定义代码, 可选)
+     * 用于指针修改/IO 等复杂场景, 用户写 C 代码片段
+     * 提供 EXPECT(cond, fmt, ...) 宏做断言 */
+    if (utils_str_eq(cmd, "tcode")) {
+        if (count >= 2 && !utils_str_eq(tokens[1], "<<EOF")) {
+            char code_buf[MAX_LINE_LEN];
+            parser_join_tokens_from(tokens, count, 1, code_buf, sizeof(code_buf));
+            return commands_cmd_tcode(code_buf);
+        }
+        /* tcode <<EOF 由外层循环处理 (需要读取多行) */
+        return 3;  /* 特殊返回值: 由外层处理 tcode heredoc */
     }
 
     /* 修改字段: code (单行，兼容) */
@@ -425,7 +441,7 @@ static int parser_read_heredoc(FILE *f, int *line_no) {
         size_t len2 = strlen(line);
         if (len2 > 0 && line[len2 - 1] == '\n') line[len2 - 1] = '\0';
 
-        char *line_trimmed = trim(line);
+        char *line_trimmed = utils_trim(line);
         if (utils_str_eq(line_trimmed, "EOF")) {
             if (!first) {
                 size_t clen = strlen(code_buf);
@@ -440,6 +456,34 @@ static int parser_read_heredoc(FILE *f, int *line_no) {
         first = 0;
     }
     fprintf(stderr, "parser: code <<EOF 缺少代码内容\n");
+    return -1;
+}
+
+/* 读取 tcode heredoc 代码块，作为测试用例添加到当前函数域 */
+static int parser_read_tcode_heredoc(FILE *f, int *line_no) {
+    char code_buf[MAX_LINE_LEN * 64];
+    code_buf[0] = '\0';
+    int first = 1;
+    char line[MAX_LINE_LEN];
+    while (fgets(line, sizeof(line), f)) {
+        (*line_no)++;
+        size_t len2 = strlen(line);
+        if (len2 > 0 && line[len2 - 1] == '\n') line[len2 - 1] = '\0';
+
+        char *line_trimmed = utils_trim(line);
+        if (utils_str_eq(line_trimmed, "EOF")) {
+            if (!first) {
+                size_t clen = strlen(code_buf);
+                while (clen > 0 && code_buf[clen - 1] == '\n') code_buf[--clen] = '\0';
+            }
+            return commands_cmd_tcode(code_buf);
+        }
+        if (line_trimmed[0] == '\0' && first) continue;
+        if (!first) strncat(code_buf, "\n", sizeof(code_buf) - strlen(code_buf) - 1);
+        strncat(code_buf, line, sizeof(code_buf) - strlen(code_buf) - 1);
+        first = 0;
+    }
+    fprintf(stderr, "parser: tcode <<EOF 缺少代码内容\n");
     return -1;
 }
 
@@ -460,8 +504,22 @@ int parser_parse_cboot_script(const char *filename) {
         line_no++;
         line[strcspn(line, "\n")] = '\0';
 
-        char *trimmed = trim(line);
+        char *trimmed = utils_trim(line);
         if (trimmed[0] == '\0' || trimmed[0] == '#') continue;
+
+        /* test 命令需要保留原始文本中的引号 (分词器会去除引号),
+         * 所以在分词前直接处理, 传递 "test" 之后的原始文本 */
+        if (strncmp(trimmed, "test", 4) == 0 && (trimmed[4] == ' ' || trimmed[4] == '\t')) {
+            const char *args = trimmed + 4;
+            while (*args == ' ' || *args == '\t') args++;
+            if (commands_cmd_test(args) != 0) {
+                fprintf(stderr, "parser: 第 %d 行执行失败\n", line_no);
+                fclose(f);
+                strcpy(g_script_dir, saved_script_dir);
+                return -1;
+            }
+            continue;
+        }
 
         int token_count = 0;
         char **tokens = tokenize(trimmed, &token_count);
@@ -475,6 +533,14 @@ int parser_parse_cboot_script(const char *filename) {
 
         if (ret == 1) {
             if (parser_read_heredoc(f, &line_no) != 0) {
+                fclose(f);
+                strcpy(g_script_dir, saved_script_dir);
+                return -1;
+            }
+            continue;
+        }
+        if (ret == 3) {
+            if (parser_read_tcode_heredoc(f, &line_no) != 0) {
                 fclose(f);
                 strcpy(g_script_dir, saved_script_dir);
                 return -1;
@@ -527,7 +593,6 @@ void parse_cboot_script int
 cd parse_cboot_script
 mode api
 mem filename const char*
-test 90 95
 cd ..
 def PARSER_NOT_HANDLED
 cd PARSER_NOT_HANDLED
@@ -589,6 +654,11 @@ mem size size_t
 cd ..
 void read_heredoc int
 cd read_heredoc
+mem f FILE*
+mem line_no int*
+cd ..
+void read_tcode_heredoc int
+cd read_tcode_heredoc
 mem f FILE*
 mem line_no int*
 cd ..

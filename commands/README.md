@@ -26,7 +26,7 @@
 | `cmd_cmt` | 函数 | ✓ | 注释文本 |
 | `cmd_mode` | 函数 | ✓ | 模式值(api/normal/internal/external/static/rename/struct等) |
 | `cmd_cmode` | 函数 | ✓ | 编译器模式值(exe/sl/dl/normal) |
-| `cmd_test` | 函数 | ✓ | 测试覆盖率目标 (0-100) |
+| `cmd_test` | 函数 | ✓ | 测试用例文本 (输入=>预期 或 自定义代码) |
 | `cmd_cd` | 函数 | ✓ | 目标路径(支持..和/前缀) |
 | `cmd_gen` | 函数 | ✓ | 生成项目代码命令 |
 | `cmd_im` | 函数 | ✓ | 源.cboot文件路径 |

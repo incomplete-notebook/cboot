@@ -74,7 +74,7 @@ void utils_free_tokens(char **tokens, int count)
 /* String utilities                                                    */
 /* ================================================================== */
 
-char *trim(char *str)
+char *utils_trim(char *str)
 {
     if (!str) return NULL;
 

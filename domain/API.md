@@ -31,7 +31,8 @@
 - [domain_set_call](#domain_set_call)
 - [domain_get_call](#domain_get_call)
 - [domain_set_mode](#domain_set_mode)
-- [domain_set_test](#domain_set_test)
+- [function_add_test_case](#function_add_test_case)
+- [function_clear_test_cases](#function_clear_test_cases)
 - [project_new](#project_new)
 - [project_free](#project_free)
 - [project_add_dependency](#project_add_dependency)
@@ -424,21 +425,37 @@ void domain_set_mode(Domain* domain, int mode)
 | `domain` | `Domain*` | - |
 | `mode` | `int` | - |
 
-### void domain_set_test()
+### void function_add_test_case()
 
-设置函数测试覆盖率/通过率目标
+添加测试用例到函数域 (链表尾插)
 
 ```c
-void domain_set_test(Domain* domain, int cov, int pass)
+void function_add_test_case(FunctionDomain* func, TestCaseType type, const char* inputs, const char* expected, const char* code)
 ```
 
 **参数**:
 
 | 名称 | 类型 | 说明 |
 |------|------|------|
-| `domain` | `Domain*` | - |
-| `cov` | `int` | - |
-| `pass` | `int` | - |
+| `func` | `FunctionDomain*` | - |
+| `type` | `TestCaseType` | - |
+| `inputs` | `const char*` | - |
+| `expected` | `const char*` | - |
+| `code` | `const char*` | - |
+
+### void function_clear_test_cases()
+
+清除函数域的所有测试用例
+
+```c
+void function_clear_test_cases(FunctionDomain* func)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
 
 ### Project* project_new()
 

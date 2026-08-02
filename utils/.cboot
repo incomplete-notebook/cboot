@@ -78,7 +78,7 @@ void utils_free_tokens(char **tokens, int count)
 /* String utilities                                                    */
 /* ================================================================== */
 
-char *trim(char *str)
+char *utils_trim(char *str)
 {
     if (!str) return NULL;
 
@@ -384,7 +384,9 @@ cmt "字符串B"
 value "使用strcmp比较，返回1(相等)或0(不等)"
 mem a const char*
 mem b const char*
-test 90 95
+test "abc", "abc" => 1
+test "abc", "def" => 0
+test "", "" => 1
 cd ..
 void str_dup char*
 cd str_dup
@@ -392,7 +394,16 @@ mode api
 cmt "源字符串"
 value "分配新内存并复制字符串，返回新指针"
 mem str const char*
-test 90 95
+tcode <<EOF
+char *dup = utils_str_dup("hello");
+EXPECT(dup != NULL, "str_dup returned NULL");
+EXPECT(strcmp(dup, "hello") == 0, "str_dup content wrong: %s", dup ? dup : "NULL");
+free(dup);
+char *empty = utils_str_dup("");
+EXPECT(empty != NULL, "str_dup empty returned NULL");
+EXPECT(strcmp(empty, "") == 0, "str_dup empty content wrong");
+free(empty);
+EOF
 cd ..
 void strip_quotes void
 cd strip_quotes
@@ -400,34 +411,35 @@ mode api
 cmt "待处理字符串"
 value "原地修改，去除首尾的单引号或双引号"
 mem str char*
-test 80 90
+tcode <<EOF
+char buf[] = "\"hello\"";
+utils_strip_quotes(buf);
+EXPECT(strcmp(buf, "hello") == 0, "strip_quotes failed: %s", buf);
+char buf2[] = "noquotes";
+utils_strip_quotes(buf2);
+EXPECT(strcmp(buf2, "noquotes") == 0, "strip_quotes no-quotes: %s", buf2);
+EOF
 cd ..
 void tokenize char**
 cd tokenize
 mode api
 mem line const char*
 mem count int*
-test 80 90
 cd ..
 void free_tokens void
 cd free_tokens
 mode api
 mem tokens char**
 mem count int
-test 80 90
-cd ..
-void trim char*
-cd trim
-mode api
-mem str char*
-test 80 90
 cd ..
 void str_startswith int
 cd str_startswith
 mode api
 mem str const char*
 mem prefix const char*
-test 90 95
+test "hello", "he" => 1
+test "hello", "xy" => 0
+test "hello", "hello" => 1
 cd ..
 void parse_c_decl int
 cd parse_c_decl
@@ -437,6 +449,17 @@ mem type_out char*
 mem type_size int
 mem name_out char*
 mem name_size int
+tcode <<EOF
+char type_out[128], name_out[128];
+int rc = utils_parse_c_decl("int* foo", type_out, 128, name_out, 128);
+EXPECT(rc == 0, "parse_c_decl failed");
+EXPECT(strcmp(type_out, "int*") == 0, "type wrong: %s", type_out);
+EXPECT(strcmp(name_out, "foo") == 0, "name wrong: %s", name_out);
+rc = utils_parse_c_decl("char name", type_out, 128, name_out, 128);
+EXPECT(rc == 0, "parse_c_decl 2 failed");
+EXPECT(strcmp(type_out, "char") == 0, "type 2 wrong: %s", type_out);
+EXPECT(strcmp(name_out, "name") == 0, "name 2 wrong: %s", name_out);
+EOF
 cd ..
 void extract_base_type char*
 cd extract_base_type
@@ -457,11 +480,22 @@ void is_valid_identifier int
 cd is_valid_identifier
 mode api
 mem name const char*
+test "abc" => 1
+test "123abc" => 0
+test "_foo" => 1
+test "" => 0
 cd ..
 void file_exists int
 cd file_exists
 mode api
 mem path const char*
+tcode <<EOF
+FILE *fp = fopen("/tmp/cboot_test_exists", "w");
+if (fp) { fputs("test", fp); fclose(fp); }
+EXPECT(utils_file_exists("/tmp/cboot_test_exists") == 1, "file_exists should return 1");
+EXPECT(utils_file_exists("/tmp/cboot_test_nonexistent_xyz") == 0, "file_exists should return 0");
+remove("/tmp/cboot_test_exists");
+EOF
 cd ..
 void tokenize_emit void
 cd tokenize_emit
@@ -513,6 +547,11 @@ cd ..
 void parse_skip_ws_to_ident const char*
 cd parse_skip_ws_to_ident
 mem p const char*
+cd ..
+void trim char*
+cd trim
+mode api
+mem str char*
 cd ..
 
 # 子模块引用

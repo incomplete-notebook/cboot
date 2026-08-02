@@ -58,6 +58,23 @@ typedef enum {
 } VarMode;
 
 /* ------------------------------------------------------------------ */
+/* Test case (per-function test cases for _test.c generation)          */
+/* ------------------------------------------------------------------ */
+
+typedef enum {
+	TEST_CASE_SIMPLE,   /* test <inputs> => <expected_return> */
+	TEST_CASE_CODE      /* tcode <<EOF ... EOF (自定义 C 代码片段) */
+} TestCaseType;
+
+typedef struct TestCase {
+	TestCaseType type;
+	char        *inputs;     /* SIMPLE: 逗号分隔的输入表达式列表 */
+	char        *expected;   /* SIMPLE: 预期返回值表达式 */
+	char        *code;       /* CODE:  用户自定义 C 代码片段 */
+	struct TestCase *next;
+} TestCase;
+
+/* ------------------------------------------------------------------ */
 /* Run mode                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -123,8 +140,8 @@ typedef struct FunctionDomain {
 	char   *call;      /* calling convention: __cdecl, __stdcall, __fastcall, etc. */
 	char   *code;
 	char   *value;
-	int     test_cov;   /* 测试覆盖率目标 (0-100), 0 表示未设置 */
-	int     test_pass;  /* 测试通过率目标 (0-100), 0 表示未设置 */
+	TestCase *test_cases;   /* 测试用例链表, NULL 表示无测试用例 */
+	int       test_count;   /* 测试用例数 */
 } FunctionDomain;
 
 /* ------------------------------------------------------------------ */
@@ -276,7 +293,12 @@ void domain_domain_set_mode(Domain *domain, int mode);
 void domain_domain_set_code(Domain *domain, const char *code);
 void domain_domain_set_call(Domain *domain, const char *call);
 const char *domain_domain_get_call(Domain *domain);
-void domain_domain_set_test(Domain *domain, int cov, int pass);
+
+/* 测试用例管理 (仅对函数域有效) */
+void domain_function_add_test_case(FunctionDomain *func, TestCaseType type,
+                                    const char *inputs, const char *expected,
+                                    const char *code);
+void domain_function_clear_test_cases(FunctionDomain *func);
 
 /* ------------------------------------------------------------------ */
 /* Project operations                                                   */

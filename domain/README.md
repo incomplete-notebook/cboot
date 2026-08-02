@@ -38,7 +38,8 @@
 | `domain_set_call` | 函数 | ✓ | - |
 | `domain_get_call` | 函数 | ✓ | - |
 | `domain_set_mode` | 函数 | ✓ | - |
-| `domain_set_test` | 函数 | ✓ | 设置函数测试覆盖率/通过率目标 |
+| `function_add_test_case` | 函数 | ✓ | 添加测试用例到函数域 (链表尾插) |
+| `function_clear_test_cases` | 函数 | ✓ | 清除函数域的所有测试用例 |
 | `project_new` | 函数 | ✓ | - |
 | `project_free` | 函数 | ✓ | - |
 | `project_add_dependency` | 函数 | ✓ | - |

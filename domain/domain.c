@@ -166,11 +166,42 @@ void domain_domain_set_mode(Domain *domain, int mode) {
     domain_core_domain_set_mode(domain, mode);
 }
 
-void domain_domain_set_test(Domain *domain, int cov, int pass) {
-    if (!domain || domain->type != DOMAIN_FUNCTION) return;
-    FunctionDomain *func = (FunctionDomain *)domain;
-    func->test_cov = cov;
-    func->test_pass = pass;
+/* 添加测试用例到函数域 (链表尾插) */
+void domain_function_add_test_case(FunctionDomain *func, TestCaseType type,
+                                    const char *inputs, const char *expected,
+                                    const char *code) {
+    if (!func) return;
+    TestCase *tc = (TestCase *)calloc(1, sizeof(TestCase));
+    if (!tc) return;
+    tc->type = type;
+    tc->inputs = inputs ? utils_str_dup(inputs) : NULL;
+    tc->expected = expected ? utils_str_dup(expected) : NULL;
+    tc->code = code ? utils_str_dup(code) : NULL;
+    tc->next = NULL;
+    if (!func->test_cases) {
+        func->test_cases = tc;
+    } else {
+        TestCase *tail = func->test_cases;
+        while (tail->next) tail = tail->next;
+        tail->next = tc;
+    }
+    func->test_count++;
+}
+
+/* 清除函数域的所有测试用例 */
+void domain_function_clear_test_cases(FunctionDomain *func) {
+    if (!func) return;
+    TestCase *tc = func->test_cases;
+    while (tc) {
+        TestCase *next = tc->next;
+        free(tc->inputs);
+        free(tc->expected);
+        free(tc->code);
+        free(tc);
+        tc = next;
+    }
+    func->test_cases = NULL;
+    func->test_count = 0;
 }
 
 Project * domain_project_new(const char *name) {
