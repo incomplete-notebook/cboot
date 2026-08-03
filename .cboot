@@ -25,5 +25,6 @@ docgen/.cboot
 typecheck/.cboot
 utils/.cboot
 main/.cboot
+k/.cboot
 
 gen

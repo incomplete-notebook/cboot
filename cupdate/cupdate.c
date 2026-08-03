@@ -366,6 +366,10 @@ static void cup_sync_function_decl(ModuleDomain *mod, CUPDecl *decl, int *change
 {
     FunctionDomain *func = cup_find_function(mod, decl->name);
     if (!func) {
+        /* static 函数是内部实现细节，不自动加入域树。
+         * 覆盖率统计只针对可测函数（.cboot 中定义的 API）。
+         * 用户可在 .cboot 中显式定义需要测试的 static 函数。 */
+        if (decl->is_static) return;
         if (cup_create_new_function(mod, decl)) (*changes)++;
         return;
     }

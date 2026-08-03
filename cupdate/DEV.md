@@ -4,8 +4,8 @@
 
 ## 统计
 
-- 公开 API: **9** 项
-- 私有实现: **37** 项
+- 公开 API: **46** 项
+- 私有实现: **0** 项
 
 ## 函数
 
@@ -48,6 +48,8 @@ void result_init(CUPResult* r)
 ---
 
 ### void cup_free_decl()
+
+> `API` — 公开接口
 
 ```c
 void cup_free_decl(CUPDecl* d)
@@ -149,6 +151,8 @@ int parse_source(const char* source, const char* filename, CUPResult* r)
 
 ### char* cup_read_file()
 
+> `API` — 公开接口
+
 ```c
 char* cup_read_file(const char* path)
 ```
@@ -162,6 +166,8 @@ char* cup_read_file(const char* path)
 ---
 
 ### void cup_get_module_prefix()
+
+> `API` — 公开接口
 
 ```c
 void cup_get_module_prefix(Domain* mod, char* buf, size_t size)
@@ -179,6 +185,8 @@ void cup_get_module_prefix(Domain* mod, char* buf, size_t size)
 
 ### FunctionDomain* cup_find_function()
 
+> `API` — 公开接口
+
 ```c
 FunctionDomain* cup_find_function(ModuleDomain* mod, const char* name)
 ```
@@ -193,6 +201,8 @@ FunctionDomain* cup_find_function(ModuleDomain* mod, const char* name)
 ---
 
 ### StructDomain* cup_find_struct()
+
+> `API` — 公开接口
 
 ```c
 StructDomain* cup_find_struct(ModuleDomain* mod, const char* name)
@@ -209,6 +219,8 @@ StructDomain* cup_find_struct(ModuleDomain* mod, const char* name)
 
 ### TypeDomain* cup_find_type()
 
+> `API` — 公开接口
+
 ```c
 TypeDomain* cup_find_type(ModuleDomain* mod, const char* name)
 ```
@@ -223,6 +235,8 @@ TypeDomain* cup_find_type(ModuleDomain* mod, const char* name)
 ---
 
 ### MacroDomain* cup_find_macro()
+
+> `API` — 公开接口
 
 ```c
 MacroDomain* cup_find_macro(ModuleDomain* mod, const char* name)
@@ -239,6 +253,8 @@ MacroDomain* cup_find_macro(ModuleDomain* mod, const char* name)
 
 ### VariableDomain* cup_find_variable()
 
+> `API` — 公开接口
+
 ```c
 VariableDomain* cup_find_variable(ModuleDomain* mod, const char* name)
 ```
@@ -253,6 +269,8 @@ VariableDomain* cup_find_variable(ModuleDomain* mod, const char* name)
 ---
 
 ### void cup_sync_function_params()
+
+> `API` — 公开接口
 
 ```c
 void cup_sync_function_params(FunctionDomain* func, CUPDecl* decl)
@@ -269,6 +287,8 @@ void cup_sync_function_params(FunctionDomain* func, CUPDecl* decl)
 
 ### void cup_sync_struct_members()
 
+> `API` — 公开接口
+
 ```c
 void cup_sync_struct_members(Domain* sd, CUPDecl* decl)
 ```
@@ -283,6 +303,8 @@ void cup_sync_struct_members(Domain* sd, CUPDecl* decl)
 ---
 
 ### void cup_sync_decl()
+
+> `API` — 公开接口
 
 ```c
 void cup_sync_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
@@ -317,6 +339,8 @@ int run_module(ModuleDomain* mod, const char* mod_dir)
 
 ### int cup_update_recursive()
 
+> `API` — 公开接口
+
 ```c
 int cup_update_recursive(Domain* dom, const char* dir, int* total_errors, int* total_warnings)
 ```
@@ -334,6 +358,8 @@ int cup_update_recursive(Domain* dom, const char* dir, int* total_errors, int* t
 
 ### FunctionDomain* cup_create_new_function()
 
+> `API` — 公开接口
+
 ```c
 FunctionDomain* cup_create_new_function(ModuleDomain* mod, CUPDecl* decl)
 ```
@@ -348,6 +374,8 @@ FunctionDomain* cup_create_new_function(ModuleDomain* mod, CUPDecl* decl)
 ---
 
 ### int cup_replace_str_field()
+
+> `API` — 公开接口
 
 ```c
 int cup_replace_str_field(char** field, const char* new_val)
@@ -364,6 +392,8 @@ int cup_replace_str_field(char** field, const char* new_val)
 
 ### int cup_sync_func_body()
 
+> `API` — 公开接口
+
 ```c
 int cup_sync_func_body(FunctionDomain* func, CUPDecl* decl)
 ```
@@ -379,6 +409,8 @@ int cup_sync_func_body(FunctionDomain* func, CUPDecl* decl)
 
 ### int cup_update_existing_function()
 
+> `API` — 公开接口
+
 ```c
 int cup_update_existing_function(FunctionDomain* func, CUPDecl* decl)
 ```
@@ -393,6 +425,8 @@ int cup_update_existing_function(FunctionDomain* func, CUPDecl* decl)
 ---
 
 ### void cup_sync_function_decl()
+
+> `API` — 公开接口
 
 ```c
 void cup_sync_function_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
@@ -410,6 +444,8 @@ void cup_sync_function_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 
 ### void cup_sync_struct_decl()
 
+> `API` — 公开接口
+
 ```c
 void cup_sync_struct_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 ```
@@ -425,6 +461,8 @@ void cup_sync_struct_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 ---
 
 ### void cup_sync_typedef_decl()
+
+> `API` — 公开接口
 
 ```c
 void cup_sync_typedef_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
@@ -442,6 +480,8 @@ void cup_sync_typedef_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 
 ### void cup_sync_macro_decl()
 
+> `API` — 公开接口
+
 ```c
 void cup_sync_macro_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 ```
@@ -457,6 +497,8 @@ void cup_sync_macro_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 ---
 
 ### void cup_sync_var_fields()
+
+> `API` — 公开接口
 
 ```c
 void cup_sync_var_fields(VariableDomain* vd, CUPDecl* decl, int* changes)
@@ -474,6 +516,8 @@ void cup_sync_var_fields(VariableDomain* vd, CUPDecl* decl, int* changes)
 
 ### void cup_sync_variable_decl()
 
+> `API` — 公开接口
+
 ```c
 void cup_sync_variable_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 ```
@@ -489,6 +533,8 @@ void cup_sync_variable_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 ---
 
 ### void cup_sync_enum_decl()
+
+> `API` — 公开接口
 
 ```c
 void cup_sync_enum_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
@@ -506,6 +552,8 @@ void cup_sync_enum_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
 
 ### int cup_decl_type_matches()
 
+> `API` — 公开接口
+
 ```c
 int cup_decl_type_matches(DomainType dtype, CUPDeclKind dkind)
 ```
@@ -520,6 +568,8 @@ int cup_decl_type_matches(DomainType dtype, CUPDeclKind dkind)
 ---
 
 ### int cup_find_matching_decl()
+
+> `API` — 公开接口
 
 ```c
 int cup_find_matching_decl(Domain* c, CUPResult* result, const char* prefix, size_t plen)
@@ -537,6 +587,8 @@ int cup_find_matching_decl(Domain* c, CUPResult* result, const char* prefix, siz
 ---
 
 ### void cup_detect_and_remove_deleted()
+
+> `API` — 公开接口
 
 ```c
 void cup_detect_and_remove_deleted(ModuleDomain* mod, CUPResult* result, const char* prefix, size_t plen, int* changes)
@@ -556,6 +608,8 @@ void cup_detect_and_remove_deleted(ModuleDomain* mod, CUPResult* result, const c
 
 ### const char* cup_skip_generated_header()
 
+> `API` — 公开接口
+
 ```c
 const char* cup_skip_generated_header(const char* p, const char* mod_name, size_t name_len)
 ```
@@ -572,6 +626,8 @@ const char* cup_skip_generated_header(const char* p, const char* mod_name, size_
 
 ### void cup_set_module_code()
 
+> `API` — 公开接口
+
 ```c
 void cup_set_module_code(ModuleDomain* mod, const char* source)
 ```
@@ -587,6 +643,8 @@ void cup_set_module_code(ModuleDomain* mod, const char* source)
 
 ### void cup_print_diagnostics()
 
+> `API` — 公开接口
+
 ```c
 void cup_print_diagnostics(CUPResult* result)
 ```
@@ -600,6 +658,8 @@ void cup_print_diagnostics(CUPResult* result)
 ---
 
 ### void cup_strip_decl_prefix()
+
+> `API` — 公开接口
 
 ```c
 void cup_strip_decl_prefix(CUPResult* result, const char* prefix, size_t plen)
@@ -616,6 +676,8 @@ void cup_strip_decl_prefix(CUPResult* result, const char* prefix, size_t plen)
 ---
 
 ### void cup_print_summary()
+
+> `API` — 公开接口
 
 ```c
 void cup_print_summary(ModuleDomain* mod, CUPResult* result, int changes)
@@ -650,6 +712,8 @@ void cup_free_param_array(CUParParam* params, int count)
 
 ### void cup_free_member_array()
 
+> `API` — 公开接口
+
 ```c
 void cup_free_member_array(CUParMember* members, int count)
 ```
@@ -664,6 +728,8 @@ void cup_free_member_array(CUParMember* members, int count)
 ---
 
 ### void cup_free_str_array()
+
+> `API` — 公开接口
 
 ```c
 void cup_free_str_array(char*** arr_ptr, int* count, int* cap)
@@ -680,6 +746,8 @@ void cup_free_str_array(char*** arr_ptr, int* count, int* cap)
 ---
 
 ### void cup_str_array_push()
+
+> `API` — 公开接口
 
 ```c
 void cup_str_array_push(char*** arr_ptr, int* count, int* cap, const char* msg)
@@ -698,6 +766,8 @@ void cup_str_array_push(char*** arr_ptr, int* count, int* cap, const char* msg)
 
 ### void cup_remove_all_member_children()
 
+> `API` — 公开接口
+
 ```c
 void cup_remove_all_member_children(Domain* parent)
 ```
@@ -711,6 +781,8 @@ void cup_remove_all_member_children(Domain* parent)
 ---
 
 ### void cup_zero_str_slot()
+
+> `API` — 公开接口
 
 ```c
 void cup_zero_str_slot(char*** arr_ptr, int* count, int* cap)
@@ -727,6 +799,8 @@ void cup_zero_str_slot(char*** arr_ptr, int* count, int* cap)
 ---
 
 ### void cup_print_str_array()
+
+> `API` — 公开接口
 
 ```c
 void cup_print_str_array(FILE* fp, char** arr, int count)

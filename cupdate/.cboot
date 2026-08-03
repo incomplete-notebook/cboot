@@ -370,6 +370,10 @@ static void cup_sync_function_decl(ModuleDomain *mod, CUPDecl *decl, int *change
 {
     FunctionDomain *func = cup_find_function(mod, decl->name);
     if (!func) {
+        /* static 函数是内部实现细节，不自动加入域树。
+         * 覆盖率统计只针对可测函数（.cboot 中定义的 API）。
+         * 用户可在 .cboot 中显式定义需要测试的 static 函数。 */
+        if (decl->is_static) return;
         if (cup_create_new_function(mod, decl)) (*changes)++;
         return;
     }
@@ -829,7 +833,26 @@ EOF
 cd ..
 void cup_free_decl void
 cd cup_free_decl
+mode api
 mem d CUPDecl*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+CUPDecl *d = cupdate_result_add_decl(&r);
+d->name = utils_str_dup("test_fn");
+d->return_type = utils_str_dup("int");
+d->body = utils_str_dup("return 0;");
+d->params = (CUParParam *)malloc(sizeof(CUParParam) * 2);
+d->param_count = 2;
+d->params[0].type = utils_str_dup("int"); d->params[0].name = utils_str_dup("a");
+d->params[1].type = utils_str_dup("int"); d->params[1].name = utils_str_dup("b");
+d->members = (CUParMember *)malloc(sizeof(CUParMember) * 1);
+d->member_count = 1;
+d->members[0].type = utils_str_dup("int"); d->members[0].name = utils_str_dup("x"); d->members[0].value = NULL;
+cupdate_result_free(&r);
+EXPECT(r.decl_count == 0, "cup_free_decl: decl_count should be 0 after free, got %d", r.decl_count);
+EXPECT(r.decls == NULL, "cup_free_decl: decls should be NULL after free");
+EOF
 cd ..
 void result_free void
 cd result_free
@@ -904,54 +927,263 @@ EOF
 cd ..
 void cup_read_file char*
 cd cup_read_file
+mode api
 mem path const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_read_file";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_add(int a, int b) { return a + b; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_read_file: should return 0, got %d", rc);
+EXPECT(mod->code != NULL, "cup_read_file: mod->code should be set (file was read)");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_get_module_prefix void
 cd cup_get_module_prefix
+mode api
 mem mod Domain*
 mem buf char*
 mem size size_t
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_get_module_prefix";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_get_module_prefix: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_find_function FunctionDomain*
 cd cup_find_function
+mode api
 mem mod ModuleDomain*
 mem name const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_find_function";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_find_function: should return 0, got %d", rc);
+Domain *fn = domain_domain_find_child_by_type((Domain*)mod, "mymod_foo", DOMAIN_FUNCTION);
+EXPECT(fn != NULL, "cup_find_function: should find mymod_foo function domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_find_struct StructDomain*
 cd cup_find_struct
+mode api
 mem mod ModuleDomain*
 mem name const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_find_struct";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("struct mymod_point { int x; int y; };\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_find_struct: should return 0, got %d", rc);
+Domain *sd = domain_domain_find_child_by_type((Domain*)mod, "mymod_point", DOMAIN_STRUCT);
+EXPECT(sd != NULL, "cup_find_struct: should find mymod_point struct domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_find_type TypeDomain*
 cd cup_find_type
+mode api
 mem mod ModuleDomain*
 mem name const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_find_type";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("typedef int mymod_int;\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_find_type: should return 0, got %d", rc);
+Domain *td = domain_domain_find_child_by_type((Domain*)mod, "mymod_int", DOMAIN_TYPE);
+EXPECT(td != NULL, "cup_find_type: should find mymod_int type domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_find_macro MacroDomain*
 cd cup_find_macro
+mode api
 mem mod ModuleDomain*
 mem name const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_find_macro";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("#define MYMOD_MAX 100\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_find_macro: should return 0, got %d", rc);
+Domain *md = domain_domain_find_child_by_type((Domain*)mod, "MYMOD_MAX", DOMAIN_MACRO);
+EXPECT(md != NULL, "cup_find_macro: should find MYMOD_MAX macro domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_find_variable VariableDomain*
 cd cup_find_variable
+mode api
 mem mod ModuleDomain*
 mem name const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_find_variable";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_count = 0;\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_find_variable: should return 0, got %d", rc);
+Domain *vd = domain_domain_find_child_by_type((Domain*)mod, "mymod_count", DOMAIN_VARIABLE);
+EXPECT(vd != NULL, "cup_find_variable: should find mymod_count variable domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_function_params void
 cd cup_sync_function_params
+mode api
 mem func FunctionDomain*
 mem decl CUPDecl*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_function_params";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(int a, int b) { return a + b; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_function_params: should return 0, got %d", rc);
+Domain *fn = domain_domain_find_child_by_type((Domain*)mod, "mymod_foo", DOMAIN_FUNCTION);
+EXPECT(fn != NULL, "cup_sync_function_params: function should exist");
+Domain *p1 = domain_domain_find_child_by_type(fn, "a", DOMAIN_MEMBER);
+EXPECT(p1 != NULL, "cup_sync_function_params: param a should exist");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_struct_members void
 cd cup_sync_struct_members
+mode api
 mem sd Domain*
 mem decl CUPDecl*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_struct_members";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("struct mymod_point { int x; int y; };\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_struct_members: should return 0, got %d", rc);
+Domain *sd = domain_domain_find_child_by_type((Domain*)mod, "mymod_point", DOMAIN_STRUCT);
+EXPECT(sd != NULL, "cup_sync_struct_members: struct should exist");
+Domain *mx = domain_domain_find_child_by_type(sd, "x", DOMAIN_MEMBER);
+EXPECT(mx != NULL, "cup_sync_struct_members: member x should exist");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_decl void
 cd cup_sync_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void run_module int
 cd run_module
@@ -980,119 +1212,526 @@ EOF
 cd ..
 void cup_update_recursive int
 cd cup_update_recursive
+mode api
 mem dom Domain*
 mem dir const char*
 mem total_errors int*
 mem total_warnings int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_update_rec";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s/mymod", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod/mymod.c", "w");
+if (fp) { fputs("int mymod_add(int a, int b) { return a + b; }\n", fp); fclose(fp); }
+Project *p = domain_project_new("testproj");
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+domain_domain_add_child((Domain*)p->root, (Domain*)mod);
+int errs = 0, warns = 0;
+int rc = cupdate_run_project(p, &errs, &warns);
+EXPECT(rc == 0, "cup_update_recursive: should return 0, got %d", rc);
+chdir(cwd);
+domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_create_new_function FunctionDomain*
 cd cup_create_new_function
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_create_new_function";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_newfn(int x) { return x * 2; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_create_new_function: should return 0, got %d", rc);
+Domain *fn = domain_domain_find_child_by_type((Domain*)mod, "mymod_newfn", DOMAIN_FUNCTION);
+EXPECT(fn != NULL, "cup_create_new_function: should create mymod_newfn function domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_replace_str_field int
 cd cup_replace_str_field
+mode api
 mem field char**
 mem new_val const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_replace_str_field";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_replace_str_field: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_func_body int
 cd cup_sync_func_body
+mode api
 mem func FunctionDomain*
 mem decl CUPDecl*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_func_body";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 42; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_func_body: should return 0, got %d", rc);
+Domain *fn_base = domain_domain_find_child_by_type((Domain*)mod, "mymod_foo", DOMAIN_FUNCTION);
+EXPECT(fn_base != NULL, "cup_sync_func_body: function should exist");
+FunctionDomain *fn = (FunctionDomain*)fn_base;
+EXPECT(fn->code != NULL, "cup_sync_func_body: function body should be set");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_update_existing_function int
 cd cup_update_existing_function
+mode api
 mem func FunctionDomain*
 mem decl CUPDecl*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_update_existing_function";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(int x) { return x; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_update_existing_function: should return 0, got %d", rc);
+Domain *fn = domain_domain_find_child_by_type((Domain*)mod, "mymod_foo", DOMAIN_FUNCTION);
+EXPECT(fn != NULL, "cup_update_existing_function: function should exist");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_function_decl void
 cd cup_sync_function_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_function_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_function_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_struct_decl void
 cd cup_sync_struct_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_struct_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("struct mymod_point { int x; int y; };\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_struct_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_typedef_decl void
 cd cup_sync_typedef_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_typedef_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("typedef int mymod_int;\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_typedef_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_macro_decl void
 cd cup_sync_macro_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_macro_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("#define MYMOD_MAX 100\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_macro_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_var_fields void
 cd cup_sync_var_fields
+mode api
 mem vd VariableDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_var_fields";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_count = 42;\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_var_fields: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_variable_decl void
 cd cup_sync_variable_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_variable_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_count = 5;\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_variable_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_sync_enum_decl void
 cd cup_sync_enum_decl
+mode api
 mem mod ModuleDomain*
 mem decl CUPDecl*
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_sync_enum_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("enum mymod_color { MYMOD_RED, MYMOD_GREEN };\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_sync_enum_decl: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_decl_type_matches int
 cd cup_decl_type_matches
+mode api
 mem dtype DomainType
 mem dkind CUPDeclKind
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_decl_type_matches";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_decl_type_matches: should return 0, got %d", rc);
+Domain *fn = domain_domain_find_child_by_type((Domain*)mod, "mymod_foo", DOMAIN_FUNCTION);
+EXPECT(fn != NULL, "cup_decl_type_matches: type matching should preserve function domain");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_find_matching_decl int
 cd cup_find_matching_decl
+mode api
 mem c Domain*
 mem result CUPResult*
 mem prefix const char*
 mem plen size_t
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_find_matching_decl";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_keep(void) { return 1; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_find_matching_decl: should return 0, got %d", rc);
+Domain *fn = domain_domain_find_child_by_type((Domain*)mod, "mymod_keep", DOMAIN_FUNCTION);
+EXPECT(fn != NULL, "cup_find_matching_decl: matching decl should be preserved");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_detect_and_remove_deleted void
 cd cup_detect_and_remove_deleted
+mode api
 mem mod ModuleDomain*
 mem result CUPResult*
 mem prefix const char*
 mem plen size_t
 mem changes int*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_detect_del";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+FunctionDomain *olddomain = domain_function_domain_new("mymod_deleted", "int");
+domain_domain_add_child((Domain*)mod, (Domain*)olddomain);
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_detect_and_remove_deleted: should return 0, got %d", rc);
+Domain *deleted = domain_domain_find_child_by_type((Domain*)mod, "mymod_deleted", DOMAIN_FUNCTION);
+EXPECT(deleted == NULL, "cup_detect_and_remove_deleted: old function should be removed");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_skip_generated_header const char*
 cd cup_skip_generated_header
+mode api
 mem p const char*
 mem mod_name const char*
 mem name_len size_t
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_skip_generated_header";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("/* mymod.c - CBoot generated */\n/* Module: mymod */\n\nint mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_skip_generated_header: should return 0, got %d", rc);
+EXPECT(mod->code != NULL, "cup_skip_generated_header: mod->code should be set (header skipped)");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_set_module_code void
 cd cup_set_module_code
+mode api
 mem mod ModuleDomain*
 mem source const char*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_set_module_code";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_set_module_code: should return 0, got %d", rc);
+EXPECT(mod->code != NULL, "cup_set_module_code: mod->code should be set");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_print_diagnostics void
 cd cup_print_diagnostics
+mode api
 mem result CUPResult*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_print_diagnostics";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_print_diagnostics: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_strip_decl_prefix void
 cd cup_strip_decl_prefix
+mode api
 mem result CUPResult*
 mem prefix const char*
 mem plen size_t
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_strip_prefix";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("b.c", "w");
+if (fp) { fputs("int b_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *parent_mod = domain_module_domain_new("a");
+ModuleDomain *mod = domain_module_domain_new("b");
+mod->mode = MOD_MODE_SRC;
+domain_domain_add_child((Domain*)parent_mod, (Domain*)mod);
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_strip_decl_prefix: should return 0, got %d", rc);
+Domain *fn_stripped = domain_domain_find_child_by_type((Domain*)mod, "foo", DOMAIN_FUNCTION);
+Domain *fn_prefixed = domain_domain_find_child_by_type((Domain*)mod, "b_foo", DOMAIN_FUNCTION);
+EXPECT(fn_stripped != NULL, "cup_strip_decl_prefix: function 'foo' should exist after prefix strip");
+EXPECT(fn_prefixed == NULL, "cup_strip_decl_prefix: function 'b_foo' should not exist (prefix stripped)");
+chdir(cwd);
+domain_domain_delete((Domain*)parent_mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_print_summary void
 cd cup_print_summary
+mode api
 mem mod ModuleDomain*
 mem result CUPResult*
 mem changes int
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_print_summary";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_print_summary: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_free_param_array void
 cd cup_free_param_array
@@ -1115,37 +1754,155 @@ EOF
 cd ..
 void cup_free_member_array void
 cd cup_free_member_array
+mode api
 mem members CUParMember*
 mem count int
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+CUPDecl *d = cupdate_result_add_decl(&r);
+d->name = utils_str_dup("test_struct");
+d->kind = CUP_DECL_STRUCT;
+d->members = (CUParMember *)malloc(sizeof(CUParMember) * 2);
+d->member_count = 2;
+d->members[0].type = utils_str_dup("int"); d->members[0].name = utils_str_dup("x"); d->members[0].value = NULL;
+d->members[1].type = utils_str_dup("char*"); d->members[1].name = utils_str_dup("name"); d->members[1].value = utils_str_dup("default");
+cupdate_result_free(&r);
+EXPECT(r.decl_count == 0, "cup_free_member_array: decl_count should be 0 after free, got %d", r.decl_count);
+EXPECT(r.decls == NULL, "cup_free_member_array: decls should be NULL after free");
+EOF
 cd ..
 void cup_free_str_array void
 cd cup_free_str_array
+mode api
 mem arr_ptr char***
 mem count int*
 mem cap int*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+cupdate_result_add_error(&r, "error one", 1);
+cupdate_result_add_error(&r, "error two", 2);
+cupdate_result_add_warning(&r, "warning one", 3);
+cupdate_result_add_warning(&r, "warning two", 4);
+EXPECT(r.error_count == 2, "cup_free_str_array: error_count should be 2 before free, got %d", r.error_count);
+EXPECT(r.warning_count == 2, "cup_free_str_array: warning_count should be 2 before free, got %d", r.warning_count);
+cupdate_result_free(&r);
+EXPECT(r.error_count == 0, "cup_free_str_array: error_count should be 0 after free, got %d", r.error_count);
+EXPECT(r.warning_count == 0, "cup_free_str_array: warning_count should be 0 after free, got %d", r.warning_count);
+EXPECT(r.errors == NULL, "cup_free_str_array: errors should be NULL after free");
+EXPECT(r.warnings == NULL, "cup_free_str_array: warnings should be NULL after free");
+EOF
 cd ..
 void cup_str_array_push void
 cd cup_str_array_push
+mode api
 mem arr_ptr char***
 mem count int*
 mem cap int*
 mem msg const char*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+for (int i = 0; i < 20; i++) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "error_%d", i);
+    cupdate_result_add_error(&r, buf, i);
+}
+EXPECT(r.error_count == 20, "cup_str_array_push: error_count should be 20, got %d", r.error_count);
+EXPECT(r.error_capacity >= 20, "cup_str_array_push: capacity should have grown, got %d", r.error_capacity);
+for (int i = 0; i < 10; i++) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "warn_%d", i);
+    cupdate_result_add_warning(&r, buf, i);
+}
+EXPECT(r.warning_count == 10, "cup_str_array_push: warning_count should be 10, got %d", r.warning_count);
+cupdate_result_free(&r);
+EOF
 cd ..
 void cup_remove_all_member_children void
 cd cup_remove_all_member_children
+mode api
 mem parent Domain*
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_rm_members";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(int new_param) { return new_param; }\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+FunctionDomain *fn = domain_function_domain_new("mymod_foo", "int");
+domain_domain_add_child((Domain*)mod, (Domain*)fn);
+MemberDomain *old_m = domain_member_domain_new("old_param", "int");
+domain_domain_add_child((Domain*)fn, (Domain*)old_m);
+EXPECT(fn->base.child_count == 1, "cup_remove_all_member_children: pre-condition child_count should be 1, got %d", fn->base.child_count);
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_remove_all_member_children: should return 0, got %d", rc);
+Domain *old_found = domain_domain_find_child_by_type((Domain*)fn, "old_param", DOMAIN_MEMBER);
+EXPECT(old_found == NULL, "cup_remove_all_member_children: old_param member should be removed");
+Domain *new_found = domain_domain_find_child_by_type((Domain*)fn, "new_param", DOMAIN_MEMBER);
+EXPECT(new_found != NULL, "cup_remove_all_member_children: new_param member should exist after sync");
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 void cup_zero_str_slot void
 cd cup_zero_str_slot
+mode api
 mem arr_ptr char***
 mem count int*
 mem cap int*
+tcode <<EOF
+CUPResult r;
+cupdate_result_init(&r);
+EXPECT(r.decls == NULL, "cup_zero_str_slot: decls should be NULL after init");
+EXPECT(r.decl_count == 0, "cup_zero_str_slot: decl_count should be 0 after init, got %d", r.decl_count);
+EXPECT(r.decl_capacity == 0, "cup_zero_str_slot: decl_capacity should be 0 after init, got %d", r.decl_capacity);
+EXPECT(r.errors == NULL, "cup_zero_str_slot: errors should be NULL after init");
+EXPECT(r.error_count == 0, "cup_zero_str_slot: error_count should be 0 after init, got %d", r.error_count);
+EXPECT(r.error_capacity == 0, "cup_zero_str_slot: error_capacity should be 0 after init, got %d", r.error_capacity);
+cupdate_result_add_error(&r, "msg", 1);
+cupdate_result_add_decl(&r);
+EXPECT(r.error_count == 1, "cup_zero_str_slot: error_count should be 1 after add, got %d", r.error_count);
+cupdate_result_free(&r);
+EXPECT(r.errors == NULL, "cup_zero_str_slot: errors should be NULL after free");
+EXPECT(r.error_count == 0, "cup_zero_str_slot: error_count should be 0 after free, got %d", r.error_count);
+EXPECT(r.error_capacity == 0, "cup_zero_str_slot: error_capacity should be 0 after free, got %d", r.error_capacity);
+EXPECT(r.decls == NULL, "cup_zero_str_slot: decls should be NULL after free");
+EXPECT(r.decl_count == 0, "cup_zero_str_slot: decl_count should be 0 after free, got %d", r.decl_count);
+EXPECT(r.decl_capacity == 0, "cup_zero_str_slot: decl_capacity should be 0 after free, got %d", r.decl_capacity);
+EOF
 cd ..
 void cup_print_str_array void
 cd cup_print_str_array
+mode api
 mem fp FILE*
 mem arr char**
 mem count int
+tcode <<EOF
+const char *tdir = "/tmp/cboot_test_cup_print_str_array";
+char cmd[256];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", tdir, tdir);
+system(cmd);
+char cwd[1024]; getcwd(cwd, sizeof(cwd));
+chdir(tdir);
+FILE *fp = fopen("mymod.c", "w");
+if (fp) { fputs("int mymod_foo(void) { return 0; }\nint mymod_bar = 5\n", fp); fclose(fp); }
+ModuleDomain *mod = domain_module_domain_new("mymod");
+mod->mode = MOD_MODE_SRC;
+int rc = cupdate_run_module(mod, ".");
+EXPECT(rc == 0, "cup_print_str_array: should return 0, got %d", rc);
+chdir(cwd);
+domain_domain_delete((Domain*)mod);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", tdir);
+system(cmd);
+EOF
 cd ..
 
 # 子模块引用

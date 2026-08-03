@@ -1675,6 +1675,21 @@ mode api
 cmt "类型名称"
 value "在当前模块作用域中创建TypeDomain"
 mem name const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_type");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_type("MyType");
+EXPECT(rc == 0, "cmd_type should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *t = domain_domain_find_child(mod, "MyType");
+EXPECT(t != NULL, "cmd_type: type not found");
+EXPECT(t->type == DOMAIN_TYPE, "cmd_type: wrong type");
+rc = commands_cmd_type("MyType");
+EXPECT(rc != 0, "cmd_type: duplicate should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_def int
 cd cmd_def
@@ -1682,6 +1697,21 @@ mode api
 cmt "宏名称"
 value "在当前模块作用域中创建MacroDomain"
 mem name const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_def");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_def("MAX_SIZE");
+EXPECT(rc == 0, "cmd_def should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *m = domain_domain_find_child(mod, "MAX_SIZE");
+EXPECT(m != NULL, "cmd_def: macro not found");
+EXPECT(m->type == DOMAIN_MACRO, "cmd_def: wrong type");
+rc = commands_cmd_def("MAX_SIZE");
+EXPECT(rc != 0, "cmd_def: duplicate should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_void int
 cd cmd_void
@@ -1713,6 +1743,22 @@ cmt "变量类型"
 value "在当前作用域创建VariableDomain"
 mem name const char*
 mem type const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_var");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_var("count", "int");
+EXPECT(rc == 0, "cmd_var should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *v = domain_domain_find_child(mod, "count");
+EXPECT(v != NULL, "cmd_var: variable not found");
+EXPECT(v->type == DOMAIN_VARIABLE, "cmd_var: wrong type");
+EXPECT(strcmp(((VariableDomain *)v)->type, "int") == 0, "cmd_var: var type wrong");
+rc = commands_cmd_var("count", "int");
+EXPECT(rc != 0, "cmd_var: duplicate should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_mem int
 cd cmd_mem
@@ -1784,6 +1830,22 @@ mode api
 cmt "编译器模式值(exe/sl/dl/normal)"
 value "仅对模块有效：exe生成可执行文件(代码放main.c)，sl静态库，dl动态库，normal普通.o"
 mem text const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_cmode");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_cmode("exe");
+EXPECT(rc == 0, "cmd_cmode(exe) should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+EXPECT(((ModuleDomain *)mod)->compiler == COMPILER_EXE, "cmd_cmode(exe) should set COMPILER_EXE");
+rc = commands_cmd_cmode("sl");
+EXPECT(rc == 0, "cmd_cmode(sl) should return 0, got %d", rc);
+EXPECT(((ModuleDomain *)mod)->compiler == COMPILER_SL, "cmd_cmode(sl) should set COMPILER_SL");
+rc = commands_cmd_cmode("invalid");
+EXPECT(rc != 0, "cmd_cmode(invalid) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_test int
 cd cmd_test
@@ -1791,6 +1853,24 @@ mode api
 cmt "测试用例文本 (输入=>预期 或 自定义代码)"
 value "添加测试用例: test <输入> => <预期> (纯函数) 或 tcode <<EOF (复杂场景)"
 mem buf const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_test");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_void("add", "int");
+commands_cmd_cd("add");
+int rc = commands_cmd_test("1,2 => 3");
+EXPECT(rc == 0, "cmd_test should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *fn = domain_domain_find_child(mod, "add");
+FunctionDomain *fd = (FunctionDomain *)fn;
+EXPECT(fd->test_count == 1, "cmd_test: test_count should be 1, got %d", fd->test_count);
+EXPECT(fd->test_cases != NULL, "cmd_test: test_cases should not be NULL");
+rc = commands_cmd_test("badinput");
+EXPECT(rc != 0, "cmd_test: missing => should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_cd int
 cd cmd_cd
@@ -1826,6 +1906,25 @@ mode api
 cmt "源.cboot文件路径"
 value "解析源文件，提取API模式项，创建external模块，记录依赖链"
 mem path const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_im");
+int rc = commands_cmd_im(NULL);
+EXPECT(rc != 0, "cmd_im(NULL) should fail");
+commands_cmd_mod("modA");
+commands_cmd_mod("modB");
+commands_cmd_cd("modA");
+rc = commands_cmd_im("modB");
+EXPECT(rc == 0, "cmd_im(modB) should return 0, got %d", rc);
+Domain *modA = domain_domain_find_child(g_proj->root, "modA");
+Domain *ref = domain_domain_find_child(modA, "modB");
+EXPECT(ref != NULL, "cmd_im: external reference not created");
+EXPECT(ref->type == DOMAIN_MODULE, "cmd_im: ref should be module");
+EXPECT(((ModuleDomain *)ref)->mode == MOD_MODE_EXTERNAL, "cmd_im: ref should be EXTERNAL");
+rc = commands_cmd_im("modA");
+EXPECT(rc != 0, "cmd_im(self) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_in int
 cd cmd_in
@@ -1833,6 +1932,19 @@ mode api
 cmt "源.cboot文件路径"
 value "完整导入源项目作为子模块，包括所有非API项"
 mem path const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_in");
+int rc = commands_cmd_in(NULL);
+EXPECT(rc != 0, "cmd_in(NULL) should fail");
+rc = commands_cmd_in("nonexistent.cboot");
+EXPECT(rc != 0, "cmd_in(nonexistent) should fail");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+rc = commands_cmd_in("nonexistent2.cboot");
+EXPECT(rc != 0, "cmd_in(nonexistent) in module should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void get_current_module ModuleDomain*
 cd get_current_module
@@ -1863,16 +1975,73 @@ cd cmd_enum
 mode api
 mem defs const char*
 mem start_num_str const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_enum");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+int rc = commands_cmd_enum("RED,GREEN,BLUE", "10");
+EXPECT(rc == 0, "cmd_enum should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *r = domain_domain_find_child(mod, "RED");
+Domain *gn = domain_domain_find_child(mod, "GREEN");
+Domain *b = domain_domain_find_child(mod, "BLUE");
+EXPECT(r != NULL && gn != NULL && b != NULL, "cmd_enum: macros not created");
+EXPECT(r->type == DOMAIN_MACRO, "cmd_enum: wrong type");
+EXPECT(((MacroDomain *)r)->value != NULL && strcmp(((MacroDomain *)r)->value, "10") == 0, "cmd_enum: RED value wrong");
+EXPECT(((MacroDomain *)b)->value != NULL && strcmp(((MacroDomain *)b)->value, "12") == 0, "cmd_enum: BLUE value wrong");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_value int
 cd cmd_value
 mode api
 mem text const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_value");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_def("MAX");
+commands_cmd_cd("MAX");
+int rc = commands_cmd_value("100");
+EXPECT(rc == 0, "cmd_value should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *m = domain_domain_find_child(mod, "MAX");
+EXPECT(((MacroDomain *)m)->value != NULL && strcmp(((MacroDomain *)m)->value, "100") == 0, "cmd_value: value wrong");
+commands_cmd_cd("..");
+commands_cmd_struct("Pt");
+commands_cmd_cd("Pt");
+rc = commands_cmd_value("x");
+EXPECT(rc != 0, "cmd_value on struct should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_call int
 cd cmd_call
 mode api
 mem call_conv const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_call");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_void("fn", "int");
+commands_cmd_cd("fn");
+int rc = commands_cmd_call("__stdcall");
+EXPECT(rc == 0, "cmd_call should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *fn = domain_domain_find_child(mod, "fn");
+FunctionDomain *fd = (FunctionDomain *)fn;
+EXPECT(fd->call != NULL && strcmp(fd->call, "__stdcall") == 0, "cmd_call: call conv wrong");
+rc = commands_cmd_call("");
+EXPECT(rc == 0, "cmd_call(empty) should clear and return 0, got %d", rc);
+EXPECT(fd->call == NULL, "cmd_call(empty) should clear call");
+commands_cmd_cd("..");
+rc = commands_cmd_call("__cdecl");
+EXPECT(rc != 0, "cmd_call on non-function should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_rm int
 cd cmd_rm
@@ -1909,21 +2078,77 @@ mode api
 mem type_filter const char*
 mem pattern const char*
 mem flags int
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_find");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_struct("Point");
+commands_cmd_struct("Rect");
+int rc = commands_cmd_find("struct", NULL, 0);
+EXPECT(rc == 0, "cmd_find should return 0, got %d", rc);
+rc = commands_cmd_find("all", "Point", 1);
+EXPECT(rc == 0, "cmd_find(all,Point,-a) should return 0, got %d", rc);
+rc = commands_cmd_find(NULL, NULL, 0);
+EXPECT(rc != 0, "cmd_find(NULL) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_ls int
 cd cmd_ls
 mode api
 mem name const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_ls");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_struct("Point");
+int rc = commands_cmd_ls(NULL);
+EXPECT(rc == 0, "cmd_ls(NULL) should return 0, got %d", rc);
+rc = commands_cmd_ls("Point");
+EXPECT(rc == 0, "cmd_ls(Point) should return 0, got %d", rc);
+rc = commands_cmd_ls("nonexistent");
+EXPECT(rc != 0, "cmd_ls(nonexistent) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_mv int
 cd cmd_mv
 mode api
 mem src const char*
 mem target const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_mv");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_struct("Point");
+int rc = commands_cmd_mv("Point", "Vec");
+EXPECT(rc == 0, "cmd_mv should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *old = domain_domain_find_child(mod, "Point");
+Domain *nw = domain_domain_find_child(mod, "Vec");
+EXPECT(old == NULL, "cmd_mv: old name should be gone");
+EXPECT(nw != NULL, "cmd_mv: new name should exist");
+rc = commands_cmd_mv("nonexistent", "x");
+EXPECT(rc != 0, "cmd_mv(nonexistent) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_exit int
 cd cmd_exit
 mode api
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_exit");
+int saved_running = g_running;
+int rc = commands_cmd_exit();
+EXPECT(rc == 0, "cmd_exit should return 0, got %d", rc);
+EXPECT(g_running == saved_running, "cmd_exit should not change g_running on cancel");
+g_running = saved_running;
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void cmd_update int
 cd cmd_update
@@ -1951,6 +2176,17 @@ void cmd_res int
 cd cmd_res
 mode api
 mem file_path const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_res");
+int rc = commands_cmd_res(NULL);
+EXPECT(rc != 0, "cmd_res(NULL) should fail");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+rc = commands_cmd_res("nonexistent_file.txt");
+EXPECT(rc != 0, "cmd_res(nonexistent) should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 void is_binary_api_domain int
 cd is_binary_api_domain
@@ -2055,6 +2291,27 @@ void cmd_tcode int
 cd cmd_tcode
 mode api
 mem code const char*
+tcode <<EOF
+if (g_proj) domain_project_free(g_proj);
+g_proj = domain_project_new("test_tcode");
+commands_cmd_mod("mymod");
+commands_cmd_cd("mymod");
+commands_cmd_void("fn", "int");
+commands_cmd_cd("fn");
+int rc = commands_cmd_tcode("EXPECT(1, \"ok\");");
+EXPECT(rc == 0, "cmd_tcode should return 0, got %d", rc);
+Domain *mod = domain_domain_find_child(g_proj->root, "mymod");
+Domain *fn = domain_domain_find_child(mod, "fn");
+FunctionDomain *fd = (FunctionDomain *)fn;
+EXPECT(fd->test_count == 1, "cmd_tcode: test_count should be 1, got %d", fd->test_count);
+EXPECT(fd->test_cases != NULL && fd->test_cases->type == TEST_CASE_CODE, "cmd_tcode: test case type wrong");
+rc = commands_cmd_tcode(NULL);
+EXPECT(rc != 0, "cmd_tcode(NULL) should fail");
+commands_cmd_cd("..");
+rc = commands_cmd_tcode("x");
+EXPECT(rc != 0, "cmd_tcode on non-function should fail");
+domain_project_free(g_proj); g_proj = NULL;
+EOF
 cd ..
 
 # 子模块引用

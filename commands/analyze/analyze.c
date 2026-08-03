@@ -809,17 +809,27 @@ static void commands_analyze_dependency_complexity(AnalyzeFunc *funcs, int func_
     dependency_report(funcs, func_count);
 }
 
-/* analyze 辅助: 遍历域树收集测试统计 (总函数数/有测试用例函数数/总用例数) */
+/* analyze 辅助: 遍历域树收集测试统计 (总函数数/有测试用例函数数/总用例数)
+ * 跳过 im 导入的 EXTERNAL 模块——这些是 API 副本而非原始定义，
+ * 用户无法为其添加测试用例，计入分母会严重稀释覆盖率。
+ * 跳过非 API 函数 (mode != API_MODE_API)——static/internal 函数在 _test.c
+ * 中不可见 (内部链接, 无导出符号), 无法添加有效测试用例。 */
 static void analyze_test_collect(Domain *d, int *total_funcs,
                                   int *tested_funcs, int *total_cases) {
     if (!d) return;
+    if (d->type == DOMAIN_MODULE) {
+        ModuleDomain *mod = (ModuleDomain *)d;
+        if (mod->mode == MOD_MODE_EXTERNAL) return;
+    }
     if (d->type == DOMAIN_FUNCTION) {
-        (*total_funcs)++;
         FunctionDomain *fd = (FunctionDomain *)d;
-        if (fd->test_cases) {
-            (*tested_funcs)++;
-            TestCase *tc = fd->test_cases;
-            while (tc) { (*total_cases)++; tc = tc->next; }
+        if (fd->mode == API_MODE_API) {
+            (*total_funcs)++;
+            if (fd->test_cases) {
+                (*tested_funcs)++;
+                TestCase *tc = fd->test_cases;
+                while (tc) { (*total_cases)++; tc = tc->next; }
+            }
         }
     }
     for (int i = 0; i < d->child_count; i++)

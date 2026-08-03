@@ -14,6 +14,7 @@ add_subdirectory(generator)
 add_subdirectory(docgen)
 add_subdirectory(typecheck)
 add_subdirectory(utils)
+add_subdirectory(k)
 
 # Add normal module sources to executable
 target_sources(main PRIVATE ${domain_SOURCES})
@@ -32,6 +33,8 @@ target_sources(main PRIVATE ${typecheck_SOURCES})
 target_include_directories(main PRIVATE ${CMAKE_SOURCE_DIR}/typecheck)
 target_sources(main PRIVATE ${utils_SOURCES})
 target_include_directories(main PRIVATE ${CMAKE_SOURCE_DIR}/utils)
+target_sources(main PRIVATE ${k_SOURCES})
+target_include_directories(main PRIVATE ${CMAKE_SOURCE_DIR}/k)
 
 # Link library modules into executable
 

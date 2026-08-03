@@ -1,7 +1,5 @@
 # cboot
 
-本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。
-
 ## 文档
 
 - [开发文档](DEV.md)
@@ -18,6 +16,7 @@
 - [typecheck](typecheck/README.md): 类型检查器 - 检查域类型一致性和符号冲突
 - [utils](utils/README.md): 工具函数 - 通用辅助功能
 - [main](main/README.md): 可执行入口模块 - CBoot的主程序入口
+- [k](k/README.md)
 
 ## 目录结构
 
@@ -94,6 +93,14 @@ cboot/
 ├── main/
 │   ├── main.c
 │   ├── main.h
+│   ├── .cboot
+│   ├── README.md
+│   ├── API.md
+│   ├── DEV.md
+│   └── CMakeLists.txt
+├── k/
+│   ├── k.c
+│   ├── k.h
 │   ├── .cboot
 │   ├── README.md
 │   ├── API.md

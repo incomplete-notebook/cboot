@@ -392,6 +392,14 @@ void domain_delete void
 cd domain_delete
 mode api
 mem domain Domain*
+tcode <<EOF
+ModuleDomain *mod = domain_module_domain_new("delmod");
+EXPECT(mod != NULL, "domain_delete setup failed");
+domain_domain_delete((Domain *)mod);
+EXPECT(1, "domain_delete: should not crash");
+domain_domain_delete(NULL);
+EXPECT(1, "domain_delete(NULL): should not crash");
+EOF
 cd ..
 void domain_remove_child void
 cd domain_remove_child
@@ -733,6 +741,18 @@ cd ..
 void free_type_fields void
 cd free_type_fields
 mem domain Domain*
+tcode <<EOF
+ModuleDomain *mod = domain_module_domain_new("ftf");
+domain_domain_set_value((Domain *)mod, "val");
+domain_domain_set_code((Domain *)mod, "code");
+domain_free_type_fields((Domain *)mod);
+EXPECT(1, "free_type_fields: should not crash after setting fields");
+free(mod->base.children);
+free(mod->base.comments);
+free(mod->base.comment);
+free(mod->base.name);
+free(mod);
+EOF
 cd ..
 void project_would_cycle int
 cd project_would_cycle
@@ -758,56 +778,135 @@ mode api
 mem type DomainType
 mem name const char*
 mem struct_size size_t
+tcode <<EOF
+Domain *d = domain_core_domain_new(DOMAIN_MODULE, "ctestmod", sizeof(ModuleDomain));
+EXPECT(d != NULL, "core_domain_new returned NULL");
+EXPECT(d->name != NULL && strcmp(d->name, "ctestmod") == 0, "core_domain_new name wrong: %s", d->name ? d->name : "NULL");
+EXPECT(d->type == DOMAIN_MODULE, "core_domain_new type wrong: %d", (int)d->type);
+domain_core_domain_delete(d);
+EOF
 cd ..
 void core_module_domain_new ModuleDomain*
 cd core_module_domain_new
 mode api
 mem name const char*
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("cmymod");
+EXPECT(mod != NULL, "core_module_domain_new returned NULL");
+EXPECT(mod->base.name != NULL && strcmp(mod->base.name, "cmymod") == 0, "core_module_domain_new name wrong: %s", mod->base.name ? mod->base.name : "NULL");
+EXPECT(mod->base.type == DOMAIN_MODULE, "core_module_domain_new type wrong: %d", (int)mod->base.type);
+domain_core_domain_delete((Domain *)mod);
+EOF
 cd ..
 void core_function_domain_new FunctionDomain*
 cd core_function_domain_new
 mode api
 mem name const char*
 mem return_type const char*
+tcode <<EOF
+FunctionDomain *func = domain_core_function_domain_new("ctestfn", "int");
+EXPECT(func != NULL, "core_function_domain_new returned NULL");
+EXPECT(func->base.name != NULL && strcmp(func->base.name, "ctestfn") == 0, "core_function_domain_new name wrong: %s", func->base.name ? func->base.name : "NULL");
+EXPECT(func->return_type != NULL && strcmp(func->return_type, "int") == 0, "core_function_domain_new return_type wrong: %s", func->return_type ? func->return_type : "NULL");
+EXPECT(func->base.type == DOMAIN_FUNCTION, "core_function_domain_new type wrong: %d", (int)func->base.type);
+domain_core_domain_delete((Domain *)func);
+EOF
 cd ..
 void core_struct_domain_new StructDomain*
 cd core_struct_domain_new
 mode api
 mem name const char*
+tcode <<EOF
+StructDomain *s = domain_core_struct_domain_new("CPoint");
+EXPECT(s != NULL, "core_struct_domain_new returned NULL");
+EXPECT(s->base.name != NULL && strcmp(s->base.name, "CPoint") == 0, "core_struct_domain_new name wrong: %s", s->base.name ? s->base.name : "NULL");
+EXPECT(s->base.type == DOMAIN_STRUCT, "core_struct_domain_new type wrong: %d", (int)s->base.type);
+domain_core_domain_delete((Domain *)s);
+EOF
 cd ..
 void core_type_domain_new TypeDomain*
 cd core_type_domain_new
 mode api
 mem name const char*
+tcode <<EOF
+TypeDomain *t = domain_core_type_domain_new("CMyType");
+EXPECT(t != NULL, "core_type_domain_new returned NULL");
+EXPECT(t->base.name != NULL && strcmp(t->base.name, "CMyType") == 0, "core_type_domain_new name wrong: %s", t->base.name ? t->base.name : "NULL");
+EXPECT(t->base.type == DOMAIN_TYPE, "core_type_domain_new type wrong: %d", (int)t->base.type);
+domain_core_domain_delete((Domain *)t);
+EOF
 cd ..
 void core_macro_domain_new MacroDomain*
 cd core_macro_domain_new
 mode api
 mem name const char*
+tcode <<EOF
+MacroDomain *m = domain_core_macro_domain_new("CMY_MACRO");
+EXPECT(m != NULL, "core_macro_domain_new returned NULL");
+EXPECT(m->base.name != NULL && strcmp(m->base.name, "CMY_MACRO") == 0, "core_macro_domain_new name wrong: %s", m->base.name ? m->base.name : "NULL");
+EXPECT(m->base.type == DOMAIN_MACRO, "core_macro_domain_new type wrong: %d", (int)m->base.type);
+domain_core_domain_delete((Domain *)m);
+EOF
 cd ..
 void core_variable_domain_new VariableDomain*
 cd core_variable_domain_new
 mode api
 mem name const char*
 mem type const char*
+tcode <<EOF
+VariableDomain *v = domain_core_variable_domain_new("cg_count", "int");
+EXPECT(v != NULL, "core_variable_domain_new returned NULL");
+EXPECT(v->base.name != NULL && strcmp(v->base.name, "cg_count") == 0, "core_variable_domain_new name wrong: %s", v->base.name ? v->base.name : "NULL");
+EXPECT(v->type != NULL && strcmp(v->type, "int") == 0, "core_variable_domain_new type wrong: %s", v->type ? v->type : "NULL");
+EXPECT(v->base.type == DOMAIN_VARIABLE, "core_variable_domain_new type wrong: %d", (int)v->base.type);
+domain_core_domain_delete((Domain *)v);
+EOF
 cd ..
 void core_member_domain_new MemberDomain*
 cd core_member_domain_new
 mode api
 mem name const char*
 mem type const char*
+tcode <<EOF
+MemberDomain *m = domain_core_member_domain_new("cx", "int");
+EXPECT(m != NULL, "core_member_domain_new returned NULL");
+EXPECT(m->base.name != NULL && strcmp(m->base.name, "cx") == 0, "core_member_domain_new name wrong: %s", m->base.name ? m->base.name : "NULL");
+EXPECT(m->type != NULL && strcmp(m->type, "int") == 0, "core_member_domain_new type wrong: %s", m->type ? m->type : "NULL");
+EXPECT(m->base.type == DOMAIN_MEMBER, "core_member_domain_new type wrong: %d", (int)m->base.type);
+domain_core_domain_delete((Domain *)m);
+EOF
 cd ..
 void core_domain_add_child void
 cd core_domain_add_child
 mode api
 mem parent Domain*
 mem child Domain*
+tcode <<EOF
+ModuleDomain *parent = domain_core_module_domain_new("cparent");
+FunctionDomain *child = domain_core_function_domain_new("cchild_fn", "void");
+EXPECT(parent != NULL && child != NULL, "core_add_child setup failed");
+domain_core_domain_add_child((Domain *)parent, (Domain *)child);
+EXPECT(parent->base.child_count == 1, "core_add_child count wrong: %d", parent->base.child_count);
+Domain *found = domain_core_domain_find_child((Domain *)parent, "cchild_fn");
+EXPECT(found != NULL, "core_add_child find_child failed");
+domain_core_domain_delete((Domain *)parent);
+EOF
 cd ..
 void core_domain_find_child Domain*
 cd core_domain_find_child
 mode api
 mem parent Domain*
 mem name const char*
+tcode <<EOF
+ModuleDomain *parent = domain_core_module_domain_new("cparent");
+FunctionDomain *child = domain_core_function_domain_new("cfoo", "void");
+domain_core_domain_add_child((Domain *)parent, (Domain *)child);
+Domain *found = domain_core_domain_find_child((Domain *)parent, "cfoo");
+EXPECT(found != NULL, "core_find_child(cfoo) returned NULL");
+Domain *not_found = domain_core_domain_find_child((Domain *)parent, "cbar");
+EXPECT(not_found == NULL, "core_find_child(cbar) should return NULL");
+domain_core_domain_delete((Domain *)parent);
+EOF
 cd ..
 void core_domain_find_child_by_type Domain*
 cd core_domain_find_child_by_type
@@ -815,28 +914,79 @@ mode api
 mem parent Domain*
 mem name const char*
 mem type DomainType
+tcode <<EOF
+ModuleDomain *parent = domain_core_module_domain_new("cparent");
+FunctionDomain *child = domain_core_function_domain_new("cfoo", "void");
+domain_core_domain_add_child((Domain *)parent, (Domain *)child);
+Domain *found = domain_core_domain_find_child_by_type((Domain *)parent, "cfoo", DOMAIN_FUNCTION);
+EXPECT(found != NULL, "core_find_child_by_type(cfoo, FUNCTION) returned NULL");
+Domain *wrong = domain_core_domain_find_child_by_type((Domain *)parent, "cfoo", DOMAIN_STRUCT);
+EXPECT(wrong == NULL, "core_find_child_by_type(cfoo, STRUCT) should return NULL");
+domain_core_domain_delete((Domain *)parent);
+EOF
 cd ..
 void core_free_type_fields void
 cd core_free_type_fields
 mode api
 mem domain Domain*
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("cftf");
+domain_core_domain_set_value((Domain *)mod, "val");
+domain_core_domain_set_code((Domain *)mod, "code");
+domain_core_free_type_fields((Domain *)mod);
+EXPECT(1, "core_free_type_fields: should not crash after setting fields");
+free(mod->base.children);
+free(mod->base.comments);
+free(mod->base.comment);
+free(mod->base.name);
+free(mod);
+EOF
 cd ..
 void core_domain_delete void
 cd core_domain_delete
 mode api
 mem domain Domain*
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("cdel");
+EXPECT(mod != NULL, "core_domain_delete setup failed");
+domain_core_domain_delete((Domain *)mod);
+EXPECT(1, "core_domain_delete: should not crash");
+domain_core_domain_delete(NULL);
+EXPECT(1, "core_domain_delete(NULL): should not crash");
+EOF
 cd ..
 void core_domain_remove_child void
 cd core_domain_remove_child
 mode api
 mem parent Domain*
 mem child Domain*
+tcode <<EOF
+ModuleDomain *parent = domain_core_module_domain_new("cparent");
+FunctionDomain *child = domain_core_function_domain_new("cfoo", "void");
+domain_core_domain_add_child((Domain *)parent, (Domain *)child);
+EXPECT(parent->base.child_count == 1, "core_remove_child setup count wrong: %d", parent->base.child_count);
+domain_core_domain_remove_child((Domain *)parent, (Domain *)child);
+EXPECT(parent->base.child_count == 0, "core_remove_child count should be 0: %d", parent->base.child_count);
+domain_core_domain_delete((Domain *)parent);
+domain_core_domain_delete((Domain *)child);
+EOF
 cd ..
 void core_domain_find_nearest_of_type Domain*
 cd core_domain_find_nearest_of_type
 mode api
 mem from Domain*
 mem type DomainType
+tcode <<EOF
+ModuleDomain *root = domain_core_module_domain_new("croot");
+ModuleDomain *child = domain_core_module_domain_new("cchild");
+FunctionDomain *fn = domain_core_function_domain_new("cfn", "int");
+domain_core_domain_add_child((Domain *)root, (Domain *)child);
+domain_core_domain_add_child((Domain *)child, (Domain *)fn);
+Domain *nearest = domain_core_domain_find_nearest_of_type((Domain *)fn, DOMAIN_MODULE);
+EXPECT(nearest != NULL, "core_find_nearest_of_type returned NULL");
+EXPECT(nearest == (Domain *)child, "core_find_nearest_of_type should find 'cchild'");
+domain_core_domain_delete((Domain *)root);
+EOF
 cd ..
 void core_domain_find_in_tree Domain*
 cd core_domain_find_in_tree
@@ -844,34 +994,104 @@ mode api
 mem root Domain*
 mem type DomainType
 mem name const char*
+tcode <<EOF
+ModuleDomain *root = domain_core_module_domain_new("croot");
+ModuleDomain *child = domain_core_module_domain_new("cchild");
+FunctionDomain *fn = domain_core_function_domain_new("ctarget", "int");
+domain_core_domain_add_child((Domain *)root, (Domain *)child);
+domain_core_domain_add_child((Domain *)child, (Domain *)fn);
+Domain *found = domain_core_domain_find_in_tree((Domain *)root, DOMAIN_FUNCTION, "ctarget");
+EXPECT(found != NULL, "core_find_in_tree(ctarget) returned NULL");
+EXPECT(found == (Domain *)fn, "core_find_in_tree should find 'ctarget'");
+Domain *not_found = domain_core_domain_find_in_tree((Domain *)root, DOMAIN_FUNCTION, "cnope");
+EXPECT(not_found == NULL, "core_find_in_tree(cnope) should return NULL");
+domain_core_domain_delete((Domain *)root);
+EOF
 cd ..
 void core_domain_get_path char*
 cd core_domain_get_path
 mode api
 mem domain Domain*
+tcode <<EOF
+Project *proj = domain_core_project_new("crootproj");
+EXPECT(proj != NULL && proj->root != NULL, "core_get_path setup failed");
+ModuleDomain *m1 = domain_core_module_domain_new("cm1");
+domain_core_domain_add_child(proj->root, (Domain *)m1);
+char *path = domain_core_domain_get_path((Domain *)m1);
+EXPECT(path != NULL, "core_get_path returned NULL");
+EXPECT(strstr(path, "cm1") != NULL, "core_get_path should contain 'cm1': %s", path ? path : "NULL");
+free(path);
+domain_core_project_free(proj);
+EOF
 cd ..
 void core_domain_is_api int
 cd core_domain_is_api
 mode api
 mem domain Domain*
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("cm");
+FunctionDomain *api_fn = domain_core_function_domain_new("capi_fn", "int");
+api_fn->mode = API_MODE_API;
+FunctionDomain *priv_fn = domain_core_function_domain_new("cpriv_fn", "int");
+priv_fn->mode = API_MODE_NORMAL;
+domain_core_domain_add_child((Domain *)mod, (Domain *)api_fn);
+domain_core_domain_add_child((Domain *)mod, (Domain *)priv_fn);
+EXPECT(domain_core_domain_is_api((Domain *)api_fn) == 1, "core_is_api should return 1 for API function");
+EXPECT(domain_core_domain_is_api((Domain *)priv_fn) == 0, "core_is_api should return 0 for non-API function");
+domain_core_domain_delete((Domain *)mod);
+EOF
 cd ..
 void core_domain_find_api_in_submodules Domain*
 cd core_domain_find_api_in_submodules
 mode api
 mem scope Domain*
 mem name const char*
+tcode <<EOF
+ModuleDomain *root = domain_core_module_domain_new("croot");
+ModuleDomain *sub = domain_core_module_domain_new("csub");
+FunctionDomain *api_fn = domain_core_function_domain_new("cfindme", "int");
+api_fn->mode = API_MODE_API;
+domain_core_domain_add_child((Domain *)root, (Domain *)sub);
+domain_core_domain_add_child((Domain *)sub, (Domain *)api_fn);
+Domain *found = domain_core_domain_find_api_in_submodules((Domain *)root, "cfindme");
+EXPECT(found != NULL, "core_find_api_in_submodules(cfindme) returned NULL");
+EXPECT(found == (Domain *)api_fn, "core_find_api_in_submodules should find 'cfindme'");
+Domain *not_found = domain_core_domain_find_api_in_submodules((Domain *)root, "cnope");
+EXPECT(not_found == NULL, "core_find_api_in_submodules(cnope) should return NULL");
+domain_core_domain_delete((Domain *)root);
+EOF
 cd ..
 void core_domain_check_api_name_conflict Domain*
 cd core_domain_check_api_name_conflict
 mode api
 mem scope Domain*
 mem name const char*
+tcode <<EOF
+ModuleDomain *root = domain_core_module_domain_new("croot");
+ModuleDomain *sub = domain_core_module_domain_new("csub");
+FunctionDomain *api_fn = domain_core_function_domain_new("cconflict", "int");
+api_fn->mode = API_MODE_API;
+domain_core_domain_add_child((Domain *)root, (Domain *)sub);
+domain_core_domain_add_child((Domain *)sub, (Domain *)api_fn);
+Domain *conflict = domain_core_domain_check_api_name_conflict((Domain *)root, "cconflict");
+EXPECT(conflict != NULL, "core_check_api_name_conflict should find conflict");
+Domain *no_conflict = domain_core_domain_check_api_name_conflict((Domain *)root, "cnoconflict");
+EXPECT(no_conflict == NULL, "core_check_api_name_conflict should return NULL for no conflict");
+domain_core_domain_delete((Domain *)root);
+EOF
 cd ..
 void core_domain_set_comment void
 cd core_domain_set_comment
 mode api
 mem domain Domain*
 mem text const char*
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("ccmtmod");
+domain_core_domain_set_comment((Domain *)mod, "hello");
+EXPECT(mod->base.comment != NULL, "core_set_comment comment is NULL");
+EXPECT(strcmp(mod->base.comment, "hello") == 0, "core_set_comment content wrong: %s", mod->base.comment ? mod->base.comment : "NULL");
+domain_core_domain_delete((Domain *)mod);
+EOF
 cd ..
 void core_domain_set_child_comment void
 cd core_domain_set_child_comment
@@ -879,51 +1099,123 @@ mode api
 mem domain Domain*
 mem target const char*
 mem text const char*
+tcode <<EOF
+ModuleDomain *parent = domain_core_module_domain_new("cparent");
+FunctionDomain *child = domain_core_function_domain_new("cfoo", "void");
+domain_core_domain_add_child((Domain *)parent, (Domain *)child);
+domain_core_domain_set_child_comment((Domain *)parent, "cfoo", "child comment");
+Comment *cmt = domain_core_find_child_comment((Domain *)parent, "cfoo");
+EXPECT(cmt != NULL, "core_set_child_comment: comment is NULL");
+EXPECT(cmt->text != NULL && strcmp(cmt->text, "child comment") == 0, "core_set_child_comment content wrong: %s", cmt && cmt->text ? cmt->text : "NULL");
+domain_core_domain_delete((Domain *)parent);
+EOF
 cd ..
 void core_find_child_comment Comment*
 cd core_find_child_comment
 mode api
 mem domain Domain*
 mem target const char*
+tcode <<EOF
+ModuleDomain *parent = domain_core_module_domain_new("cparent");
+FunctionDomain *child = domain_core_function_domain_new("cbar", "void");
+domain_core_domain_add_child((Domain *)parent, (Domain *)child);
+domain_core_domain_set_child_comment((Domain *)parent, "cbar", "found_it");
+Comment *cmt = domain_core_find_child_comment((Domain *)parent, "cbar");
+EXPECT(cmt != NULL && cmt->text != NULL && strcmp(cmt->text, "found_it") == 0, "core_find_child_comment wrong: %s", cmt && cmt->text ? cmt->text : "NULL");
+Comment *no_cmt = domain_core_find_child_comment((Domain *)parent, "cnope");
+EXPECT(no_cmt == NULL, "core_find_child_comment(cnope) should return NULL");
+domain_core_domain_delete((Domain *)parent);
+EOF
 cd ..
 void core_domain_set_value void
 cd core_domain_set_value
 mode api
 mem domain Domain*
 mem value const char*
+tcode <<EOF
+MacroDomain *macro = domain_core_macro_domain_new("CMYMACRO");
+domain_core_domain_set_value((Domain *)macro, "42");
+EXPECT(macro->value != NULL, "core_set_value value is NULL");
+EXPECT(strcmp(macro->value, "42") == 0, "core_set_value content wrong: %s", macro->value ? macro->value : "NULL");
+domain_core_domain_delete((Domain *)macro);
+EOF
 cd ..
 void core_domain_set_code void
 cd core_domain_set_code
 mode api
 mem domain Domain*
 mem code const char*
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("ccodemod");
+domain_core_domain_set_code((Domain *)mod, "int x = 42;");
+EXPECT(mod->code != NULL, "core_set_code: code is NULL");
+EXPECT(strcmp(mod->code, "int x = 42;") == 0, "core_set_code content wrong: %s", mod->code ? mod->code : "NULL");
+domain_core_domain_delete((Domain *)mod);
+EOF
 cd ..
 void core_domain_set_call void
 cd core_domain_set_call
 mode api
 mem domain Domain*
 mem call const char*
+tcode <<EOF
+FunctionDomain *fn = domain_core_function_domain_new("cmyfn", "int");
+domain_core_domain_set_call((Domain *)fn, "__stdcall");
+const char *call = domain_core_domain_get_call((Domain *)fn);
+EXPECT(call != NULL, "core_set_call: call is NULL");
+EXPECT(strcmp(call, "__stdcall") == 0, "core_set_call content wrong: %s", call ? call : "NULL");
+domain_core_domain_delete((Domain *)fn);
+EOF
 cd ..
 void core_domain_get_call const char*
 cd core_domain_get_call
 mode api
 mem domain Domain*
+tcode <<EOF
+FunctionDomain *fn = domain_core_function_domain_new("cmyfn2", "int");
+const char *call = domain_core_domain_get_call((Domain *)fn);
+EXPECT(call == NULL, "core_get_call should return NULL before set_call");
+domain_core_domain_delete((Domain *)fn);
+EOF
 cd ..
 void core_domain_set_mode void
 cd core_domain_set_mode
 mode api
 mem domain Domain*
 mem mode int
+tcode <<EOF
+ModuleDomain *mod = domain_core_module_domain_new("cmodemode");
+domain_core_domain_set_mode((Domain *)mod, MOD_MODE_STATIC);
+EXPECT(mod->mode == MOD_MODE_STATIC, "core_set_mode: should be MOD_MODE_STATIC, got %d", mod->mode);
+domain_core_domain_set_mode((Domain *)mod, MOD_MODE_SRC);
+EXPECT(mod->mode == MOD_MODE_SRC, "core_set_mode: should be MOD_MODE_SRC, got %d", mod->mode);
+domain_core_domain_delete((Domain *)mod);
+EOF
 cd ..
 void core_project_new Project*
 cd core_project_new
 mode api
 mem name const char*
+tcode <<EOF
+Project *p = domain_core_project_new("coreproj");
+EXPECT(p != NULL, "core_project_new returned NULL");
+EXPECT(p->name != NULL && strcmp(p->name, "coreproj") == 0, "core_project_new name wrong: %s", p->name ? p->name : "NULL");
+EXPECT(p->root != NULL, "core_project_new root is NULL");
+EXPECT(p->root->type == DOMAIN_MODULE, "core_project_new root type wrong: %d", (int)p->root->type);
+domain_core_project_free(p);
+EOF
 cd ..
 void core_project_free void
 cd core_project_free
 mode api
 mem proj Project*
+tcode <<EOF
+Project *p = domain_core_project_new("corefree");
+domain_core_project_free(p);
+EXPECT(1, "core_project_free: should not crash");
+domain_core_project_free(NULL);
+EXPECT(1, "core_project_free(NULL): should not crash");
+EOF
 cd ..
 void core_project_add_dependency void
 cd core_project_add_dependency
@@ -932,6 +1224,15 @@ mem proj Project*
 mem importer_path const char*
 mem source_path const char*
 mem cboot_file const char*
+tcode <<EOF
+Project *p = domain_core_project_new("coredep");
+domain_core_project_add_dependency(p, "/a", "/b", "b/.cboot");
+int has = domain_core_project_has_dependency(p, "/a", "/b");
+EXPECT(has == 1, "core_add_dependency: should have /a->/b, got %d", has);
+int no_has = domain_core_project_has_dependency(p, "/a", "/c");
+EXPECT(no_has == 0, "core_add_dependency: should not have /a->/c, got %d", no_has);
+domain_core_project_free(p);
+EOF
 cd ..
 void core_project_has_dependency int
 cd core_project_has_dependency
@@ -939,6 +1240,14 @@ mode api
 mem proj Project*
 mem importer_path const char*
 mem source_path const char*
+tcode <<EOF
+Project *p = domain_core_project_new("corehas");
+EXPECT(domain_core_project_has_dependency(p, "/x", "/y") == 0, "core_has_dependency: should return 0 for non-existent");
+domain_core_project_add_dependency(p, "/x", "/y", "y/.cboot");
+EXPECT(domain_core_project_has_dependency(p, "/x", "/y") == 1, "core_has_dependency: should return 1 after add");
+EXPECT(domain_core_project_has_dependency(p, "/y", "/x") == 0, "core_has_dependency: should return 0 for reverse");
+domain_core_project_free(p);
+EOF
 cd ..
 void core_project_would_cycle int
 cd core_project_would_cycle
@@ -946,11 +1255,28 @@ mode api
 mem proj Project*
 mem importer_path const char*
 mem source_path const char*
+tcode <<EOF
+Project *p = domain_core_project_new("corecycle");
+domain_core_project_add_dependency(p, "/mod_a", "/mod_b", "mod_b/.cboot");
+int would = domain_core_project_would_cycle(p, "/mod_b", "/mod_a");
+EXPECT(would == 1, "core_would_cycle: B->A should cycle, got %d", would);
+int no_cycle = domain_core_project_would_cycle(p, "/mod_a", "/mod_b");
+EXPECT(no_cycle == 0, "core_would_cycle: A->B should not cycle, got %d", no_cycle);
+int no_dep = domain_core_project_would_cycle(p, "/mod_c", "/mod_d");
+EXPECT(no_dep == 0, "core_would_cycle: C->D should not cycle, got %d", no_dep);
+domain_core_project_free(p);
+EOF
 cd ..
 void core_is_builtin_type int
 cd core_is_builtin_type
 mode api
 mem type_name const char*
+tcode <<EOF
+EXPECT(domain_core_is_builtin_type("int") == 1, "core_is_builtin_type(int) should be 1");
+EXPECT(domain_core_is_builtin_type("char") == 1, "core_is_builtin_type(char) should be 1");
+EXPECT(domain_core_is_builtin_type("foobar") == 0, "core_is_builtin_type(foobar) should be 0");
+EXPECT(domain_core_is_builtin_type(NULL) == 0, "core_is_builtin_type(NULL) should be 0");
+EOF
 cd ..
 
 # End of .cboot for domain

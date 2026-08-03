@@ -1622,56 +1622,232 @@ void generate_module void
 cd generate_module
 mem mod Domain*
 mem parent_dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_module"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "generate_module: gen failed %d", rc);
+EXPECT(utils_file_exists("mymod/mymod.c"), "generate_module: module dir created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_mod_c void
 cd generate_mod_c
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_mod_c"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "generate_mod_c: .c file created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_mod_h void
 cd generate_mod_h
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_mod_h"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "generate_mod_h: .h file created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_mod_cmake void
 cd generate_mod_cmake
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_mod_cmake"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/CMakeLists.txt"), "generate_mod_cmake: CMakeLists.txt created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_mod_cboot void
 cd generate_mod_cboot
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_mod_cboot"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "generate_mod_cboot: .cboot created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_top_cmake void
 cd generate_top_cmake
 mem proj Project*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_top_cmake"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("CMakeLists.txt"), "generate_top_cmake: top CMakeLists.txt created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_top_main void
 cd generate_top_main
 mem proj Project*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_top_main"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("main.c"), "generate_top_main: main.c created when no exe module");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_project_cboot void
 cd generate_project_cboot
 mem proj Project*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_proj_cboot"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists(".cboot"), "generate_project_cboot: project .cboot created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void find_exe_module Domain*
 cd find_exe_module
 mem proj Project*
+tcode <<EOF
+const char *td = "/tmp/cbt_find_exe"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+m->compiler = COMPILER_EXE;
+FunctionDomain *f = domain_function_domain_new("main", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "find_exe_module: gen with exe module %d", rc);
+EXPECT(!utils_file_exists("main.c"), "find_exe_module: no top main.c when exe module exists");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void docgen_is_api int
 cd docgen_is_api
 mem d Domain*
+tcode <<EOF
+const char *td = "/tmp/cbt_docgen_is_api"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *fapi = domain_function_domain_new("pubfn", "int"); fapi->mode = API_MODE_API;
+FunctionDomain *fpriv = domain_function_domain_new("privfn", "int"); fpriv->mode = API_MODE_NORMAL;
+domain_domain_add_child((Domain*)m, (Domain*)fapi);
+domain_domain_add_child((Domain*)m, (Domain*)fpriv);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "docgen_is_api: gen ok %d", rc);
+EXPECT(utils_file_exists("mymod/mymod.h"), "docgen_is_api: .h created for api filtering");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void compiler_mode_str const char*
 cd compiler_mode_str
 mem c CompilerMode
+tcode <<EOF
+const char *td = "/tmp/cbt_compiler_mode"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+m->compiler = COMPILER_EXE;
+FunctionDomain *f = domain_function_domain_new("main", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "compiler_mode_str: exe mode gen %d", rc);
+EXPECT(utils_file_exists("mymod/main.c"), "compiler_mode_str: exe mode creates main.c");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void get_module_prefix void
 cd get_module_prefix
 mem mod Domain*
 mem buf char*
 mem size size_t
+tcode <<EOF
+const char *td = "/tmp/cbt_get_prefix"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "get_module_prefix: .c created with prefix");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void make_abs_name void
 cd make_abs_name
@@ -1679,11 +1855,40 @@ mem prefix const char*
 mem name const char*
 mem buf char*
 mem size size_t
+tcode <<EOF
+const char *td = "/tmp/cbt_make_abs_name"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "make_abs_name: .h created with abs names");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_cboot_only_recursive void
 cd generate_cboot_only_recursive
 mem mod Domain*
 mem parent_dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_cboot_rec"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+int rc = generator_generate_cboot_only(p);
+EXPECT(rc == 0, "generate_cboot_only_recursive: cboot only %d", rc);
+EXPECT(utils_file_exists("mymod/.cboot"), "generate_cboot_only_recursive: module .cboot created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_cboot_only int
 cd generate_cboot_only
@@ -1716,36 +1921,144 @@ void write_c_includes void
 cd write_c_includes
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_c_includes"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_c_includes: .c with includes created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_c_defs void
 cd write_c_defs
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_c_defs"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+MacroDomain *mac = domain_macro_domain_new("MAXVAL");
+domain_domain_add_child((Domain*)m, (Domain*)mac);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_c_defs: .c with macro defs created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_c_types void
 cd write_c_types
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_c_types"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+StructDomain *st = domain_struct_domain_new("MyData");
+MemberDomain *sm = domain_member_domain_new("x", "int");
+domain_domain_add_child((Domain*)st, (Domain*)sm);
+domain_domain_add_child((Domain*)m, (Domain*)st);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_c_types: .c with struct types created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_c_variables void
 cd write_c_variables
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_c_vars"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+VariableDomain *v = domain_variable_domain_new("counter", "int");
+domain_domain_add_child((Domain*)m, (Domain*)v);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_c_variables: .c with variables created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_c_functions void
 cd write_c_functions
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_c_funcs"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+MemberDomain *pa = domain_member_domain_new("a", "int");
+domain_domain_add_child((Domain*)f, (Domain*)pa);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_c_functions: .c with functions created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_dllexport_macro void
 cd write_dllexport_macro
 mem f FILE*
 mem mod_name const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_dllexport"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mylib"); m->mode = MOD_MODE_SRC;
+m->compiler = COMPILER_DL;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mylib/mylib.c"), "write_dllexport_macro: dl .c created");
+EXPECT(utils_file_exists("mylib/mylib.h"), "write_dllexport_macro: dl .h created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_function_params void
 cd write_function_params
 mem func_domain Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_func_params"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+MemberDomain *pa = domain_member_domain_new("a", "int");
+MemberDomain *pb = domain_member_domain_new("b", "int");
+domain_domain_add_child((Domain*)f, (Domain*)pa);
+domain_domain_add_child((Domain*)f, (Domain*)pb);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_function_params: .h with params created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_h_guard_begin void
 cd write_h_guard_begin
@@ -1753,95 +2066,370 @@ mem f FILE*
 mem mod_name const char*
 mem guard_out char*
 mem guard_size size_t
+tcode <<EOF
+const char *td = "/tmp/cbt_write_h_guard_begin"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_h_guard_begin: .h with guard created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_h_guard_end void
 cd write_h_guard_end
 mem f FILE*
 mem guard const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_h_guard_end"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_h_guard_end: .h with guard end created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_h_api_macros void
 cd write_h_api_macros
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_h_api_macros"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+MacroDomain *mac = domain_macro_domain_new("MAXVAL"); mac->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)mac);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_h_api_macros: .h with api macros created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_h_api_types void
 cd write_h_api_types
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_h_api_types"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+StructDomain *st = domain_struct_domain_new("MyData"); st->mode = API_MODE_API;
+MemberDomain *sm = domain_member_domain_new("x", "int");
+domain_domain_add_child((Domain*)st, (Domain*)sm);
+domain_domain_add_child((Domain*)m, (Domain*)st);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_h_api_types: .h with api types created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_h_fwd_decls void
 cd write_h_fwd_decls
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_h_fwd_decls"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("process", "int"); f->mode = API_MODE_API;
+MemberDomain *param = domain_member_domain_new("data", "struct ExternalType*");
+domain_domain_add_child((Domain*)f, (Domain*)param);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_h_fwd_decls: .h with fwd decls created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_h_api_functions void
 cd write_h_api_functions
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_h_api_funcs"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_h_api_functions: .h with api functions created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_header void
 cd cboot_write_header
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_header"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_header: .cboot header created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_children void
 cd cboot_write_children
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_children"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+StructDomain *st = domain_struct_domain_new("MyData");
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)m, (Domain*)st);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_children: .cboot with children created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_submodule_refs void
 cd cboot_write_submodule_refs
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_submods"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *parent = domain_module_domain_new("parent"); parent->mode = MOD_MODE_SRC;
+ModuleDomain *child = domain_module_domain_new("child"); child->mode = MOD_MODE_SRC;
+domain_domain_add_child((Domain*)parent, (Domain*)child);
+domain_domain_add_child((Domain*)p->root, (Domain*)parent);
+int rc = generator_generate_cboot_only(p);
+EXPECT(rc == 0, "cboot_write_submodule_refs: gen ok %d", rc);
+EXPECT(utils_file_exists("parent/.cboot"), "cboot_write_submodule_refs: parent .cboot created");
+EXPECT(utils_file_exists("parent/child/.cboot"), "cboot_write_submodule_refs: child .cboot created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cmake_write_prebuilt_lib void
 cd cmake_write_prebuilt_lib
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cmake_prebuilt"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mylib"); m->mode = MOD_MODE_STATIC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mylib/CMakeLists.txt"), "cmake_write_prebuilt_lib: CMakeLists.txt created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cmake_write_submodule_sources void
 cd cmake_write_submodule_sources
 mem mod Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cmake_submods"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *parent = domain_module_domain_new("parent"); parent->mode = MOD_MODE_SRC;
+ModuleDomain *child = domain_module_domain_new("child"); child->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)parent, (Domain*)f);
+domain_domain_add_child((Domain*)parent, (Domain*)child);
+domain_domain_add_child((Domain*)p->root, (Domain*)parent);
+generator_generate_project(p);
+EXPECT(utils_file_exists("parent/CMakeLists.txt"), "cmake_write_submodule_sources: parent CMakeLists.txt created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_struct_members void
 cd write_struct_members
 mem parent Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_struct_members"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+StructDomain *st = domain_struct_domain_new("MyData");
+MemberDomain *sm1 = domain_member_domain_new("x", "int");
+MemberDomain *sm2 = domain_member_domain_new("name", "char*");
+domain_domain_add_child((Domain*)st, (Domain*)sm1);
+domain_domain_add_child((Domain*)st, (Domain*)sm2);
+domain_domain_add_child((Domain*)m, (Domain*)st);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_struct_members: .c with struct members created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_func_signature void
 cd write_func_signature
 mem func FunctionDomain*
 mem abs_name const char*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_func_sig"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_func_signature: .c with func signature created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_func_vars void
 cd write_func_vars
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_func_vars"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+VariableDomain *lv = domain_variable_domain_new("result", "int");
+domain_domain_add_child((Domain*)f, (Domain*)lv);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.c"), "write_func_vars: .c with func vars created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_api_rename_type void
 cd write_api_rename_type
 mem td TypeDomain*
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_api_rename"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+TypeDomain *ty = domain_type_domain_new("MyHandle");
+ty->mode = TYPE_MODE_API_RENAME;
+domain_domain_add_child((Domain*)m, (Domain*)ty);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "write_api_rename_type: .h with api rename type created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void extract_struct_name int
 cd extract_struct_name
 mem ts const char*
 mem sname char*
 mem size size_t
+tcode <<EOF
+const char *td = "/tmp/cbt_extract_struct_name"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("process", "struct ExternalType*"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "extract_struct_name: .h with extracted struct name created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void fwd_list_contains int
 cd fwd_list_contains
 mem arr char[][MAX_NAME_LEN]
 mem count int
 mem name const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_fwd_list_contains"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f1 = domain_function_domain_new("fa", "struct TypeA*"); f1->mode = API_MODE_API;
+FunctionDomain *f2 = domain_function_domain_new("fb", "struct TypeB*"); f2->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f1);
+domain_domain_add_child((Domain*)m, (Domain*)f2);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "fwd_list_contains: .h with deduped fwd decls created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void defined_in_module int
 cd defined_in_module
 mem mod Domain*
 mem sname const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_defined_in_module"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+StructDomain *st = domain_struct_domain_new("MyData"); st->mode = API_MODE_API;
+FunctionDomain *f = domain_function_domain_new("process", "struct MyData*"); f->mode = API_MODE_API;
+FunctionDomain *f2 = domain_function_domain_new("other", "struct ExternalType*"); f2->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)st);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)m, (Domain*)f2);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "defined_in_module: .h created with module-defined check");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void collect_func_types int
 cd collect_func_types
@@ -1849,6 +2437,22 @@ mem func FunctionDomain*
 mem child Domain*
 mem out const char*[]
 mem cap int
+tcode <<EOF
+const char *td = "/tmp/cbt_collect_func_types"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("process", "struct ExtType*"); f->mode = API_MODE_API;
+MemberDomain *pa = domain_member_domain_new("data", "struct OtherType*");
+domain_domain_add_child((Domain*)f, (Domain*)pa);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "collect_func_types: .h with collected types created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void fwd_try_add void
 cd fwd_try_add
@@ -1857,105 +2461,419 @@ mem mod Domain*
 mem fwd_decls char[][MAX_NAME_LEN]
 mem fwd_count int*
 mem cap int
+tcode <<EOF
+const char *td = "/tmp/cbt_fwd_try_add"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("process", "struct ExtType*"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod.h"), "fwd_try_add: .h with fwd decl added");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void write_mod_mode void
 cd write_mod_mode
 mem md ModuleDomain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_write_mod_mode"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "write_mod_mode: .cboot with mode written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_members void
 cd cboot_write_members
 mem parent Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_members"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+MemberDomain *pa = domain_member_domain_new("a", "int");
+domain_domain_add_child((Domain*)f, (Domain*)pa);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_members: .cboot with members written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_function void
 cd cboot_write_function
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_function"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_function: .cboot with function written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_struct void
 cd cboot_write_struct
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_struct"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+StructDomain *st = domain_struct_domain_new("MyData");
+domain_domain_add_child((Domain*)m, (Domain*)st);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_struct: .cboot with struct written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_type void
 cd cboot_write_type
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_type"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+TypeDomain *ty = domain_type_domain_new("MyHandle");
+domain_domain_add_child((Domain*)m, (Domain*)ty);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_type: .cboot with type written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_macro void
 cd cboot_write_macro
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_macro"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+MacroDomain *mac = domain_macro_domain_new("MAXVAL");
+domain_domain_add_child((Domain*)m, (Domain*)mac);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_macro: .cboot with macro written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void cboot_write_variable void
 cd cboot_write_variable
 mem child Domain*
 mem f FILE*
+tcode <<EOF
+const char *td = "/tmp/cbt_cboot_write_variable"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+VariableDomain *v = domain_variable_domain_new("counter", "int");
+domain_domain_add_child((Domain*)m, (Domain*)v);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_cboot_only(p);
+EXPECT(utils_file_exists("mymod/.cboot"), "cboot_write_variable: .cboot with variable written");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_add_subdirs void
 cd top_cmake_add_subdirs
 mem f FILE*
 mem proj Project*
 mem skip Domain*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_add_subdirs"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m1 = domain_module_domain_new("mod1"); m1->mode = MOD_MODE_SRC;
+ModuleDomain *m2 = domain_module_domain_new("mod2"); m2->mode = MOD_MODE_SRC;
+domain_domain_add_child((Domain*)p->root, (Domain*)m1);
+domain_domain_add_child((Domain*)p->root, (Domain*)m2);
+generator_generate_project(p);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_add_subdirs: top CMakeLists.txt with subdirs created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_emit_exe_sources void
 cd top_cmake_emit_exe_sources
 mem f FILE*
 mem proj Project*
 mem exe_mod Domain*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_exe_src"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *exem = domain_module_domain_new("app"); exem->mode = MOD_MODE_SRC;
+exem->compiler = COMPILER_EXE;
+FunctionDomain *mf = domain_function_domain_new("main", "int"); mf->mode = API_MODE_API;
+domain_domain_add_child((Domain*)exem, (Domain*)mf);
+ModuleDomain *norm = domain_module_domain_new("lib"); norm->mode = MOD_MODE_SRC;
+FunctionDomain *nf = domain_function_domain_new("add", "int"); nf->mode = API_MODE_API;
+domain_domain_add_child((Domain*)norm, (Domain*)nf);
+domain_domain_add_child((Domain*)p->root, (Domain*)exem);
+domain_domain_add_child((Domain*)p->root, (Domain*)norm);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "top_cmake_emit_exe_sources: gen with exe %d", rc);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_emit_exe_sources: CMakeLists.txt with exe sources created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_emit_exe_libs void
 cd top_cmake_emit_exe_libs
 mem f FILE*
 mem proj Project*
 mem exe_mod Domain*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_exe_libs"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *exem = domain_module_domain_new("app"); exem->mode = MOD_MODE_SRC;
+exem->compiler = COMPILER_EXE;
+FunctionDomain *mf = domain_function_domain_new("main", "int"); mf->mode = API_MODE_API;
+domain_domain_add_child((Domain*)exem, (Domain*)mf);
+ModuleDomain *slib = domain_module_domain_new("mylib"); slib->mode = MOD_MODE_STATIC;
+FunctionDomain *lf = domain_function_domain_new("add", "int"); lf->mode = API_MODE_API;
+domain_domain_add_child((Domain*)slib, (Domain*)lf);
+domain_domain_add_child((Domain*)p->root, (Domain*)exem);
+domain_domain_add_child((Domain*)p->root, (Domain*)slib);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "top_cmake_emit_exe_libs: gen with exe+lib %d", rc);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_emit_exe_libs: CMakeLists.txt with lib links created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_collect_all_sources void
 cd top_cmake_collect_all_sources
 mem f FILE*
 mem proj Project*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_collect"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m1 = domain_module_domain_new("mod1"); m1->mode = MOD_MODE_SRC;
+ModuleDomain *m2 = domain_module_domain_new("mod2"); m2->mode = MOD_MODE_SRC;
+FunctionDomain *f1 = domain_function_domain_new("add", "int"); f1->mode = API_MODE_API;
+FunctionDomain *f2 = domain_function_domain_new("sub", "int"); f2->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m1, (Domain*)f1);
+domain_domain_add_child((Domain*)m2, (Domain*)f2);
+domain_domain_add_child((Domain*)p->root, (Domain*)m1);
+domain_domain_add_child((Domain*)p->root, (Domain*)m2);
+generator_generate_project(p);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_collect_all_sources: CMakeLists.txt with all sources created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_link_prebuilt void
 cd top_cmake_link_prebuilt
 mem f FILE*
 mem proj Project*
 mem target_name const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_link_pre"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+ModuleDomain *slib = domain_module_domain_new("mylib"); slib->mode = MOD_MODE_STATIC;
+FunctionDomain *lf = domain_function_domain_new("libfn", "int"); lf->mode = API_MODE_API;
+domain_domain_add_child((Domain*)slib, (Domain*)lf);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+domain_domain_add_child((Domain*)p->root, (Domain*)slib);
+generator_generate_project(p);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_link_prebuilt: CMakeLists.txt with prebuilt lib links created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_with_exe void
 cd top_cmake_with_exe
 mem f FILE*
 mem proj Project*
 mem exe_mod Domain*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_with_exe"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *exem = domain_module_domain_new("app"); exem->mode = MOD_MODE_SRC;
+exem->compiler = COMPILER_EXE;
+FunctionDomain *mf = domain_function_domain_new("main", "int"); mf->mode = API_MODE_API;
+domain_domain_add_child((Domain*)exem, (Domain*)mf);
+domain_domain_add_child((Domain*)p->root, (Domain*)exem);
+int rc = generator_generate_project(p);
+EXPECT(rc == 0, "top_cmake_with_exe: gen with exe %d", rc);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_with_exe: CMakeLists.txt with exe created");
+EXPECT(utils_file_exists("app/main.c"), "top_cmake_with_exe: app/main.c created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void top_cmake_without_exe void
 cd top_cmake_without_exe
 mem f FILE*
 mem proj Project*
+tcode <<EOF
+const char *td = "/tmp/cbt_top_cmake_without_exe"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("CMakeLists.txt"), "top_cmake_without_exe: CMakeLists.txt without exe created");
+EXPECT(utils_file_exists("main.c"), "top_cmake_without_exe: top main.c created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_mod_h_external void
 cd generate_mod_h_external
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_mod_h_ext"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *parent = domain_module_domain_new("parent"); parent->mode = MOD_MODE_SRC;
+ModuleDomain *ext = domain_module_domain_new("extmod"); ext->mode = MOD_MODE_EXTERNAL;
+domain_domain_add_child((Domain*)parent, (Domain*)ext);
+domain_domain_add_child((Domain*)p->root, (Domain*)parent);
+generator_generate_project(p);
+EXPECT(utils_file_exists("parent/extmod/extmod.h"), "generate_mod_h_external: forwarder .h created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void generate_mod_test void
 cd generate_mod_test
 mem mod Domain*
 mem dir const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_gen_mod_test"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("add", "int"); f->mode = API_MODE_API;
+MemberDomain *pa = domain_member_domain_new("a", "int");
+MemberDomain *pb = domain_member_domain_new("b", "int");
+domain_domain_add_child((Domain*)f, (Domain*)pa);
+domain_domain_add_child((Domain*)f, (Domain*)pb);
+domain_function_add_test_case(f, TEST_CASE_SIMPLE, "1,2", "3", NULL);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod_test.c"), "generate_mod_test: _test.c created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void test_is_string_type int
 cd test_is_string_type
 mem type const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_test_is_string_type"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("getname", "char*"); f->mode = API_MODE_API;
+domain_function_add_test_case(f, TEST_CASE_SIMPLE, "", "hello", NULL);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod_test.c"), "test_is_string_type: _test.c for string return created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void test_fmt const char*
 cd test_fmt
 mem type const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_test_fmt"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("getptr", "void*"); f->mode = API_MODE_API;
+domain_function_add_test_case(f, TEST_CASE_SIMPLE, "", "0", NULL);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod_test.c"), "test_fmt: _test.c for pointer return created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 void test_emit_expected void
 cd test_emit_expected
 mem f FILE*
 mem type const char*
 mem expected const char*
+tcode <<EOF
+const char *td = "/tmp/cbt_test_emit_expected"; char cmd[256], cwd[1024];
+snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", td, td); system(cmd);
+getcwd(cwd, sizeof(cwd)); chdir(td);
+Project *p = domain_project_new("t");
+ModuleDomain *m = domain_module_domain_new("mymod"); m->mode = MOD_MODE_SRC;
+FunctionDomain *f = domain_function_domain_new("compute", "int"); f->mode = API_MODE_API;
+domain_function_add_test_case(f, TEST_CASE_SIMPLE, "5", "10", NULL);
+domain_domain_add_child((Domain*)m, (Domain*)f);
+domain_domain_add_child((Domain*)p->root, (Domain*)m);
+generator_generate_project(p);
+EXPECT(utils_file_exists("mymod/mymod_test.c"), "test_emit_expected: _test.c with expected values created");
+chdir(cwd); domain_project_free(p);
+snprintf(cmd, sizeof(cmd), "rm -rf %s", td); system(cmd);
+EOF
 cd ..
 
 # 子模块引用

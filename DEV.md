@@ -1,7 +1,5 @@
 # cboot 开发文档
 
-本项目主要代码仓是gitee，另有github和gitcode两个镜像，其中github实时同步，gitcode定期同步。
-
 ## 模块概览
 
 | 模块 | 说明 | 路径 |
@@ -15,6 +13,7 @@
 | `typecheck` | 类型检查器 - 检查域类型一致性和符号冲突 | typecheck/ |
 | `utils` | 工具函数 - 通用辅助功能 | utils/ |
 | `main` | 可执行入口模块 - CBoot的主程序入口 | main/ |
+| `k` | - | k/ |
 
 ## 模块详细内容
 
@@ -504,6 +503,10 @@
 - `CBOOT_HISTORY_MAX` = `100`
 
 详细文档见 [main](main/DEV.md)。
+
+### k
+
+详细文档见 [k](k/DEV.md)。
 
 ## 依赖链
 

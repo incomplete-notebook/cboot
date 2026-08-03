@@ -6,13 +6,50 @@
 
 - [run_project](#run_project)
 - [result_init](#result_init)
+- [cup_free_decl](#cup_free_decl)
 - [result_free](#result_free)
 - [result_add_error](#result_add_error)
 - [result_add_warning](#result_add_warning)
 - [result_add_decl](#result_add_decl)
 - [parse_source](#parse_source)
+- [cup_read_file](#cup_read_file)
+- [cup_get_module_prefix](#cup_get_module_prefix)
+- [cup_find_function](#cup_find_function)
+- [cup_find_struct](#cup_find_struct)
+- [cup_find_type](#cup_find_type)
+- [cup_find_macro](#cup_find_macro)
+- [cup_find_variable](#cup_find_variable)
+- [cup_sync_function_params](#cup_sync_function_params)
+- [cup_sync_struct_members](#cup_sync_struct_members)
+- [cup_sync_decl](#cup_sync_decl)
 - [run_module](#run_module)
+- [cup_update_recursive](#cup_update_recursive)
+- [cup_create_new_function](#cup_create_new_function)
+- [cup_replace_str_field](#cup_replace_str_field)
+- [cup_sync_func_body](#cup_sync_func_body)
+- [cup_update_existing_function](#cup_update_existing_function)
+- [cup_sync_function_decl](#cup_sync_function_decl)
+- [cup_sync_struct_decl](#cup_sync_struct_decl)
+- [cup_sync_typedef_decl](#cup_sync_typedef_decl)
+- [cup_sync_macro_decl](#cup_sync_macro_decl)
+- [cup_sync_var_fields](#cup_sync_var_fields)
+- [cup_sync_variable_decl](#cup_sync_variable_decl)
+- [cup_sync_enum_decl](#cup_sync_enum_decl)
+- [cup_decl_type_matches](#cup_decl_type_matches)
+- [cup_find_matching_decl](#cup_find_matching_decl)
+- [cup_detect_and_remove_deleted](#cup_detect_and_remove_deleted)
+- [cup_skip_generated_header](#cup_skip_generated_header)
+- [cup_set_module_code](#cup_set_module_code)
+- [cup_print_diagnostics](#cup_print_diagnostics)
+- [cup_strip_decl_prefix](#cup_strip_decl_prefix)
+- [cup_print_summary](#cup_print_summary)
 - [cup_free_param_array](#cup_free_param_array)
+- [cup_free_member_array](#cup_free_member_array)
+- [cup_free_str_array](#cup_free_str_array)
+- [cup_str_array_push](#cup_str_array_push)
+- [cup_remove_all_member_children](#cup_remove_all_member_children)
+- [cup_zero_str_slot](#cup_zero_str_slot)
+- [cup_print_str_array](#cup_print_str_array)
 
 ---
 
@@ -45,6 +82,18 @@ void result_init(CUPResult* r)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `r` | `CUPResult*` | - |
+
+### void cup_free_decl()
+
+```c
+void cup_free_decl(CUPDecl* d)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `d` | `CUPDecl*` | - |
 
 ### void result_free()
 
@@ -112,6 +161,137 @@ int parse_source(const char* source, const char* filename, CUPResult* r)
 | `filename` | `const char*` | - |
 | `r` | `CUPResult*` | - |
 
+### char* cup_read_file()
+
+```c
+char* cup_read_file(const char* path)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `path` | `const char*` | - |
+
+### void cup_get_module_prefix()
+
+```c
+void cup_get_module_prefix(Domain* mod, char* buf, size_t size)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `Domain*` | - |
+| `buf` | `char*` | - |
+| `size` | `size_t` | - |
+
+### FunctionDomain* cup_find_function()
+
+```c
+FunctionDomain* cup_find_function(ModuleDomain* mod, const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `name` | `const char*` | - |
+
+### StructDomain* cup_find_struct()
+
+```c
+StructDomain* cup_find_struct(ModuleDomain* mod, const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `name` | `const char*` | - |
+
+### TypeDomain* cup_find_type()
+
+```c
+TypeDomain* cup_find_type(ModuleDomain* mod, const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `name` | `const char*` | - |
+
+### MacroDomain* cup_find_macro()
+
+```c
+MacroDomain* cup_find_macro(ModuleDomain* mod, const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `name` | `const char*` | - |
+
+### VariableDomain* cup_find_variable()
+
+```c
+VariableDomain* cup_find_variable(ModuleDomain* mod, const char* name)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `name` | `const char*` | - |
+
+### void cup_sync_function_params()
+
+```c
+void cup_sync_function_params(FunctionDomain* func, CUPDecl* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+### void cup_sync_struct_members()
+
+```c
+void cup_sync_struct_members(Domain* sd, CUPDecl* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `sd` | `Domain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+### void cup_sync_decl()
+
+```c
+void cup_sync_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
 ### int run_module()
 
 ```c
@@ -125,6 +305,282 @@ int run_module(ModuleDomain* mod, const char* mod_dir)
 | `mod` | `ModuleDomain*` | - |
 | `mod_dir` | `const char*` | - |
 
+### int cup_update_recursive()
+
+```c
+int cup_update_recursive(Domain* dom, const char* dir, int* total_errors, int* total_warnings)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `dom` | `Domain*` | - |
+| `dir` | `const char*` | - |
+| `total_errors` | `int*` | - |
+| `total_warnings` | `int*` | - |
+
+### FunctionDomain* cup_create_new_function()
+
+```c
+FunctionDomain* cup_create_new_function(ModuleDomain* mod, CUPDecl* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+### int cup_replace_str_field()
+
+```c
+int cup_replace_str_field(char** field, const char* new_val)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `field` | `char**` | - |
+| `new_val` | `const char*` | - |
+
+### int cup_sync_func_body()
+
+```c
+int cup_sync_func_body(FunctionDomain* func, CUPDecl* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+### int cup_update_existing_function()
+
+```c
+int cup_update_existing_function(FunctionDomain* func, CUPDecl* decl)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `func` | `FunctionDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+
+### void cup_sync_function_decl()
+
+```c
+void cup_sync_function_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### void cup_sync_struct_decl()
+
+```c
+void cup_sync_struct_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### void cup_sync_typedef_decl()
+
+```c
+void cup_sync_typedef_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### void cup_sync_macro_decl()
+
+```c
+void cup_sync_macro_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### void cup_sync_var_fields()
+
+```c
+void cup_sync_var_fields(VariableDomain* vd, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `vd` | `VariableDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### void cup_sync_variable_decl()
+
+```c
+void cup_sync_variable_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### void cup_sync_enum_decl()
+
+```c
+void cup_sync_enum_decl(ModuleDomain* mod, CUPDecl* decl, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `decl` | `CUPDecl*` | - |
+| `changes` | `int*` | - |
+
+### int cup_decl_type_matches()
+
+```c
+int cup_decl_type_matches(DomainType dtype, CUPDeclKind dkind)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `dtype` | `DomainType` | - |
+| `dkind` | `CUPDeclKind` | - |
+
+### int cup_find_matching_decl()
+
+```c
+int cup_find_matching_decl(Domain* c, CUPResult* result, const char* prefix, size_t plen)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `c` | `Domain*` | - |
+| `result` | `CUPResult*` | - |
+| `prefix` | `const char*` | - |
+| `plen` | `size_t` | - |
+
+### void cup_detect_and_remove_deleted()
+
+```c
+void cup_detect_and_remove_deleted(ModuleDomain* mod, CUPResult* result, const char* prefix, size_t plen, int* changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `result` | `CUPResult*` | - |
+| `prefix` | `const char*` | - |
+| `plen` | `size_t` | - |
+| `changes` | `int*` | - |
+
+### const char* cup_skip_generated_header()
+
+```c
+const char* cup_skip_generated_header(const char* p, const char* mod_name, size_t name_len)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `p` | `const char*` | - |
+| `mod_name` | `const char*` | - |
+| `name_len` | `size_t` | - |
+
+### void cup_set_module_code()
+
+```c
+void cup_set_module_code(ModuleDomain* mod, const char* source)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `source` | `const char*` | - |
+
+### void cup_print_diagnostics()
+
+```c
+void cup_print_diagnostics(CUPResult* result)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `result` | `CUPResult*` | - |
+
+### void cup_strip_decl_prefix()
+
+```c
+void cup_strip_decl_prefix(CUPResult* result, const char* prefix, size_t plen)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `result` | `CUPResult*` | - |
+| `prefix` | `const char*` | - |
+| `plen` | `size_t` | - |
+
+### void cup_print_summary()
+
+```c
+void cup_print_summary(ModuleDomain* mod, CUPResult* result, int changes)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `mod` | `ModuleDomain*` | - |
+| `result` | `CUPResult*` | - |
+| `changes` | `int` | - |
+
 ### void cup_free_param_array()
 
 ```c
@@ -136,6 +592,88 @@ void cup_free_param_array(CUParParam* params, int count)
 | 名称 | 类型 | 说明 |
 |------|------|------|
 | `params` | `CUParParam*` | - |
+| `count` | `int` | - |
+
+### void cup_free_member_array()
+
+```c
+void cup_free_member_array(CUParMember* members, int count)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `members` | `CUParMember*` | - |
+| `count` | `int` | - |
+
+### void cup_free_str_array()
+
+```c
+void cup_free_str_array(char*** arr_ptr, int* count, int* cap)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr_ptr` | `char***` | - |
+| `count` | `int*` | - |
+| `cap` | `int*` | - |
+
+### void cup_str_array_push()
+
+```c
+void cup_str_array_push(char*** arr_ptr, int* count, int* cap, const char* msg)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr_ptr` | `char***` | - |
+| `count` | `int*` | - |
+| `cap` | `int*` | - |
+| `msg` | `const char*` | - |
+
+### void cup_remove_all_member_children()
+
+```c
+void cup_remove_all_member_children(Domain* parent)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `parent` | `Domain*` | - |
+
+### void cup_zero_str_slot()
+
+```c
+void cup_zero_str_slot(char*** arr_ptr, int* count, int* cap)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `arr_ptr` | `char***` | - |
+| `count` | `int*` | - |
+| `cap` | `int*` | - |
+
+### void cup_print_str_array()
+
+```c
+void cup_print_str_array(FILE* fp, char** arr, int count)
+```
+
+**参数**:
+
+| 名称 | 类型 | 说明 |
+|------|------|------|
+| `fp` | `FILE*` | - |
+| `arr` | `char**` | - |
 | `count` | `int` | - |
 
 ## 子模块
