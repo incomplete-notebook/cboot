@@ -279,6 +279,8 @@ static void main_print_usage(const char *prog) {
     printf("    value <值>             设置值\n");
     printf("    mode <模式>            设置模式 (internal/external/api/normal/...)\n");
     printf("    cmode <模式>           设置编译器模式 (exe/sl/dl/normal)\n");
+    printf("    test <输入> => <预期>  添加测试用例（函数域中，如 test 3,5 => 8）\n");
+    printf("    tcode <代码>           添加代码测试用例（函数域中）\n");
     printf("  控制:\n");
     printf("    cd <路径>              导航域树\n");
     printf("    rm <名称> [-f]         删除子域\n");
@@ -302,7 +304,7 @@ static void main_print_usage(const char *prog) {
 /* All command names for tab completion */
 static const char *g_cmd_names[] = {
     "mod", "struct", "type", "def", "void", "var", "mem", "enum",
-    "cmt", "value", "call", "mode", "cmode", "code",
+    "cmt", "value", "call", "mode", "cmode", "code", "test", "tcode",
     "cd", "rm", "mv", "find", "ls",
     "gen", "update", "analyze", "adjust", "im", "in", "res", "exit", "help", "?",
     NULL
@@ -835,6 +837,27 @@ static int main_dispatch_modify(const char *cmd, char **tokens, int count) {
         domain_domain_set_code(g_proj->current, buf);
         printf("code 已设置。\n");
         return 0;
+    }
+
+    /* test 命令：添加测试用例 test <输入> => <预期> (函数域中) */
+    if (utils_str_eq(cmd, "test")) {
+        if (count < 2) { printf("用法: test <输入> => <预期>\n"); return -1; }
+        char buf[MAX_LINE_LEN] = {0};
+        main_join_rest(buf, sizeof(buf), tokens, count);
+        return commands_cmd_test(buf);
+    }
+
+    /* tcode 命令：添加代码测试用例 (函数域中) */
+    if (utils_str_eq(cmd, "tcode")) {
+        if (count < 2) {
+            printf("输入测试代码，以 Ctrl+D 或 EOF 结束:\n");
+            char code_buf[MAX_LINE_LEN * 64];
+            main_read_code_from_stdin(code_buf, sizeof(code_buf));
+            return commands_cmd_tcode(code_buf);
+        }
+        char buf[MAX_LINE_LEN] = {0};
+        main_join_rest(buf, sizeof(buf), tokens, count);
+        return commands_cmd_tcode(buf);
     }
     return -2;
 }

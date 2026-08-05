@@ -2,6 +2,9 @@
 *.o
 *.obj
 
+# Release binaries (built artifacts, not source)
+release/
+
 # Libraries
 *.a
 *.lib

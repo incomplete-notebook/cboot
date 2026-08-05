@@ -1,0 +1,7 @@
+# CBoot minimal file for module k
+# 此文件在模块 k 作用域下执行，不需要 mod k
+
+mode src
+cmode normal
+
+# End of .cboot for k

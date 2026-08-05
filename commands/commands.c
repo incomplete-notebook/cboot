@@ -62,7 +62,10 @@ static int commands_check_type(const char *type_name) {
     TypeChecker tc;
     typecheck_type_checker_init(&tc, g_proj->current);
     if (typecheck_type_checker_validate(&tc, type_name) != 0) {
-        /* 仅警告，不阻止 — 类型可能定义在外部头文件中 */
+        /* 类型未在域树或内建表中找到：可能是外部头文件中的类型，
+         * 打印警告让用户知晓，但不阻止创建。 */
+        printf("警告: 类型 '%s' 未定义（可能是外部头文件中的类型，如确认无误可忽略）\n",
+               type_name);
         return 0;
     }
     return 0;
